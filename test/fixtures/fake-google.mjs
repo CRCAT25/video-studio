@@ -249,8 +249,8 @@ export function startFakeGoogle({ port = 0, state = defaultState() } = {}) {
       }
       if (q.get('dimensions') === 'video') {
         return send(res, 200, {
-          columnHeaders: ['video', 'views', 'averageViewDuration', 'subscribersGained'].map((n) => ({ name: n })),
-          rows: state.videos.filter((v) => v.privacy === 'public').map((v, i) => [v.id, Number(v.views), 120 + i, 3 + i]),
+          columnHeaders: ['video', 'views', 'averageViewDuration', 'subscribersGained', 'subscribersLost'].map((n) => ({ name: n })),
+          rows: state.videos.filter((v) => v.privacy === 'public').map((v, i) => [v.id, Number(v.views), 120 + i, 3 + i, 1]),
         });
       }
       return send(res, 400, { error: { code: 400, message: 'bad dims', errors: [{ reason: 'badRequest' }] } });

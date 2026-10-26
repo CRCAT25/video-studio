@@ -52,8 +52,8 @@ const COLS = [
   { id: 'views', label: 'Lượt xem', num: true },
   { id: 'likes', label: 'Thích', num: true, cls: 'hide-sm' },
   { id: 'comments', label: 'Bình luận', num: true, cls: 'hide-sm' },
-  { id: 'avgViewDuration', label: 'Xem TB', num: true, cls: 'hide-sm', hint: 'trọn đời' },
-  { id: 'subsGained', label: 'Đăng ký', num: true, cls: 'hide-sm', hint: 'trọn đời' },
+  { id: 'avgViewDuration', label: 'Xem TB', num: true, cls: 'hide-sm', hint: 'trọn đời; Analytics trễ 1–2 ngày so với Studio' },
+  { id: 'subs', label: 'Đăng ký', num: true, cls: 'hide-sm', hint: 'ròng: mới − hủy, trọn đời; Analytics trễ 1–2 ngày so với Studio' },
 ];
 // Shorts: API không có cờ riêng, YouTube cho Shorts dài tối đa 3 phút → coi video ≤ 180 giây là Shorts.
 const SHORT_MAX = 180;
@@ -702,7 +702,7 @@ function VideoTable({ videos, truncated }) {
                       <td className="num hide-sm">{fmtNum(v.likes)}</td>
                       <td className="num hide-sm">{fmtNum(v.comments)}</td>
                       <td className="num hide-sm">{fmtSecs(v.avgViewDuration)}</td>
-                      <td className="num hide-sm">{v.subsGained == null ? '—' : fmtNum(v.subsGained)}</td>
+                      <td className="num hide-sm">{v.subs == null ? '—' : signed(v.subs)}</td>
                     </tr>
                   );
                 })}

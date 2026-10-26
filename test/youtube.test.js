@@ -322,10 +322,12 @@ test('videos: mới nhất trước, gộp số liệu Data + Analytics, thời 
   assert.equal(one.likes, 50);
   assert.equal(one.avgViewDuration, 120);
   assert.equal(one.subsGained, 3);
+  assert.equal(one.subs, 2);
   assert.equal(one.description, 'Mô tả Video một');
   assert.equal(one.thumb, 'https://i.ytimg.com/vi/vid1/mqdefault.jpg');
   assert.equal(v.videos[0].privacy, 'private');
   assert.equal(v.videos[0].avgViewDuration, null);
+  assert.equal(v.videos[0].subs, null);
   const rep = google.calls.find((c) => c.path === '/v2/reports' && c.query.dimensions === 'video');
   assert.equal(rep.query.startDate, '2024-01-15');
   assert.equal(rep.query.ids, 'channel==MINE');

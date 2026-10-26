@@ -127,7 +127,7 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
       const rep = await analytics(token, {
         startDate,
         endDate: today,
-        metrics: 'views,averageViewDuration,subscribersGained',
+        metrics: 'views,averageViewDuration,subscribersGained,subscribersLost',
         dimensions: 'video',
         sort: '-views',
         maxResults: String(MAX_VIDEOS),
@@ -149,6 +149,8 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
         comments: num(v.statistics?.commentCount),
         avgViewDuration: num(a.averageViewDuration),
         subsGained: num(a.subscribersGained),
+        // Đăng ký ròng như Studio: mới − hủy.
+        subs: a.subscribersGained == null ? null : num(a.subscribersGained) - (num(a.subscribersLost) ?? 0),
       };
     });
     out.sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
