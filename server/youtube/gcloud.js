@@ -52,7 +52,8 @@ export async function downloadVerified(url, dest, { size, sha256, fetch: fetchFn
     if (size && got !== size) throw new Error('File tải về không đủ dung lượng.');
     if (hash.digest('hex') !== sha256) throw new Error('File tải về sai mã kiểm tra (sha256).');
   } catch (e) {
-    out.destroy();
+    // Chờ luồng đóng hẳn rồi mới xóa — luồng còn đang mở file có thể tạo lại file sau rmSync.
+    if (!out.closed) await new Promise((r) => out.once('close', r).destroy());
     fs.rmSync(dest, { force: true });
     throw e;
   }
