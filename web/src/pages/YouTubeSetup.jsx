@@ -283,7 +283,7 @@ export default function YouTubeSetup({ yt, onReload }) {
           <li>
             Khi kết nối, Google báo <b>"Google chưa xác minh ứng dụng này"</b> — vì app là của bạn. Bấm <b>Nâng cao</b> → <b>Đi tới … (không an toàn)</b>.
           </li>
-          <li>Hạn mức miễn phí ~10.000 đơn vị/ngày (đặt lại lúc 14:00–15:00 giờ Việt Nam). Xem số liệu tốn vài đơn vị; tải 1 video lên tốn ~1.600.</li>
+          <li>Hạn mức miễn phí ~10.000 điểm/ngày (đặt lại lúc 14:00–15:00 giờ Việt Nam). Xem số liệu tốn vài điểm; tải 1 video lên tốn ~1.600.</li>
           <li>Dự án chưa được Google duyệt thì video tải lên qua API luôn ở chế độ <b>Riêng tư</b> — bạn tự chuyển Công khai trong YouTube Studio.</li>
           <li>Đặt hình thu nhỏ cần kênh đã xác minh số điện thoại.</li>
         </ul>

@@ -23,6 +23,7 @@ const fmtHours = (min) => (min == null ? '—' : new Intl.NumberFormat('vi-VN', 
 const signed = (n) => (n == null ? '—' : `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtNum(Math.abs(n))}`);
 const dm = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—');
 
+const QUOTA_TIP = 'Google tính điểm theo mỗi lệnh gọi, đặt lại lúc 14–15h giờ Việt Nam';
 const PRIVACY = { public: 'Công khai', unlisted: 'Không công khai', private: 'Riêng tư' };
 const METRICS = [
   { id: 'views', label: 'Lượt xem', fmt: fmtNum },
@@ -104,7 +105,10 @@ export default function Channels({ yt, error, onReload }) {
         <div>
           <h1>Kênh YouTube</h1>
           <p className="muted small">
-            Hạn mức API hôm nay: <b>{fmtNum(q.used)}</b> / {fmtNum(q.limit)} đơn vị
+            Hạn mức YouTube hôm nay: <b>{fmtNum(q.used)}</b> / {fmtNum(q.limit)} điểm{' '}
+            <span className="info-tip" tabIndex={0} title={QUOTA_TIP} aria-label={QUOTA_TIP}>
+              ⓘ
+            </span>
           </p>
         </div>
         <div className="acts">

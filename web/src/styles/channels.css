@@ -107,3 +107,4 @@
 .gw-publish{margin-top:12px}
 .gw-publish summary{cursor:pointer;font-size:var(--fs-sm);color:var(--muted)}
 .gw-publish .gw-todo{margin-top:10px}
+.info-tip{cursor:help;color:var(--muted);outline-offset:2px}
