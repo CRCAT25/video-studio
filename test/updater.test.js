@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createUpdater, githubRepo, isNewer, parseVersion } from '../server/updater.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { codeFingerprint, createUpdater, githubRepo, isNewer, parseVersion } from '../server/updater.js';
 
 // fetch giả trả Release (null → 404; 'boom' → lỗi mạng); đếm số lượt gọi.
 function fakeFetch(release) {
@@ -103,4 +106,43 @@ test('restart chỉ có khi được truyền hàm restart', () => {
   assert.equal(u.status().canRestart, true);
   u.restart();
   assert.equal(n, 1);
+});
+
+test('stale: mã trên máy đổi sau khi khởi động → báo cần khởi động lại (một lần là giữ)', async () => {
+  let print = 'a';
+  let t = 0;
+  const u = createUpdater({ repo: null, fingerprint: () => print, now: () => t, watchMs: 0 });
+  assert.equal(u.status().stale, false);
+  print = 'b';
+  assert.equal(u.status().stale, false); // còn trong cache
+  t = 10_000;
+  assert.equal(u.status().stale, true);
+  print = 'a';
+  t = 20_000;
+  assert.equal(u.status().stale, true);
+  assert.equal(createUpdater({ repo: null, fingerprint: null }).status().stale, false);
+});
+
+test('stale: kiểm định kỳ, đổi thì phát sự kiện', async () => {
+  let print = 'a';
+  const u = createUpdater({ repo: null, fingerprint: () => print, now: () => Date.now() + (print === 'b' ? 10_000 : 0), watchMs: 10 });
+  const seen = new Promise((resolve) => u.on(() => resolve(u.status().stale)));
+  print = 'b';
+  assert.equal(await seen, true);
+});
+
+test('codeFingerprint: đổi khi build lại giao diện hoặc sửa code server', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-fp-'));
+  fs.mkdirSync(path.join(root, 'web', 'dist'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'server', 'youtube'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'web', 'dist', 'index.html'), '<script src="/a1.js">');
+  fs.writeFileSync(path.join(root, 'server', 'youtube', 'api.js'), 'x');
+  const a = codeFingerprint(root);
+  assert.equal(codeFingerprint(root), a);
+  fs.writeFileSync(path.join(root, 'web', 'dist', 'index.html'), '<script src="/b2.js">');
+  const b = codeFingerprint(root);
+  assert.notEqual(b, a);
+  fs.writeFileSync(path.join(root, 'server', 'youtube', 'api.js'), 'y');
+  assert.notEqual(codeFingerprint(root), b);
+  fs.rmSync(root, { recursive: true, force: true });
 });

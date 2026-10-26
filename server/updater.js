@@ -1,12 +1,15 @@
 // Báo bản mới: so version trong package.json với Release mới nhất trên GitHub (cache 6 giờ, lỗi mạng thì im lặng).
 // Nút Cập nhật chạy `cli.js --update` ở tiến trình con (git pull + npm install + build) rồi chờ người dùng khởi động lại.
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO_ROOT } from './presets.js';
 
 const CHECK_TTL_MS = 6 * 60 * 60 * 1000;
 const LOG_TAIL = 4000;
+const STALE_TTL_MS = 5000;
+const WATCH_MS = 30_000;
 
 // "v1.2.3" / "1.2.3" → [1,2,3]; sai định dạng → null.
 export function parseVersion(v) {
@@ -38,6 +41,35 @@ function readPkg(root) {
   }
 }
 
+// Dấu vân tay mã đang có trên máy (giao diện đã build + package.json + code server); khác lúc khởi động → server đang chạy bản cũ.
+export function codeFingerprint(root) {
+  const h = crypto.createHash('sha1');
+  const add = (f) => {
+    try {
+      h.update(f).update(fs.readFileSync(f));
+    } catch {
+      /* thiếu file: bỏ qua */
+    }
+  };
+  add(path.join(root, 'web', 'dist', 'index.html'));
+  add(path.join(root, 'package.json'));
+  const walk = (dir) => {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of names.sort((a, b) => a.name.localeCompare(b.name))) {
+      const f = path.join(dir, d.name);
+      if (d.isDirectory()) walk(f);
+      else if (d.name.endsWith('.js')) add(f);
+    }
+  };
+  walk(path.join(root, 'server'));
+  return h.digest('hex');
+}
+
 // Mặc định: chạy lệnh --update của chính app (bin: script node thay thế, dùng khi test), gom stdout+stderr; xong gọi onExit(code).
 function defaultSpawnUpdate({ root, bin, onOutput, onExit }) {
   const args = bin ? [bin] : [path.join(root, 'server', 'cli.js'), '--update'];
@@ -51,7 +83,8 @@ function defaultSpawnUpdate({ root, bin, onOutput, onExit }) {
   child.on('close', (code) => onExit(code ?? 1));
 }
 
-// opts: {current?, repo?, apiBase?, fetchFn?, spawnUpdate?, updateBin?, now?, ttlMs?, enabled?, restart? (chỉ có khi chạy nền)}.
+// opts: {current?, repo?, apiBase?, fetchFn?, spawnUpdate?, updateBin?, now?, ttlMs?, enabled?, restart? (chỉ có khi chạy nền),
+//        fingerprint? (hàm dấu vân tay mã, null = tắt), watchMs? (chu kỳ kiểm mã đổi, 0 = tắt)}.
 export function createUpdater({
   root = REPO_ROOT,
   current = null,
@@ -64,6 +97,8 @@ export function createUpdater({
   ttlMs = CHECK_TTL_MS,
   enabled = true,
   restart = null,
+  fingerprint = () => codeFingerprint(root),
+  watchMs = WATCH_MS,
 } = {}) {
   const pkg = readPkg(root);
   const cur = current || String(pkg.version || '0.0.0');
@@ -74,8 +109,29 @@ export function createUpdater({
   let pending = null;
   let state = 'idle'; // idle | running | done | error
   let log = '';
+  const boot = fingerprint ? fingerprint() : null;
+  let stale = false;
+  let staleAt = 0;
 
   const emit = () => listeners.forEach((fn) => fn());
+
+  // Mã trên máy đã khác lúc khởi động? (cache vài giây; đã cũ thì giữ nguyên tới khi khởi động lại).
+  function isStale() {
+    if (!boot || stale) return stale;
+    if (now() - staleAt < STALE_TTL_MS) return stale;
+    staleAt = now();
+    stale = fingerprint() !== boot;
+    return stale;
+  }
+  if (boot && watchMs > 0) {
+    const timer = setInterval(() => {
+      if (!stale && isStale()) {
+        clearInterval(timer);
+        emit();
+      }
+    }, watchMs);
+    timer.unref?.();
+  }
 
   // Gọi GitHub (gộp lượt trùng); force bỏ qua cache. Không bao giờ throw.
   function check({ force = false } = {}) {
@@ -119,6 +175,7 @@ export function createUpdater({
       state,
       log: state === 'error' ? log.slice(-LOG_TAIL) : null,
       canRestart: typeof restart === 'function',
+      stale: isStale(),
     };
   }
 

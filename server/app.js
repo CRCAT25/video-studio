@@ -1,5 +1,6 @@
 // HTTP server của Video Studio (hợp đồng M1 §9, §9.2, §10): Fastify + auth + SSE + media + web/dist.
 // Không import runner.js — runner (EventEmitter) được truyền vào qua deps.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
@@ -111,6 +112,7 @@ export async function buildApp({
   if (!store) throw new Error('buildApp cần store.');
   if (!projects) throw new Error('buildApp cần projects.');
   const version = appVersion();
+  const bootId = crypto.randomUUID(); // đổi mỗi lần server khởi động — trang dùng để biết app đã mở lại
   const distDir = path.resolve(webDist || DEFAULT_WEB_DIST);
   const sse = hub || createHub();
   const runDoctorFn = typeof doctor === 'function'
@@ -351,7 +353,7 @@ export async function buildApp({
   const isRefresh = (req) => req.query?.refresh === '1' || req.query?.refresh === 'true';
 
   // ---- API
-  app.get('/api/health', async () => ({ ok: true, version }));
+  app.get('/api/health', async () => ({ ok: true, version, boot: bootId }));
 
   app.get('/api/doctor', async (req) => {
     const r = await getDoctor(req.query?.refresh === '1' || req.query?.refresh === 'true');

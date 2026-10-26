@@ -496,7 +496,7 @@ export async function buildApp({store, projects, runner, presets, channels, toke
 
 | Method & path | Returns |
 |---|---|
-| `GET /api/health` | `{ok:true, version}` (no auth needed) |
+| `GET /api/health` | `{ok:true, version, boot}` (no auth needed; `boot` changes on every server start) |
 | `GET /api/doctor` | `{claude: {found, path, version}, auth: {loggedIn, authMethod, subscriptionType} \| null, node, platform, home, problems: [Vietnamese strings]}` (cached 60 s; `?refresh=1` bypasses the cache) |
 | `GET /api/channels` | `Channel[]` |
 | `GET /api/presets` | `{presets: [{id,name,channel,format,file,yaml,project_dir,skills,vars,permissions,defaults,steps}], errors}` |

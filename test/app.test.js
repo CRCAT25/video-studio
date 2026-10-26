@@ -136,7 +136,9 @@ test('health không cần token, có header bảo mật + CSP đúng hợp đồ
   const r = await anon({ url: '/api/health' });
   assert.equal(r.statusCode, 200);
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
-  assert.deepEqual(r.json(), { ok: true, version: pkg.version });
+  const { boot, ...rest } = r.json();
+  assert.deepEqual(rest, { ok: true, version: pkg.version });
+  assert.match(boot, /^[0-9a-f-]{36}$/);
   assert.equal(r.headers['x-content-type-options'], 'nosniff');
   assert.equal(r.headers['referrer-policy'], 'same-origin');
   assert.equal(r.headers['x-frame-options'], 'DENY');
