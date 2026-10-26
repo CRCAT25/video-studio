@@ -7,7 +7,12 @@ const DEFAULT_MSG = {
   forbidden_path: 'Đường dẫn nằm ngoài thư mục dự án.',
   bad_host: 'Địa chỉ truy cập không hợp lệ — hãy mở bằng 127.0.0.1 hoặc localhost.',
   not_found: 'Không tìm thấy.',
-  preset_not_found: 'Không tìm thấy preset.',
+  preset_not_found: 'Không tìm thấy quy trình.',
+  pipeline_not_found: 'Không tìm thấy quy trình.',
+  invalid_pipeline: 'Quy trình chưa hợp lệ.',
+  invalid_format: 'Định dạng video không hợp lệ.',
+  invalid_name: 'Tên quy trình phải có 1–80 ký tự.',
+  channel_not_found: 'Không tìm thấy kênh này.',
   busy: 'Dự án đang có bước chạy. Chờ xong hoặc dừng lượt đó trước.',
   locked: 'Thư mục dự án đang bị một tiến trình khác khóa.',
   not_runnable: 'Bước này chưa chạy được.',
@@ -39,6 +44,11 @@ const DEFAULT_MSG = {
   gc_busy: 'Đang thiết lập — đợi bước hiện tại xong hoặc bấm Hủy.',
   gc_step: 'Bước này không còn khả dụng — tải lại trang.',
   gc_no_file: 'Không còn file nào để xử lý.',
+  assistant_busy: 'Trợ lý đang làm — chờ xong hoặc bấm Dừng.',
+  assistant_unavailable: 'Trợ lý AI chưa bật trên server này.',
+  usage_cooldown: 'Vừa kiểm tra — thử lại sau ít phút.',
+  usage_timeout: 'Claude không trả lời kịp — thử lại sau.',
+  usage_unavailable: 'Chưa lấy được số liệu mức dùng.',
 };
 
 // Tạo Error mang status/code/message (+ data gốc từ server) để UI hiển thị.
@@ -102,6 +112,15 @@ export const api = {
   doctor: (refresh = false) => request('GET', `/api/doctor${refresh ? '?refresh=1' : ''}`),
   channels: () => request('GET', '/api/channels'),
   presets: () => request('GET', '/api/presets'),
+  pipelineCatalog: () => request('GET', '/api/pipeline/catalog'),
+  suggestPipeline: (f, opts) => {
+    const q = new URLSearchParams();
+    for (const k of ['orientation', 'aspect', 'length', 'duration']) if (f?.[k] != null && f[k] !== '') q.set(k, String(f[k]));
+    if (f?.hd4k) q.set('hd4k', '1');
+    return request('GET', `/api/pipeline/suggest?${q}`, undefined, opts);
+  },
+  savePipeline: (pipeline, name) => request('POST', '/api/pipelines', { pipeline, name }),
+  deletePipeline: (id) => request('DELETE', `/api/pipelines/${enc(id)}`, {}), // thân {} để có Content-Type JSON (chặn CSRF)
   projects: (opts) => request('GET', '/api/projects', undefined, opts),
   createProject: (body) => request('POST', '/api/projects', body),
   project: (id, opts) => request('GET', `/api/projects/${enc(id)}`, undefined, opts),
@@ -119,6 +138,8 @@ export const api = {
   claudeLogin: ({ method, profileDir } = {}) => request('POST', '/api/claude/login', { method, profileDir: profileDir ?? null }),
   claudeLoginCancel: () => request('POST', '/api/claude/login/cancel', {}),
   claudeLogout: () => request('POST', '/api/claude/logout', {}),
+  claudeUsage: () => request('GET', '/api/claude/usage'),
+  claudeUsageCheck: (body = {}) => request('POST', '/api/claude/usage/check', body),
   auth: () => request('GET', '/api/auth'),
   authEnable: () => request('POST', '/api/auth/google/enable', {}),
   authDisable: () => request('POST', '/api/auth/google/disable', {}),
@@ -143,6 +164,11 @@ export const api = {
   ytStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytVideoStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/video-stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytVideos: (id, refresh = false) => request('GET', `/api/youtube/channels/${enc(id)}/videos${refresh ? '?refresh=1' : ''}`),
+  assistant: () => request('GET', '/api/assistant'),
+  assistantSend: (text, tabId) => request('POST', '/api/assistant/message', { text, tabId }),
+  assistantStop: () => request('POST', '/api/assistant/stop', {}),
+  assistantReset: () => request('POST', '/api/assistant/reset', {}),
+  assistantResult: (id, body) => request('POST', `/api/assistant/tool/${enc(id)}/result`, body),
   runEvents: (runId, after = 0, limit = 1000, opts) =>
     request('GET', `/api/runs/${enc(runId)}/events?after=${Number(after) || 0}&limit=${limit}`, undefined, opts),
 };

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
 import { RUN_LABEL, fmtNum, fmtTime } from '../lib/format.js';
+import { Sk, SkZone } from './Skeleton.jsx';
 
 const CAP = 3000; // giữ tối đa ~3000 dòng trên màn hình
 const PAGE = 1000;
@@ -244,9 +245,15 @@ export default function LogTerminal({ run, offline = false }) {
           <EventLine key={ev.seq} ev={ev} />
         ))}
         {loading && s.list.length === 0 ? (
-          <div className="note-l">
-            <span className="spinner" aria-hidden="true" /> Đang nạp nhật ký…
-          </div>
+          <SkZone className="sk-log" label="Đang nạp nhật ký">
+            {['62%', '84%', '48%', '76%', '90%', '55%', '70%', '40%'].map((w, i) => (
+              <div key={i} className="ev">
+                <Sk w="5.5em" />
+                <Sk w="4em" />
+                <Sk w={w} />
+              </div>
+            ))}
+          </SkZone>
         ) : null}
         {!loading && !error && s.list.length === 0 ? (
           <div className="note-l">{live ? 'Đang chờ Claude gửi dòng đầu tiên…' : 'Lượt này không có dòng nhật ký nào.'}</div>

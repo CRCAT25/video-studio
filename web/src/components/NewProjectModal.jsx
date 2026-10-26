@@ -1,8 +1,11 @@
-// Hộp thoại "Dự án mới": chọn preset (nhóm theo kênh), tiêu đề; slug + thư mục nằm trong "Tùy chọn nâng cao".
-import { useMemo, useState } from 'react';
+// Hộp thoại "Dự án mới" 2 bước: chọn định dạng (hoặc quy trình đã lưu) → tiêu đề, kênh, tùy chỉnh các bước; slug + thư mục ở "Tùy chọn nâng cao".
+import { useState } from 'react';
 import Modal from './Modal.jsx';
 import Flow from './Flow.jsx';
 import Select from './Select.jsx';
+import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatalog, useSuggestion } from './FormatPicker.jsx';
+import { Sk, SkFlow, SkZone } from './Skeleton.jsx';
+import StepEditor, { stepProblem } from './StepEditor.jsx';
 import { api } from '../api.js';
 import { isValidSlug, slugify } from '../lib/slug.js';
 
@@ -17,23 +20,35 @@ export function previewDir(template, slug, home) {
   return d;
 }
 
-function groupPresets(presets, channels) {
-  const names = new Map((channels || []).map((c) => [c.id, c.name]));
-  const groups = new Map();
-  for (const p of presets) {
-    const k = p.channel && names.has(p.channel) ? p.channel : p.channel || '';
-    if (!groups.has(k)) groups.set(k, { label: names.get(k) || (k ? `Kênh ${k}` : 'Không gắn kênh'), items: [] });
-    groups.get(k).items.push(p);
-  }
-  return [...groups.values()];
-}
+const clone = (v) => JSON.parse(JSON.stringify(v));
+// Bản nháp để sửa: mọi bước có cờ enabled (bước tắt sẵn giữ false).
+const toDraft = (raw) => {
+  const d = clone(raw);
+  delete d.file;
+  delete d.yaml;
+  d.steps = (d.steps || []).map((s) => ({ ...s, enabled: s.enabled !== false }));
+  return d;
+};
+const ADV_CODES = ['invalid_slug', 'slug_taken', 'invalid_dir', 'dir_taken'];
+const FIELD_CODES = ['invalid_title', 'invalid_name', ...ADV_CODES];
 
-// Hiển thị modal; onCreated(project) sau khi tạo xong.
+// Hiển thị modal; onCreated(project) sau khi tạo xong. Bước 1: chọn định dạng hoặc quy trình đã lưu. Bước 2: tiêu đề, kênh, sửa các bước.
 export default function NewProjectModal({ presetsData, channels, doctor, onClose, onCreated }) {
-  const presets = presetsData?.presets || [];
+  const saved = presetsData?.presets || [];
   const loadErrors = presetsData?.errors || [];
-  const [presetId, setPresetId] = useState(() => presets[0]?.id || '');
+  const { catalog, error: catErr } = useCatalog();
+  const [stage, setStage] = useState(1);
+  const [source, setSource] = useState('suggest'); // suggest | saved
+  const [format, setFormat] = useState(DEFAULT_FORMAT);
+  const [formatOk, setFormatOk] = useState(true);
+  const [savedId, setSavedId] = useState(() => saved[0]?.id || '');
+  const sugg = useSuggestion(format);
+  const [draft, setDraft] = useState(null);
+  const [draftKey, setDraftKey] = useState('');
   const [title, setTitle] = useState('');
+  const [channelId, setChannelId] = useState('');
+  const [saveOn, setSaveOn] = useState(false);
+  const [saveName, setSaveName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
   const [useDir, setUseDir] = useState(false);
@@ -42,8 +57,11 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   const [err, setErr] = useState(null);
   const [adv, setAdv] = useState(false);
 
-  const preset = presets.find((p) => p.id === presetId) || null;
-  const groups = useMemo(() => groupPresets(presets, channels), [presets, channels]);
+  const savedPreset = saved.find((p) => p.id === savedId) || null;
+  const chosen = source === 'saved' ? savedPreset?.pipeline || null : sugg.pipeline;
+  const chosenKey = source === 'saved' ? `saved:${savedId}` : `suggest:${JSON.stringify(format)}`;
+  const canNext = !!chosen && (source === 'saved' || (formatOk && !sugg.loading));
+
   const autoSlug = slugify(title);
   const effSlug = slugEdited ? slug : title.trim() ? autoSlug : '';
   const titleT = title.trim();
@@ -52,9 +70,28 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   const dirT = dir.trim();
   const dirBad = useDir && dirT !== '' && !(dirT.startsWith('/') || dirT.startsWith('~'));
   const home = doctor?.home || '';
-  const shownDir = useDir ? (dirT ? previewDir(dirT, effSlug, home) : '') : previewDir(preset?.project_dir || 'projects/{slug}', effSlug, home);
-  const canSubmit = !!preset && titleT.length > 0 && !titleBad && !slugBad && (!useDir || (dirT && !dirBad)) && !busy;
+  const shownDir = useDir ? (dirT ? previewDir(dirT, effSlug, home) : '') : previewDir(draft?.project_dir || 'projects/{slug}', effSlug, home);
+  const enabled = (draft?.steps || []).filter((s) => s.enabled !== false);
+  const stepsBad = !enabled.length || enabled.some((s) => stepProblem(s));
+  const saveNameT = saveName.trim();
+  const saveBad = saveOn && (!saveNameT || saveNameT.length > 80);
+  const canSubmit = !!draft && titleT.length > 0 && !titleBad && !slugBad && !stepsBad && !saveBad && (!useDir || (dirT && !dirBad)) && !busy;
   const fieldErr = (codes) => (err && codes.includes(err.code) ? err.message : null);
+  const chOptions = [{ value: '', label: 'Không gắn kênh' }, ...(channels || []).map((c) => ({ value: c.id, label: c.name || c.id }))];
+
+  // Sang bước 2: đổi nguồn thì làm nháp mới, giữ nguyên chỗ đã sửa nếu quay lại cùng nguồn.
+  const next = () => {
+    if (!canNext) return;
+    if (draftKey !== chosenKey || !draft) {
+      setDraft(toDraft(chosen));
+      setDraftKey(chosenKey);
+      setSaveName(source === 'saved' ? '' : chosen.name || '');
+      setSaveOn(false);
+      if (chosen.channel && (channels || []).some((c) => c.id === chosen.channel)) setChannelId(chosen.channel);
+    }
+    setErr(null);
+    setStage(2);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -62,28 +99,89 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
     setBusy(true);
     setErr(null);
     try {
-      const body = { presetId, title: titleT };
+      // kênh lấy theo ô Kênh, không theo kênh ghi trong quy trình
+      const { channel: _ch, ...pipeline } = draft;
+      const body = { pipeline, title: titleT };
+      if (channelId) body.channelId = channelId;
+      if (saveOn) body.saveAs = saveNameT;
       if (slugEdited) body.slug = slug;
       if (useDir && dirT) body.dir = dirT;
       const view = await api.createProject(body);
       onCreated?.(view);
     } catch (e2) {
-      setErr({ code: e2.code, message: e2.message });
-      if (['invalid_slug', 'slug_taken', 'invalid_dir', 'dir_taken'].includes(e2.code)) setAdv(true);
+      setErr({ code: e2.code, message: e2.message, problems: e2.data?.problems || null });
+      if (ADV_CODES.includes(e2.code)) setAdv(true);
       setBusy(false);
     }
   };
 
-  if (presets.length === 0) {
+  if (stage === 1) {
     return (
-      <Modal title="Dự án mới" onClose={onClose}>
-        <p className="note">
-          Chưa có preset. Thêm file <span className="mono">.yaml</span> vào thư mục <span className="mono">presets/</span> rồi mở lại.
-        </p>
+      <Modal title="Dự án mới" wide onClose={onClose}>
+        {saved.length ? (
+          <div className="seg src-tabs" role="tablist" aria-label="Nguồn quy trình">
+            <button type="button" role="tab" aria-selected={source === 'suggest'} className={source === 'suggest' ? 'on' : ''} onClick={() => setSource('suggest')}>
+              Gợi ý theo định dạng
+            </button>
+            <button type="button" role="tab" aria-selected={source === 'saved'} className={source === 'saved' ? 'on' : ''} onClick={() => setSource('saved')}>
+              Quy trình đã lưu <span className="muted">{saved.length}</span>
+            </button>
+          </div>
+        ) : null}
+        {source === 'suggest' ? (
+          catalog ? (
+            <FormatPicker catalog={catalog} value={format} onChange={setFormat} onValidity={setFormatOk} />
+          ) : catErr ? (
+            <div className="err-note" role="alert">{catErr.message}</div>
+          ) : (
+            <SkZone label="Đang tải định dạng">
+              <FormatPickerSkeleton />
+            </SkZone>
+          )
+        ) : (
+          <div className="saved-list" role="radiogroup" aria-label="Quy trình đã lưu">
+            {saved.map((p) => (
+              <label key={p.id} className={`saved-item${p.id === savedId ? ' on' : ''}`}>
+                <input type="radio" name="saved" checked={p.id === savedId} onChange={() => setSavedId(p.id)} />
+                <span className="saved-name">{p.name}</span>
+                <span className="muted">{p.steps?.length || 0} bước</span>
+              </label>
+            ))}
+          </div>
+        )}
+        {chosen ? (
+          <div className="fld prev">
+            <span className="fld-l">
+              {source === 'saved' ? chosen.name : `Quy trình gợi ý · ${flowSteps(chosen.steps).length} bước`}
+              {sugg.loading && source === 'suggest' ? <span className="spinner" aria-hidden="true" /> : null}
+            </span>
+            <div className="prev-belt">
+              <Flow steps={flowSteps(chosen.steps)} staticMode label={`Các bước của ${chosen.name}`} />
+            </div>
+            <span className="hint">Bước tốn tiền luôn hỏi trước khi chạy. Bước tiếp theo bạn có thể bật/tắt, đổi thứ tự và sửa từng bước.</span>
+          </div>
+        ) : source === 'suggest' && sugg.error ? (
+          <div className="err-note" role="alert">{sugg.error.message}</div>
+        ) : source === 'suggest' ? (
+          <SkZone className="fld prev" label="Đang tải quy trình gợi ý">
+            <span className="fld-l">
+              <Sk w="14em" />
+            </span>
+            <div className="prev-belt">
+              <SkFlow n={7} />
+            </div>
+            <span className="hint">
+              <Sk w="24em" />
+            </span>
+          </SkZone>
+        ) : null}
         {loadErrors.length ? <PresetErrors errors={loadErrors} /> : null}
         <div className="modal-acts">
           <button type="button" className="btn" onClick={onClose}>
-            Đóng
+            Hủy
+          </button>
+          <button type="button" className="btn primary" onClick={next} disabled={!canNext}>
+            Tiếp tục
           </button>
         </div>
       </Modal>
@@ -93,21 +191,36 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   return (
     <Modal title="Dự án mới" wide onClose={onClose} busy={busy}>
       <form onSubmit={submit} noValidate>
-        <label className="fld">
-          <span>Preset</span>
-          <Select
-            value={presetId}
-            options={groups.flatMap((g) => g.items.map((p) => ({ value: p.id, label: p.name, meta: `${p.steps?.length || 0} bước`, group: g.label })))}
-            onChange={setPresetId}
-            disabled={busy}
-          />
-        </label>
+        <p className="lead">{draft?.name}</p>
         <label className="fld">
           <span>Tiêu đề video</span>
           <input type="text" value={title} maxLength={TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} placeholder="Vd: Mua vàng hay gửi tiết kiệm?" disabled={busy} data-autofocus />
           {titleBad ? <span className="hint bad">Tiêu đề tối đa {TITLE_MAX} ký tự.</span> : null}
           {fieldErr(['invalid_title']) ? <span className="hint bad">{fieldErr(['invalid_title'])}</span> : null}
         </label>
+        <div className="fld">
+          <span className="fld-l">Kênh</span>
+          <Select value={channelId} options={chOptions} onChange={setChannelId} disabled={busy} label="Kênh" />
+          {fieldErr(['channel_not_found']) ? <span className="hint bad">{fieldErr(['channel_not_found'])}</span> : null}
+        </div>
+        <div className="fld">
+          <span className="fld-l">
+            Các bước <span className="muted">· {enabled.length} đang dùng</span>
+          </span>
+          <StepEditor steps={draft?.steps || []} library={catalog?.steps || []} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
+          {!enabled.length ? <span className="hint bad">Cần ít nhất 1 bước.</span> : null}
+        </div>
+        <div className="fld">
+          <label className="chk">
+            <input type="checkbox" checked={saveOn} onChange={(e) => setSaveOn(e.target.checked)} disabled={busy} />
+            <span>Lưu làm quy trình của tôi (dùng lại cho dự án sau)</span>
+          </label>
+          {saveOn ? (
+            <input type="text" style={{ width: '100%', marginTop: 8 }} value={saveName} maxLength={80} onChange={(e) => setSaveName(e.target.value)} placeholder="Tên quy trình" disabled={busy} aria-label="Tên quy trình" aria-invalid={saveBad} />
+          ) : null}
+          {saveOn && !saveNameT ? <span className="hint bad">Đặt tên cho quy trình.</span> : null}
+          {fieldErr(['invalid_name']) ? <span className="hint bad">{fieldErr(['invalid_name'])}</span> : null}
+        </div>
         <details className="adv" open={adv} onToggle={(e) => setAdv(e.currentTarget.open)}>
           <summary>Tùy chọn nâng cao</summary>
           <div className="fld">
@@ -155,21 +268,20 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
             {fieldErr(['invalid_dir', 'dir_taken']) ? <span className="hint bad">{fieldErr(['invalid_dir', 'dir_taken'])}</span> : null}
           </div>
         </details>
-        {preset?.steps?.length ? (
-          <div className="fld">
-            <span className="fld-l">{preset.steps.length} bước</span>
-            <div className="prev-belt">
-              <Flow steps={preset.steps} staticMode label={`Các bước của preset ${preset.name}`} />
-            </div>
-          </div>
-        ) : null}
-        {loadErrors.length ? <PresetErrors errors={loadErrors} /> : null}
-        {err && !fieldErr(['invalid_title', 'invalid_slug', 'slug_taken', 'invalid_dir', 'dir_taken']) ? (
+        {err && !fieldErr([...FIELD_CODES, 'channel_not_found']) ? (
           <div className="err-note" role="alert">
             {err.message}
+            {err.problems?.length > 1 ? (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {err.problems.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            ) : null}
           </div>
         ) : null}
         <div className="modal-acts">
+          <button type="button" className="btn" onClick={() => setStage(1)} disabled={busy} style={{ marginRight: 'auto' }}>
+            Quay lại
+          </button>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
             Hủy
           </button>
@@ -182,11 +294,11 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   );
 }
 
-// Danh sách file preset bị lỗi khi nạp.
+// Danh sách file quy trình bị lỗi khi nạp.
 export function PresetErrors({ errors }) {
   return (
     <div className="warn-note" style={{ marginTop: 10 }}>
-      <b>{errors.length} preset bị lỗi:</b>
+      <b>{errors.length} quy trình bị lỗi:</b>
       <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
         {errors.map((e, i) => (
           <li key={i}>

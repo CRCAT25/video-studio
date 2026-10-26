@@ -35,3 +35,74 @@ details.yaml pre{margin-top:8px}
 @media (max-width:880px){
   .spec{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Quy trình: bộ chọn định dạng, gợi ý, sửa bước */
+.sec-h{font-size:var(--fs-lg);margin:0 0 12px}
+.page-h.sec{margin:32px 0 12px}
+.page-h.sec .sec-h{margin:0}
+.bp-h .bp-del{margin-left:auto}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);max-width:100%}
+.seg button{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:0;border-radius:6px;background:none;color:var(--muted);font:500 var(--fs-sm)/1 var(--f-ui);cursor:pointer}
+.seg button:hover:not(:disabled){color:var(--text)}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.seg button .muted{font-weight:400}
+.src-tabs{margin:0 0 16px}
+.fmt{display:flex;flex-direction:column;gap:16px}
+.fmt-row{display:block;min-width:0}
+.fmt-row .hint{display:block;font-size:var(--fs-sm);color:var(--dim);margin-top:6px}
+.fmt-row .hint.bad{color:var(--err)}
+.fmt-ic{flex:none}
+.fmt-ic rect{fill:none;stroke:currentColor;stroke-width:1.6}
+.fmt-len{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fmt-card{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);text-align:left;cursor:pointer;font:var(--fs-sm)/1.4 var(--f-ui)}
+.fmt-card b{font-weight:500;font-size:var(--fs-md)}
+.fmt-card span{color:var(--muted)}
+.fmt-card:hover:not(:disabled){border-color:var(--line-2)}
+.fmt-card.on{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
+.fmt-dur-in{display:flex;align-items:center;gap:8px}
+.fmt-dur-in input{width:96px;height:36px}
+.saved-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.saved-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:var(--fs-md)}
+.saved-item.on{border-color:var(--text)}
+.saved-item .saved-name{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:500}
+.saved-item .muted{font-size:var(--fs-sm)}
+.fld.prev{margin-top:16px}
+.fld.prev .fld-l{display:flex;align-items:center;gap:8px}
+.sg{display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px;padding:20px}
+.sg-main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sg-main h2{margin:0}
+.sg-save{display:flex;gap:8px;flex-wrap:wrap}
+.sg-save input{flex:1 1 220px;min-width:0;height:36px}
+
+.se-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:8px}
+.se-row{border-bottom:1px solid var(--line);padding:6px 8px}
+.se-row:last-child{border-bottom:0}
+.se-row.off .se-no,.se-row.off .se-name{color:var(--dim)}
+.se-row.off .se-name{text-decoration:line-through}
+.se-main{display:flex;align-items:center;gap:8px;min-width:0}
+.se-no{font:var(--fs-xs)/1 var(--f-mono);color:var(--muted);flex:none}
+.se-name{flex:1 1 120px;min-width:0;height:30px;border-color:transparent!important;background:none!important;padding:0 6px!important;font-weight:500}
+.se-name:hover:not(:disabled),.se-name:focus{border-color:var(--line-2)!important;background:var(--surface)!important}
+.se-tags{display:flex;gap:4px;flex:none}
+.se-tags .tag.paid{color:var(--ask);background:var(--ask-soft)}
+.se-gate{flex:none;width:190px}
+.se-acts{display:flex;gap:2px;flex:none}
+.se-acts .btn.on{background:var(--surface-2);color:var(--text)}
+.se-row.bad .se-name{color:var(--err)}
+.se-hint{margin:2px 0 2px 56px;font-size:var(--fs-sm)}
+.se-edit{padding:10px 4px 4px 56px}
+.se-edit .fld{margin-bottom:12px}
+.se-edit .fld textarea{min-height:0}
+.se-edit code{font:var(--fs-xs) var(--f-mono)}
+.se-add{margin-top:8px}
+.se-add-sel{width:220px;max-width:100%}
+.se-add-sel .sel-ph{color:var(--text)}
+
+@media (max-width:880px){
+  .sg{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .se-main{flex-wrap:wrap}
+  .se-gate{order:5;flex:1 1 100%;width:auto}
+  .se-hint,.se-edit{margin-left:0;padding-left:4px}
+}

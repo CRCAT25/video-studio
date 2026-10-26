@@ -113,7 +113,7 @@ export function buildPrompt({ project, preset, step, feedback, prev, allowPaid =
     `# Bước ${idx + 1}/${steps.length || 1}: ${step?.name ?? step?.key} (id: ${step?.key})`,
     `Dự án: ${project?.title ?? ''} — slug: ${project?.id ?? ''}`,
     `Thư mục dự án (cwd): ${project?.dir ?? ''}`,
-    `Preset: ${preset?.name ?? preset?.id} (${preset?.id})`,
+    `Quy trình: ${preset?.name ?? preset?.id} (${preset?.id})`,
   ];
   for (const s of existingSkills(preset)) lines.push(`Skill: đọc ${s}/SKILL.md trước khi làm.`);
   lines.push(`Đầu ra bắt buộc: ${JSON.stringify(outputs)}`);
@@ -281,13 +281,15 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
 
   const lockFileOf = (dir) => path.join(dir, '.studio', 'lock');
 
-  function emitChange(projectId) {
+  // Phát sự kiện cho listener ngoài (change, rate_limit); listener lỗi không được làm hỏng lượt chạy.
+  function emitSafe(name, data) {
     try {
-      runner.emit('change', { projectId });
+      runner.emit(name, data);
     } catch {
-      /* listener lỗi không được làm hỏng lượt chạy */
+      /* bỏ qua */
     }
   }
+  const emitChange = (projectId) => emitSafe('change', { projectId });
 
   function addEvent(entry, ev) {
     let saved;
@@ -451,7 +453,7 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     const project = store.getProject(projectId);
     const preset = resolvePreset(projects, presets, projectId, project.preset_id);
     const step = preset?.steps?.find((s) => s.key === stepKey);
-    if (!preset || !step) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${stepKey}" trong preset của dự án.`);
+    if (!preset || !step) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${stepKey}" trong quy trình của dự án.`);
     const stepRow = store.getStep(projectId, stepKey);
     const dir = project.dir;
 
@@ -557,6 +559,7 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     if (parsed && isObj(obj)) {
       if (obj.type === 'system' && obj.subtype === 'init') onInit(entry, obj);
       else if (obj.type === 'result') entry.lastResult = obj;
+      else if (obj.type === 'rate_limit_event') emitSafe('rate_limit', obj.rate_limit_info);
       else if (obj.type === 'system' && obj.subtype === 'permission_denied') {
         entry.deniedSeen.push({ tool_name: obj.tool_name ?? null, tool_use_id: obj.tool_use_id ?? null, tool_input: null });
       } else if (obj.type === 'assistant' && Array.isArray(obj.message?.content)) {

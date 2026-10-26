@@ -52,33 +52,10 @@ function expectInvalid(raw, re) {
   );
 }
 
-test('nạp preset thật: tiktok-short không lỗi', () => {
-  const { presets, errors } = loadPresets([REPO_PRESETS]);
-  assert.ok(!errors.some((e) => path.basename(e.file) === 'tiktok-short.yaml'), JSON.stringify(errors, null, 2));
-  const t = presets.find((p) => p.id === 'tiktok-short');
-  assert.ok(t, 'phải có tiktok-short');
-  assert.equal(t.channel, 'tiktok');
-  assert.equal(t.format, 'short');
-  assert.equal(t.steps.length, 6);
-  assert.deepEqual(t.steps.map((s) => s.ord), [0, 1, 2, 3, 4, 5]);
-  assert.equal(t.steps[0].key, 'hook');
-  assert.equal(t.steps[0].gate.mode, 'manual');
-  assert.equal(t.defaults.gate.mode, 'auto_after');
-  assert.equal(t.defaults.gate.after_ms, 20 * 60_000);
-  assert.equal(t.defaults.timeout_ms, 3_600_000);
-  assert.ok(t.steps.find((s) => s.cost && s.cost.service === 'elevenlabs'));
-  assert.ok(t.project_dir.includes('{slug}'));
-  assert.ok(t.skills.every((s) => path.isAbsolute(s) && !s.includes('~')));
-  assert.ok(t.yaml.includes('id: tiktok-short'));
-  assert.ok(path.isAbsolute(t.file));
-  assert.deepEqual(Object.keys(t.permissions).sort(), ['allow', 'ask', 'deny']);
-});
-
-test('nạp preset mẫu trong repo không lỗi', () => {
+test('repo không còn quy trình dựng sẵn: presets/ chỉ có channels.yaml', () => {
   const { presets, errors } = loadPresets([REPO_PRESETS]);
   assert.deepEqual(errors, []);
-  assert.deepEqual(presets.map((p) => p.id).sort(), ['tiktok-short']);
-  for (const p of presets) assert.ok(p.steps.every((s) => !s.outputs.some((o) => o.includes('..') || path.isAbsolute(o))));
+  assert.deepEqual(presets, []);
 });
 
 test('preset fixture e2e-short hợp lệ và đúng §12', () => {
@@ -154,10 +131,11 @@ test('validatePreset: thiếu steps / steps rỗng', () => {
   expectInvalid(base({ steps: [] }), /steps/);
 });
 
-test('validatePreset: thiếu id/name/channel, id không phải slug', () => {
+test('validatePreset: thiếu id/name, channel rỗng, id không phải slug', () => {
   expectInvalid(base({ id: 'Demo Preset' }), /"id"/);
   expectInvalid(base({ name: '' }), /name/);
-  expectInvalid(base({ channel: undefined }), /channel/);
+  assert.equal(validatePreset(base({ channel: undefined }), '/x/demo.yaml').channel, null); // kênh không bắt buộc
+  expectInvalid(base({ channel: '' }), /channel/);
   expectInvalid(base({ format: 'square' }), /format/);
   expectInvalid('không phải object', /object/);
 });
@@ -238,7 +216,7 @@ test('validatePreset: key bước sai slug, trùng; thiếu prompt; báo tất c
   } catch (e) {
     assert.equal(e.code, 'EPRESET');
     assert.ok(e.problems.length >= 4, e.message);
-    assert.match(e.message, /^Preset có \d+ lỗi:/);
+    assert.match(e.message, /^Quy trình có \d+ lỗi:/);
     assert.equal(e.file, '/x/demo.yaml');
   }
 });

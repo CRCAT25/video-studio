@@ -3,12 +3,12 @@ import { useEffect, useId, useRef } from 'react';
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-// Đặt inert cho mọi anh em của các tổ tiên từ nền hộp thoại lên tới body (trừ vùng thông báo); trả hàm gỡ.
+// Đặt inert cho mọi anh em của các tổ tiên từ nền hộp thoại lên tới body (trừ vùng thông báo và sidebar Trợ lý AI); trả hàm gỡ.
 function inertOutside(bg) {
   const touched = [];
   for (let node = bg; node && node !== document.body && node.parentElement; node = node.parentElement) {
     for (const sib of node.parentElement.children) {
-      if (sib === node || sib.inert || sib.matches('script,style,.toasts,[aria-live]')) continue;
+      if (sib === node || sib.inert || sib.matches('script,style,.toasts,.ai-panel,[aria-live]')) continue;
       sib.inert = true;
       touched.push(sib);
     }
@@ -32,6 +32,7 @@ export default function Modal({ title, lead, onClose, wide = false, paid = false
     const first = el?.querySelector('[data-autofocus]') || el?.querySelector('input,select,textarea,button:not(.x)');
     if (first) first.focus();
     const onKey = (e) => {
+      if (e.target?.closest?.('.ai-panel')) return; // phím gõ trong sidebar Trợ lý AI không đụng tới hộp thoại
       if (e.key === 'Escape' && !busyRef.current) {
         e.stopPropagation();
         closeRef.current?.();

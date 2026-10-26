@@ -153,7 +153,7 @@ function strList(v, field, bad) {
 function presetError(problems, file) {
   const msg = problems.length === 1
     ? problems[0]
-    : `Preset có ${problems.length} lỗi:\n` + problems.map((p, i) => `${i + 1}) ${p}`).join('\n');
+    : `Quy trình có ${problems.length} lỗi:\n` + problems.map((p, i) => `${i + 1}) ${p}`).join('\n');
   const err = new Error(msg);
   err.code = 'EPRESET';
   err.problems = problems;
@@ -165,13 +165,13 @@ function presetError(problems, file) {
 export function validatePreset(raw, file) {
   const problems = [];
   const bad = (m) => problems.push(m);
-  if (!isObj(raw)) throw presetError(['Preset phải là một object YAML (id, name, channel, steps…).'], file);
+  if (!isObj(raw)) throw presetError(['Quy trình phải là một object YAML (id, name, steps…).'], file);
 
   if (typeof raw.id !== 'string' || !SLUG_RE.test(raw.id)) {
     bad(`Trường "id" phải dạng slug (chữ thường a-z, số, dấu "-"), hiện là ${show(raw.id)}.`);
   }
-  if (!nonEmpty(raw.name)) bad('Thiếu trường "name" (tên preset).');
-  if (!nonEmpty(raw.channel)) bad('Thiếu trường "channel" (id kênh).');
+  if (!nonEmpty(raw.name)) bad('Thiếu trường "name" (tên quy trình).');
+  if (raw.channel != null && !nonEmpty(raw.channel)) bad('Trường "channel" phải là id kênh (hoặc bỏ trống).');
   const format = raw.format ?? 'short';
   if (format !== 'short' && format !== 'long') bad(`Trường "format" phải là "short" hoặc "long", hiện là ${show(raw.format)}.`);
 
@@ -338,7 +338,7 @@ export function validatePreset(raw, file) {
     ...pick(raw, PRESET_KEYS),
     id: raw.id,
     name: raw.name,
-    channel: raw.channel,
+    channel: nonEmpty(raw.channel) ? raw.channel : null,
     format,
     file: file ?? null,
     yaml: '',
@@ -362,7 +362,7 @@ export function loadPresets(dirs) {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (e) {
-      if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') errors.push({ file: dir, message: `Không đọc được thư mục preset: ${e.message}` });
+      if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') errors.push({ file: dir, message: `Không đọc được thư mục quy trình: ${e.message}` });
       continue;
     }
     const names = entries
@@ -382,6 +382,7 @@ export function loadPresets(dirs) {
         }
         const preset = validatePreset(raw, file);
         preset.yaml = text;
+        preset.pipeline = raw; // bản thô để giao diện sửa lại
         if (seenHere.has(preset.id)) {
           errors.push({ file, message: `Trùng id "${preset.id}" với ${path.basename(seenHere.get(preset.id))} trong cùng thư mục — bỏ qua file này.` });
           continue;

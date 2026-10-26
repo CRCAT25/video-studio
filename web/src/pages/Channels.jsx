@@ -3,6 +3,7 @@
 // Token Google nằm ở server (Keychain); trang chỉ thấy trạng thái và số liệu.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../components/Modal.jsx';
+import { Sk, SkZone } from '../components/Skeleton.jsx';
 import RangePicker, { rangeLabel, savedRange } from '../components/RangePicker.jsx';
 import YtChart from '../components/YtChart.jsx';
 import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } from '../components/Select.jsx';
@@ -26,6 +27,20 @@ export function fmtSecs(s) {
 const fmtHours = (min) => (min == null ? '—' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(Number(min) / 60));
 const signed = (n) => (n == null ? '—' : `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtNum(Math.abs(n))}`);
 const dm = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—');
+
+const AUTO_KEY = 'vs.yt.auto';
+const AUTO_MS = 5 * 60_000;
+const AUTO_OPTIONS = [
+  { value: 'off', label: 'Tự làm mới: tắt' },
+  { value: '5', label: 'Tự làm mới: 5 phút' },
+];
+const savedAuto = () => {
+  try {
+    return localStorage.getItem(AUTO_KEY) === '5' ? '5' : 'off';
+  } catch {
+    return 'off';
+  }
+};
 
 const QUOTA_TIP = 'Google tính điểm theo mỗi lệnh gọi, đặt lại lúc 14–15h giờ Việt Nam';
 // Mốc màu theo % đã dùng: ≤25 xanh lá, >25 xanh dương, >50 cam, >75 đỏ.
@@ -122,13 +137,43 @@ export default function Channels({ yt, error, onReload }) {
     .filter(Boolean)
     .sort()[0];
 
+  // Tự làm mới mỗi 5 phút khi bật: chỉ lúc đang mở tab này, không chồng lên lượt đang chạy, lỗi thì im lặng (còn nút bấm tay).
+  const [auto, setAuto] = useState(savedAuto);
+  const pickAuto = (v) => {
+    setAuto(v);
+    try {
+      localStorage.setItem(AUTO_KEY, v);
+    } catch {
+      /* trình duyệt chặn lưu */
+    }
+  };
+  const busyRef = useRef(false);
+  const loadRef = useRef(loadStats);
+  loadRef.current = loadStats;
+  const hasLive = live.length > 0;
+  useEffect(() => {
+    if (auto !== '5' || !hasLive) return undefined;
+    const t = setInterval(async () => {
+      if (document.hidden || busyRef.current) return;
+      busyRef.current = true;
+      try {
+        await loadRef.current(true);
+      } finally {
+        busyRef.current = false;
+      }
+    }, AUTO_MS);
+    return () => clearInterval(t);
+  }, [auto, hasLive]);
+
   const reloadAll = async () => {
     setReloading(true);
+    busyRef.current = true;
     try {
       const failed = await loadStats(true);
       if (failed) toast(`${failed} kênh tải lỗi — thử lại sau.`, 'err');
       else toast('Đã tải lại tất cả kênh.', 'ok');
     } finally {
+      busyRef.current = false;
       setReloading(false);
     }
   };
@@ -176,9 +221,62 @@ export default function Channels({ yt, error, onReload }) {
   }
   if (!yt) {
     return (
-      <div className="card pad empty">
-        <span className="spinner" aria-hidden="true" /> Đang tải…
-      </div>
+      <SkZone label="Đang tải kênh">
+        <div className="page-h">
+          <div>
+            <h1>Kênh YouTube</h1>
+            <p className="muted small">
+              <Sk w="18em" />
+            </p>
+            <div className="quota-bar" />
+          </div>
+          <div className="acts">
+            <Sk block w={140} h={34} />
+            <Sk block w={120} h={34} />
+          </div>
+        </div>
+        <div className="tbl-wrap yt-chlist">
+          <table className="yt-tbl">
+            <thead>
+              <tr>
+                <th>Kênh</th>
+                <th className="num">Người đăng ký</th>
+                <th className="num hide-sm">Video</th>
+                <th className="num hide-sm">Lượt xem · {rangeLabel(range)}</th>
+                <th>
+                  <span className="sr-only">Thao tác</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {['9em', '12em'].map((w) => (
+                <tr key={w}>
+                  <td>
+                    <span className="yt-chname">
+                      <Sk w={w} />
+                    </span>
+                    <span className="muted small yt-chst">
+                      <Sk w="6em" />
+                    </span>
+                  </td>
+                  <td className="num">
+                    <Sk w="3em" />
+                  </td>
+                  <td className="num hide-sm">
+                    <Sk w="2em" />
+                  </td>
+                  <td className="num hide-sm">
+                    <Sk w="4em" />
+                  </td>
+                  <td>
+                    <Sk block w={74} h={28} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SkZone>
     );
   }
 
@@ -219,6 +317,11 @@ export default function Channels({ yt, error, onReload }) {
             <button type="button" className="btn" onClick={reloadAll} disabled={reloading} title="Tải lại số liệu mới nhất từ YouTube cho tất cả kênh">
               {reloading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới tất cả
             </button>
+          ) : null}
+          {live.length ? (
+            <div className="yt-range-sel">
+              <Select label="Tự làm mới" value={auto} options={AUTO_OPTIONS} onChange={pickAuto} />
+            </div>
           ) : null}
           <a className="btn" href="#/channels/setup">
             Thiết lập Google
@@ -329,7 +432,7 @@ function ChannelRow({ c, s }) {
   const ok = c.status !== 'reauth' && !c.pending;
   const st = chState(c);
   const ch = s?.channel;
-  const cell = (v) => (s === undefined ? <span className="muted">…</span> : s === false ? '—' : v);
+  const cell = (v) => (s === undefined ? <Sk w="3em" /> : s === false ? '—' : v);
   return (
     <tr>
       <td>
@@ -384,9 +487,26 @@ export function ChannelDetail({ id, yt, error, onReload }) {
   }
   if (!yt) {
     return (
-      <div className="card pad empty">
-        <span className="spinner" aria-hidden="true" /> Đang tải…
-      </div>
+      <SkZone label="Đang tải kênh">
+        {crumb}
+        <section className="card yt-card">
+          <div className="yt-h">
+            <div className="yt-id">
+              <h1>
+                <Sk w="8em" />
+              </h1>
+              <span className="muted small">
+                <Sk w="7em" />
+              </span>
+            </div>
+            <div className="acts">
+              <Sk block w={86} h={28} />
+              <Sk block w={80} h={28} />
+            </div>
+          </div>
+          <ChannelStatsSkeleton />
+        </section>
+      </SkZone>
     );
   }
   if (!c) {
@@ -665,9 +785,9 @@ function ChannelStats({ c, tick, onLoading }) {
       </div>
       {err ? <p className="err-note">{err.message}</p> : null}
       {!stats && !err ? (
-        <p className="note">
-          <span className="spinner" aria-hidden="true" /> Đang tải số liệu…
-        </p>
+        <SkZone className="sk-col" label="Đang tải số liệu">
+          <StatsBodySkeleton />
+        </SkZone>
       ) : null}
       {stats ? (
         <>
@@ -703,6 +823,49 @@ function ChannelStats({ c, tick, onLoading }) {
           </span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// Khung chờ số liệu kênh: 4 ô số, tiêu đề biểu đồ + chip, biểu đồ, bảng video.
+function StatsBodySkeleton() {
+  return (
+    <>
+      <div className="yt-tiles">
+        {['8em', '9em', '8em', '10em'].map((w, i) => (
+          <div key={i} className="yt-tile">
+            <span className="yt-tile-l">
+              <Sk w={w} />
+            </span>
+            <b className="yt-tile-v">
+              <Sk w="3em" />
+            </b>
+            <span className="yt-tile-s">
+              <Sk w="6em" />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="yt-chart-h">
+        <h3>
+          <Sk w="14em" />
+        </h3>
+        <Sk block w={260} h={30} />
+      </div>
+      <Sk block h={180} />
+      <Sk block h={220} />
+    </>
+  );
+}
+
+// Khung chờ phần số liệu khi chưa có dữ liệu kênh (thanh chọn khoảng ngày + StatsBodySkeleton).
+function ChannelStatsSkeleton() {
+  return (
+    <div className="yt-body">
+      <div className="yt-bar">
+        <Sk block w={150} h={34} />
+      </div>
+      <StatsBodySkeleton />
     </div>
   );
 }
@@ -842,22 +1005,19 @@ function VideoTable({ videos, truncated }) {
           </div>
           <div className="yt-pager">
             {truncated ? <span className="muted small yt-trunc">{fmtNum(all.length)} video mới nhất</span> : null}
-            <label className="small muted yt-psize">
-              Số hàng mỗi trang
-              <select
+            <span className="small muted yt-psize">
+              <span aria-hidden="true">Số hàng mỗi trang</span>
+              <Select
+                size="sm"
                 value={size}
-                onChange={(e) => {
-                  setSize(Number(e.target.value));
+                options={PAGE_SIZES.map((n) => ({ value: n, label: String(n) }))}
+                onChange={(n) => {
+                  setSize(n);
                   setPage(0);
                 }}
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
+                label="Số hàng mỗi trang"
+              />
+            </span>
             <span className="small muted" aria-live="polite">
               {pg * size + 1}–{pg * size + shown.length}/{rows.length}
             </span>

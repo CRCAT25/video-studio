@@ -9,6 +9,7 @@
 .yt-wait .note{margin:0}
 .yt-body{display:flex;flex-direction:column;gap:14px;min-width:0}
 .yt-body > .note{margin:0}
+.yt-body > .sk-col{gap:14px}
 
 .yt-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .yt-tile{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -63,7 +64,7 @@
 .yt-pager{display:flex;align-items:center;justify-content:flex-end;gap:16px;flex-wrap:wrap;margin-top:8px}
 .yt-trunc{margin-right:auto}
 .yt-psize{display:inline-flex;align-items:center;gap:8px}
-.yt-psize select{padding:4px 8px}
+.yt-psize .sel{width:72px}
 .yt-pbtns{display:inline-flex;gap:2px}
 @media (max-width:560px){.yt-videos .yt-tbl{min-width:0}.yt-videos .hide-sm{display:none}.yt-title{min-width:0}.yt-thumb{width:88px}.yt-vid{gap:10px}.yt-mdate{display:block;margin-top:2px}.yt-desc{display:none}.yt-vtext a{-webkit-line-clamp:2}}
 .yt-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}

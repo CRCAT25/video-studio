@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS projects(
@@ -68,6 +68,18 @@ CREATE TABLE IF NOT EXISTS yt_quota(day TEXT PRIMARY KEY, units INTEGER NOT NULL
 `;
 
 // v3: đăng nhập Google — chỉ lưu băm (chủ app, phiên); không có email/tên/token.
+// V4: bản chụp quy trình (JSON) của từng dự án — sửa/xóa mẫu không ảnh hưởng dự án đã tạo.
+const SCHEMA_V4 = 'ALTER TABLE projects ADD COLUMN pipeline TEXT;';
+
+// v5: token của các lượt claude ngoài bước video (Trợ lý AI, Kiểm tra mức dùng) — chỉ số đếm, không nội dung.
+const SCHEMA_V5 = `
+CREATE TABLE IF NOT EXISTS token_usage(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, source TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_creation_input_tokens INTEGER NOT NULL DEFAULT 0, cache_read_input_tokens INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_token_usage_at ON token_usage(at);
+`;
+
 const SCHEMA_V3 = `
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(id_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
@@ -123,6 +135,8 @@ function migrate(db) {
     if (v < 1) db.exec(SCHEMA_V1);
     if (v < 2) db.exec(SCHEMA_V2);
     if (v < 3) db.exec(SCHEMA_V3);
+    if (v < 4) db.exec(SCHEMA_V4);
+    if (v < 5) db.exec(SCHEMA_V5);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
 }
@@ -195,11 +209,11 @@ export function openStore(file) {
     },
 
     // ---- projects
-    insertProject({ id, preset_id, channel_id = null, title, dir, claude_session_id = null, session_started = 0, status = 'active' }) {
+    insertProject({ id, preset_id, channel_id = null, title, dir, claude_session_id = null, session_started = 0, status = 'active', pipeline = null }) {
       const t = now();
-      st(`INSERT INTO projects(id, preset_id, channel_id, title, dir, claude_session_id, session_started, status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(id, preset_id, channel_id, title, dir, claude_session_id, boolInt(session_started) ?? 0, status, t, t);
+      st(`INSERT INTO projects(id, preset_id, channel_id, title, dir, claude_session_id, session_started, status, pipeline, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(id, preset_id, channel_id, title, dir, claude_session_id, boolInt(session_started) ?? 0, status, pipeline, t, t);
       return store.getProject(id);
     },
     getProject(id) {
@@ -336,6 +350,33 @@ export function openStore(file) {
       const r = st(`SELECT COALESCE(SUM(c.units), 0) AS t FROM costs c JOIN runs r ON r.id = c.run_id
                     WHERE c.kind = 'claude_tokens' AND r.started_at >= ?`).get(toIso(iso));
       return r.t;
+    },
+
+    // Ghi token của 1 lượt ngoài bước video (source: 'assistant' | 'check').
+    addTokenUsage(source, usage = {}, at = now()) {
+      const n = (k) => Math.max(0, Math.round(Number(usage[k]) || 0));
+      st(`INSERT INTO token_usage(at, source, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)
+          VALUES(?, ?, ?, ?, ?, ?)`).run(toIso(at), String(source), n('input_tokens'), n('output_tokens'), n('cache_creation_input_tokens'), n('cache_read_input_tokens'));
+    },
+    // Tổng token từ iso tới nay theo nguồn: steps (runs.usage_json), assistant, check → {input, output, cache, total}.
+    tokenTotals(iso) {
+      const since = toIso(iso);
+      const tok = (f) => `COALESCE(SUM(CASE WHEN json_valid(usage_json) THEN json_extract(usage_json, '$.${f}') END), 0)`;
+      const steps = st(`SELECT ${tok('input_tokens')} AS i, ${tok('output_tokens')} AS o,
+                        ${tok('cache_creation_input_tokens')} + ${tok('cache_read_input_tokens')} AS c
+                        FROM runs WHERE started_at >= ?`).get(since);
+      const rows = st(`SELECT source, SUM(input_tokens) AS i, SUM(output_tokens) AS o,
+                       SUM(cache_creation_input_tokens + cache_read_input_tokens) AS c
+                       FROM token_usage WHERE at >= ? GROUP BY source`).all(since);
+      const pack = (r) => {
+        const input = Number(r?.i) || 0;
+        const output = Number(r?.o) || 0;
+        const cache = Number(r?.c) || 0;
+        return { input, output, cache, total: input + output + cache };
+      };
+      const out = { steps: pack(steps), assistant: pack(null), check: pack(null) };
+      for (const r of rows) if (r.source in out) out[r.source] = pack(r);
+      return out;
     },
 
     // ---- YouTube (v2)

@@ -1,5 +1,6 @@
 // Ô chọn tự vẽ (thay <select> gốc): nút + danh sách nổi, có chấm màu / chữ phụ / nhãn, nhóm, bàn phím đầy đủ.
 // options = [{value, label, meta?, dot?, badges?: [{text, tone?}], icon?, group?}]; onChange(value).
+// Mọi ô chọn trong app dùng component này (không dùng <select> gốc) để giao diện đồng nhất; size="sm" cho hàng chật.
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 const GAP = 4;
@@ -22,7 +23,7 @@ function Line({ o }) {
   );
 }
 
-export default function Select({ value, options = [], onChange, disabled = false, placeholder = 'Chọn…', label, id }) {
+export default function Select({ value, options = [], onChange, disabled = false, placeholder = 'Chọn…', label, id, size, className = '' }) {
   const autoId = useId();
   const btnId = id || `${autoId}-b`;
   const listId = `${autoId}-l`;
@@ -61,7 +62,7 @@ export default function Select({ value, options = [], onChange, disabled = false
       const above = r.top - GAP - 8;
       const up = below < Math.min(MAX_H, 200) && above > below;
       const maxH = Math.min(MAX_H, up ? above : below);
-      setPos({ left: r.left, width: r.width, maxHeight: maxH, ...(up ? { bottom: window.innerHeight - r.top + GAP } : { top: r.bottom + GAP }) });
+      setPos({ left: r.left, minWidth: r.width, maxWidth: window.innerWidth - r.left - 8, maxHeight: maxH, ...(up ? { bottom: window.innerHeight - r.top + GAP } : { top: r.bottom + GAP }) });
     };
     place();
     window.addEventListener('resize', place);
@@ -146,7 +147,7 @@ export default function Select({ value, options = [], onChange, disabled = false
 
   let lastGroup;
   return (
-    <div className={`sel${open ? ' open' : ''}`}>
+    <div className={`sel${size ? ` ${size}` : ''}${open ? ' open' : ''}${className ? ` ${className}` : ''}`}>
       <button
         ref={btn}
         id={btnId}

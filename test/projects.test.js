@@ -6,6 +6,7 @@ import path from 'node:path';
 import { openStore } from '../server/db.js';
 import { loadChannels, loadPresets, REPO_ROOT } from '../server/presets.js';
 import { createProjects, HttpError } from '../server/projects.js';
+import { suggestPipeline } from '../server/pipeline.js';
 
 const FIXTURE_PRESETS = path.join(REPO_ROOT, 'test', 'fixtures', 'presets');
 const REPO_PRESETS = path.join(REPO_ROOT, 'presets');
@@ -151,6 +152,45 @@ test('create: trùng slug, trùng dir', () => {
   const w = mk({ slug: 'khac3' });
   assert.equal(w.dir, path.join(home, 'projects', 'khac3'));
   assert.equal(projects.list().length, 2);
+});
+
+test('create từ quy trình gợi ý (đã sửa): bước tắt bị bỏ, kênh tùy chọn, lỗi → invalid_pipeline kèm problems', () => {
+  const raw = suggestPipeline({ orientation: 'horizontal', length: 'long', duration: 300 });
+  raw.steps.find((s) => s.id === 'thumbnail').enabled = false;
+  const v = projects.create({ pipeline: raw, title: 'Xe điện có rẻ?' });
+  assert.deepEqual(v.preset, { id: 'dai-ngang-16x9', name: 'Video dài ngang 16:9', format: 'long' });
+  assert.equal(v.channel, null, 'không chọn kênh → không gắn kênh');
+  assert.deepEqual(v.steps.map((s) => s.key), ['nghien-cuu', 'kich-ban', 'phan-canh', 'hinh-anh', 'giong-doc', 'dung-video', 'xem-lai', 'goi-dang']);
+  assert.equal(v.steps.find((s) => s.key === 'xem-lai').state, 'pending');
+  assert.equal(projects.stepView(v.id, 'kich-ban').step.prompt_template.includes('{vars.duration_label}'), true);
+
+  const w = projects.create({ pipeline: raw, title: 'Có kênh', channelId: 'tiktok' });
+  assert.equal(w.channel.id, 'tiktok');
+  expectHttp(() => projects.create({ pipeline: raw, title: 'Kênh lạ', channelId: 'khong-co' }), 400, 'channel_not_found');
+  // kênh trong mẫu đã lưu vẫn dùng khi không chọn kênh; chọn kênh thì kênh chọn thắng
+  assert.equal(projects.create({ presetId: 'e2e-short', title: 'Mặc định kênh' }).channel.id, 'tiktok');
+
+  const bad = structuredClone(raw);
+  bad.steps[0].prompt = '';
+  bad.steps[1].outputs = ['/tuyet-doi'];
+  assert.throws(
+    () => projects.create({ pipeline: bad, title: 'Hỏng' }),
+    (e) => e instanceof HttpError && e.status === 400 && e.code === 'invalid_pipeline' && e.problems.length === 2,
+  );
+  assert.equal(store.getProject('hong'), null);
+});
+
+test('bản chụp: sửa hoặc xóa file mẫu sau khi tạo không đổi quy trình của dự án', () => {
+  const file = path.join(extraDir, 'man.yaml');
+  const v = projects.create({ presetId: 'man', title: 'Chụp lại' });
+  fs.writeFileSync(file, MANUAL_YAML.replace('prompt: "Làm {title}"', 'prompt: "ĐÃ SỬA"').replace('name: Một', 'name: Một mới'));
+  assert.equal(projects.stepView(v.id, 'one').step.prompt_template, 'Làm {title}');
+  assert.equal(projects.view(v.id).steps[0].name, 'Một');
+  fs.unlinkSync(file);
+  assert.deepEqual(projects.canRun(v.id, 'one'), { ok: true });
+  assert.equal(projects.presetOf(v.id).id, 'man');
+  // dự án tạo sau dùng mẫu mới (đã xóa → 404)
+  expectHttp(() => projects.create({ presetId: 'man', title: 'Sau xóa' }), 404, 'preset_not_found');
 });
 
 test('list: OverviewItem không có steps[].outputs, mới cập nhật trước', async () => {
@@ -560,7 +600,8 @@ test('estimateCost: chars / count / số nguyên / thiếu file / biểu thức 
   fs.writeFileSync(path.join(m.dir, 'project.json'), JSON.stringify({ scenes: 'không phải mảng' }));
   assert.equal(projects.estimateCost(m.id, 'three').estimate_value, null);
 
-  // số nguyên, biểu thức lạ, file ngoài thư mục dự án
+  // số nguyên, biểu thức lạ, file ngoài thư mục dự án (dự án cũ không có bản chụp → đọc theo mẫu)
+  store.db.prepare('UPDATE projects SET pipeline = NULL WHERE id = ?').run(m.id);
   const custom = (estimate) => {
     const p = createProjects({
       store,
@@ -641,19 +682,25 @@ test('stepView: đủ trường, runs n DESC, latest, can_run, resume_cmd', () =
   assert.equal(sv.can_run.cost_confirm, true);
 });
 
-test('preset bị xóa: view vẫn dựng được, canRun → preset_not_found', () => {
+test('mẫu bị xóa: dự án có bản chụp vẫn chạy; dự án cũ không bản chụp → preset_not_found', () => {
   const { id } = mk();
   const orphan = createProjects({ store, presets: () => ({ presets: [], errors: [] }), channels: () => [], home });
-  const v = orphan.view(id);
+  assert.equal(orphan.presetOf(id).id, 'e2e-short');
+  assert.deepEqual(orphan.canRun(id, 'hook'), { ok: true });
+  assert.ok(orphan.view(id).steps[0].outputs.length > 0);
+
+  store.db.prepare('UPDATE projects SET pipeline = NULL WHERE id = ?').run(id);
+  const legacy = createProjects({ store, presets: () => ({ presets: [], errors: [] }), channels: () => [], home });
+  const v = legacy.view(id);
   assert.deepEqual(v.preset, { id: 'e2e-short', name: 'e2e-short', format: null });
   assert.deepEqual(v.channel, { id: 'tiktok', name: 'tiktok', platform: null });
   assert.deepEqual(v.steps[0].outputs, []);
-  const cr = orphan.canRun(id, 'hook');
+  const cr = legacy.canRun(id, 'hook');
   assert.equal(cr.status, 404);
   assert.equal(cr.code, 'preset_not_found');
-  assert.equal(orphan.presetOf(id), null);
+  assert.equal(legacy.presetOf(id), null);
   assert.equal(projects.presetOf(id).id, 'e2e-short');
-  assert.ok(orphan.stepView(id, 'hook'));
+  assert.ok(legacy.stepView(id, 'hook'));
 });
 
 test('beginRun lỗi giữa transaction không để lại run/trạng thái dở', () => {

@@ -8,6 +8,7 @@ import { clearTokenCookie, htmlPage, isPagePath, loginPage, parseCookies, regist
 import { runDoctor } from './doctor.js';
 import { mediaHandler } from './media.js';
 import { isInside, safeJoin } from './paths.js';
+import { deletePipeline, formatCatalog, savePipeline, suggestPipeline } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
 import { HttpError } from './projects.js';
 import { LOGIN_CALLBACK_PATH, SESSION_COOKIE, sessionCookie } from './login.js';
@@ -20,7 +21,7 @@ export const DOCTOR_TTL_MS = 60_000;
 export const DEFAULT_WEB_DIST = path.join(REPO_ROOT, 'web', 'dist');
 const INTERNAL_MESSAGE = 'Lỗi máy chủ nội bộ. Xem log ở terminal đang chạy server.';
 const WAITING_STATES = new Set(['needs_input', 'failed', 'manual']);
-const PRESET_FIELDS = ['id', 'name', 'channel', 'format', 'file', 'yaml', 'project_dir', 'skills', 'vars', 'permissions', 'defaults', 'steps'];
+const PRESET_FIELDS = ['id', 'name', 'channel', 'format', 'file', 'yaml', 'project_dir', 'skills', 'vars', 'permissions', 'defaults', 'steps', 'pipeline'];
 
 const STATIC_TYPES = {
   html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8',
@@ -67,6 +68,19 @@ export function runSummary(r) {
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isHttpError = (e) => e instanceof HttpError || (!!e && e.name === 'HttpError' && Number.isInteger(e.status) && typeof e.code === 'string');
 const badBody = (message) => new HttpError(400, 'invalid_body', message);
+// Lỗi từ pipeline.js (status/code thường, hoặc EPRESET) → HttpError.
+const pipelineError = (e) => {
+  if (e?.code === 'EPRESET') return new HttpError(400, 'invalid_pipeline', e.message, { problems: e.problems ?? [e.message] });
+  if (Number.isInteger(e?.status) && typeof e.code === 'string') return new HttpError(e.status, e.code, e.message);
+  return e;
+};
+const pipelineCall = (fn) => {
+  try {
+    return fn();
+  } catch (e) {
+    throw pipelineError(e);
+  }
+};
 const notFound = (message = 'Không tìm thấy.') => new HttpError(404, 'not_found', message);
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const callList = (v) => (typeof v === 'function' ? v() : v);
@@ -88,7 +102,7 @@ function guidePage(distDir) {
 }
 
 // Tạo Fastify app với mọi endpoint §9.2. deps: {store, projects, runner, presets, channels, token, webDist, doctor,
-// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
+// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), assistant? (createAssistant — Trợ lý AI), usage? (createUsage — mức dùng gói Claude), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
 export async function buildApp({
   store,
   projects,
@@ -103,6 +117,8 @@ export async function buildApp({
   googleWizard = null,
   login = null,
   updater = null,
+  assistant = null,
+  usage = null,
   home = null,
   hub = null,
   logger = false,
@@ -186,6 +202,8 @@ export async function buildApp({
   // Route không cần token: /api/health và file tĩnh có thật (trừ index.html — trang app cần token).
   const isPublic = (req, pathname) => {
     if (pathname === '/api/health') return true;
+    // MCP của Trợ lý AI gọi về (không có cookie) — tự kiểm mã bí mật của lượt đang chạy.
+    if (pathname === '/api/assistant/tool' && req.method === 'POST' && !!assistant) return true;
     // Google chuyển về sau khi đăng nhập (có thể ở hồ sơ Chrome không có cookie app) — tự bảo vệ bằng state một lần.
     if (pathname === CALLBACK_PATH && req.method === 'GET' && !!youtube) return true;
     // Trang đăng nhập Google: tự bảo vệ bằng state một lần + kiểm chủ.
@@ -271,6 +289,8 @@ export async function buildApp({
     offYoutube();
     offWizard();
     offUpdater();
+    offAssistant();
+    offUsage();
   });
 
   // ---- doctor (cache 60 s; ?refresh=1 bỏ cache; lỗi không cache)
@@ -310,6 +330,27 @@ export async function buildApp({
   const offYoutube = youtube && typeof youtube.on === 'function' ? youtube.on(() => sse.broadcast('youtube', {})) : () => {};
   const offWizard = googleWizard ? googleWizard.on(() => sse.broadcast('google-setup', {})) : () => {};
   const offUpdater = updater ? updater.on(() => sse.broadcast('update', updater.status())) : () => {};
+  const offAssistant = assistant ? assistant.on((d) => sse.broadcast('assistant', d)) : () => {};
+  const offUsage = usage ? usage.on((d) => sse.broadcast('usage', d)) : () => {};
+
+  // ---- Trợ lý AI (claude -p + MCP điều khiển trang). Không có assistant → 503.
+  const needAssistant = () => {
+    if (!assistant) throw new HttpError(503, 'assistant_unavailable', 'Trợ lý AI chưa bật trên server này.');
+    return assistant;
+  };
+  app.get('/api/assistant', async () => (assistant ? { available: true, ...assistant.state() } : { available: false, busy: false, messages: [] }));
+  app.post('/api/assistant/message', async (req) => {
+    const b = req.body || {};
+    if (typeof b.text !== 'string') throw new HttpError(400, 'invalid_body', 'Thiếu nội dung tin nhắn.');
+    return needAssistant().send(b.text, { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null });
+  });
+  app.post('/api/assistant/stop', async () => needAssistant().stop());
+  app.post('/api/assistant/reset', async () => needAssistant().reset());
+  app.post('/api/assistant/tool', async (req) => {
+    const b = req.body || {};
+    return needAssistant().callTool(b.key, b.tool, b.args);
+  });
+  app.post('/api/assistant/tool/:id/result', async (req) => needAssistant().toolResult(req.params.id, req.body || {}));
 
   // ---- Bản mới (Release GitHub). Không có updater → coi như không có bản mới.
   app.get('/api/update', async () => (updater ? updater.check() : { current: version, latest: null, newer: false, state: 'idle', canRestart: false }));
@@ -368,6 +409,14 @@ export async function buildApp({
   });
 
   app.get('/api/claude/account', async () => needAccount().status());
+
+  // ---- Mức dùng gói Claude: % phiên 5 giờ / tuần + token app đã dùng. Không có usage → 503.
+  const needUsage = () => {
+    if (!usage) throw new HttpError(503, 'usage_unavailable', 'Theo dõi mức dùng chưa bật trên server này.');
+    return usage;
+  };
+  app.get('/api/claude/usage', async () => needUsage().summary());
+  app.post('/api/claude/usage/check', async (req) => needUsage().check({ auto: req.body?.auto === true }));
 
   app.get('/api/chrome-profiles', async () => needAccount().profiles());
 
@@ -573,6 +622,7 @@ export async function buildApp({
     const out = list.map((p) => {
       const o = {};
       for (const k of PRESET_FIELDS) o[k] = p[k] ?? null;
+      o.mine = !!(home && p.file && isInside(path.join(home, 'presets'), p.file)); // quy trình của tôi → xóa được
       return o;
     });
     return { presets: out, errors: Array.isArray(res.errors) ? res.errors : [] };
@@ -590,10 +640,48 @@ export async function buildApp({
     return { projects: list, stats };
   });
 
+  // Danh mục định dạng (hướng, tỷ lệ, độ dài) + thư viện bước để thêm.
+  app.get('/api/pipeline/catalog', async () => formatCatalog());
+
+  // Gợi ý quy trình đầy đủ cho định dạng đã chọn.
+  app.get('/api/pipeline/suggest', async (req) => {
+    const q = req.query || {};
+    const one = (v) => (Array.isArray(v) ? v[0] : v);
+    const dur = one(q.duration);
+    return {
+      pipeline: pipelineCall(() => suggestPipeline({
+        orientation: one(q.orientation) || undefined,
+        aspect: one(q.aspect) || undefined,
+        length: one(q.length) || undefined,
+        duration: dur == null || dur === '' ? undefined : Number(dur),
+        hd4k: one(q.hd4k) === '1' || one(q.hd4k) === 'true',
+      })),
+    };
+  });
+
+  // Lưu thành "Quy trình của tôi".
+  app.post('/api/pipelines', async (req, reply) => {
+    const b = req.body;
+    if (!isObject(b) || !isObject(b.pipeline)) throw badBody('Cần gửi JSON {pipeline, name}.');
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    const saved = pipelineCall(() => savePipeline(home, b.pipeline, b.name));
+    presets.invalidate?.();
+    return reply.code(201).send({ id: saved.id, name: saved.name });
+  });
+
+  app.delete('/api/pipelines/:id', async (req) => {
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    const r = pipelineCall(() => deletePipeline(home, req.params.id));
+    presets.invalidate?.();
+    return r;
+  });
+
   app.post('/api/projects', async (req, reply) => {
     const b = req.body;
-    if (!isObject(b)) throw badBody('Cần gửi JSON {presetId, title, slug?, dir?}.');
-    if (typeof b.presetId !== 'string' || !b.presetId.trim()) throw badBody('Thiếu presetId.');
+    if (!isObject(b)) throw badBody('Cần gửi JSON {pipeline | presetId, title, channelId?, slug?, dir?, saveAs?}.');
+    const hasPipeline = b.pipeline !== undefined && b.pipeline !== null;
+    if (hasPipeline && !isObject(b.pipeline)) throw badBody('pipeline phải là object quy trình.');
+    if (!hasPipeline && (typeof b.presetId !== 'string' || !b.presetId.trim())) throw badBody('Thiếu quy trình (pipeline hoặc presetId).');
     if (typeof b.title !== 'string') throw new HttpError(400, 'invalid_title', 'Tiêu đề phải là chuỗi 1–200 ký tự.');
     const opt = (v, code, message) => {
       if (v === undefined || v === null || v === '') return undefined;
@@ -602,9 +690,32 @@ export async function buildApp({
     };
     const slug = opt(b.slug, 'invalid_slug', 'Slug phải là chuỗi chữ thường, số, gạch ngang.');
     const dir = opt(b.dir, 'invalid_dir', 'Thư mục phải là đường dẫn tuyệt đối.');
-    const view = projects.create({ presetId: b.presetId.trim(), title: b.title, slug, dir });
+    const channelId = opt(b.channelId, 'channel_not_found', 'Không tìm thấy kênh đã chọn.');
+    const saveAs = opt(b.saveAs, 'invalid_name', 'Tên quy trình phải là chuỗi.')?.trim();
+    if (saveAs !== undefined && (!hasPipeline || !saveAs || saveAs.length > 80)) {
+      throw new HttpError(400, 'invalid_name', 'Tên quy trình phải có 1–80 ký tự.');
+    }
+    const view = projects.create({
+      presetId: hasPipeline ? undefined : b.presetId.trim(),
+      pipeline: hasPipeline ? b.pipeline : undefined,
+      channelId,
+      title: b.title,
+      slug,
+      dir,
+    });
     sse.broadcast('change', { projectId: view.id });
-    return reply.code(201).send(view);
+    // Lưu mẫu sau khi tạo dự án thành công; lỗi lưu không làm hỏng dự án vừa tạo.
+    let saved;
+    if (saveAs && home) {
+      try {
+        const r = savePipeline(home, b.pipeline, saveAs);
+        saved = { id: r.id, name: r.name };
+        presets.invalidate?.();
+      } catch (e) {
+        saved = { error: pipelineError(e).message };
+      }
+    }
+    return reply.code(201).send(saved ? { ...view, saved } : view);
   });
 
   app.get('/api/projects/:id', async (req) => {

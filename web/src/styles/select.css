@@ -4,6 +4,9 @@
 .sel-btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--text) 28%,var(--line-2))}
 .sel-btn:focus-visible,.sel.open .sel-btn{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .sel-btn:disabled{opacity:.55;cursor:not-allowed}
+/* cỡ nhỏ (hàng chật: cổng duyệt, số hàng mỗi trang…) — cao bằng .btn.sm */
+.sel.sm .sel-btn{height:28px;padding:0 8px 0 10px;font-size:var(--fs-sm)}
+.sel.sm .sel-opt{min-height:30px;font-size:var(--fs-sm)}
 .sel-val{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
 .sel-ph{color:var(--dim)}
 .sel-chev{flex:none;color:var(--muted);transition:transform .15s}

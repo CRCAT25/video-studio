@@ -1,15 +1,15 @@
 /* ===== Hộp thoại + thông báo ===== */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;z-index:50;padding:8vh 16px 16px;overflow-y:auto}
 .modal{max-width:520px;width:100%;padding:20px;margin:auto 0;box-shadow:var(--shadow-lg);border-radius:12px}
-.modal.wide{max-width:640px}
+.modal.wide{max-width:720px}
 .modal h2{font-size:var(--fs-xl);margin:0 32px 4px 0}
 .modal .lead{margin:0 0 16px;color:var(--muted);font-size:var(--fs-md)}
 .modal .x{position:absolute;right:12px;top:12px;background:none;border:0;color:var(--muted);font-size:var(--fs-lg);line-height:1;cursor:pointer;width:30px;height:30px;border-radius:6px}
 .modal .x:hover{color:var(--text);background:var(--surface-2)}
 .fld{display:block;margin-bottom:16px;min-width:0}
 .fld > span:not(.hint),.fld-l{display:block;font-size:var(--fs-sm);font-weight:500;color:var(--text);margin-bottom:6px}
-.fld input[type=text],.fld select,.fld textarea{width:100%}
-.fld input[type=text],.fld select{height:36px}
+.fld input[type=text],.fld textarea{width:100%}
+.fld input[type=text]{height:36px}
 .fld .hint{display:block;font-size:var(--fs-sm);font-weight:400;color:var(--dim);margin:6px 0 0;overflow-wrap:anywhere}
 .fld .hint.bad{color:var(--err)}
 .fld .mono-in{font-family:var(--f-mono)!important;font-size:var(--fs-sm)!important}

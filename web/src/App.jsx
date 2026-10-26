@@ -1,13 +1,15 @@
-// Khung app: header + băng doctor + định tuyến hash (Tổng quan / Chi tiết bước / Preset / Kênh), tải lại theo SSE 'change' / 'youtube'.
+// Khung app: header + băng doctor + sidebar Trợ lý AI + định tuyến hash (Tổng quan / Chi tiết bước / Preset / Kênh), tải lại theo SSE 'change' / 'youtube'.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import DoctorBanner from './components/DoctorBanner.jsx';
 import UpdateBanner from './components/UpdateBanner.jsx';
 import ClaudeAccount, { accountResultMessage } from './components/ClaudeAccount.jsx';
+import { useUsage } from './components/Usage.jsx';
 import { ToastProvider, useToast } from './components/Toast.jsx';
+import AssistantPanel, { useAssistant } from './components/AssistantPanel.jsx';
 import Overview from './pages/Overview.jsx';
 import Step from './pages/Step.jsx';
-import Presets from './pages/Presets.jsx';
+import Pipelines from './pages/Pipelines.jsx';
 import Channels, { ChannelDetail } from './pages/Channels.jsx';
 import YouTubeSetup from './pages/YouTubeSetup.jsx';
 import { api } from './api.js';
@@ -51,6 +53,8 @@ function Shell() {
   const lastAuthAt = useRef(undefined);
   const timer = useRef(null);
   const toast = useToast();
+  const assistant = useAssistant();
+  const usage = useUsage();
 
   const loadOverview = useCallback(async () => {
     try {
@@ -192,9 +196,14 @@ function Shell() {
   }, [running]);
 
   useEffect(() => {
-    const TITLES = { presets: 'Preset · Video Studio', channels: 'Kênh · Video Studio', channelsSetup: 'Thiết lập Google · Video Studio' };
+    const TITLES = { presets: 'Quy trình · Video Studio', channels: 'Kênh · Video Studio', channelsSetup: 'Thiết lập Google · Video Studio' };
     if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
   }, [route.name]);
+
+  // Sidebar trợ lý mở → nội dung co lại (CSS body.ai-open).
+  useEffect(() => {
+    document.body.classList.toggle('ai-open', assistant.open);
+  }, [assistant.open]);
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -209,7 +218,7 @@ function Shell() {
   if (route.name === 'step') {
     page = <Step key={`${route.params.id}/${route.params.key || ''}`} projectId={route.params.id} stepKey={route.params.key} />;
   } else if (route.name === 'presets') {
-    page = <Presets data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} />;
+    page = <Pipelines data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} />;
   } else if (route.name === 'channels') {
     page = <Channels yt={yt} error={ytErr} onReload={loadYoutube} />;
   } else if (route.name === 'channel') {
@@ -241,12 +250,15 @@ function Shell() {
 
   return (
     <>
-      <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} />
+      <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} onAssistant={() => assistant.setOpen((v) => !v)} assistantOpen={assistant.open} usage={usage} />
       <DoctorBanner doctor={doctor} error={banner} onRefresh={() => Promise.all([loadDoctor(true), loadOverview()])} onAccount={() => setAccountOpen(true)} />
       <UpdateBanner u={update} running={running} />
       <main>{page}</main>
+      {assistant.open ? (
+        <AssistantPanel a={assistant} loggedIn={doctor ? !!doctor.auth?.loggedIn : null} onAccount={() => setAccountOpen(true)} />
+      ) : null}
       {accountOpen ? (
-        <ClaudeAccount doctor={doctor} account={account} running={running} onClose={() => setAccountOpen(false)} onRefresh={() => Promise.all([loadDoctor(true), loadAccount()])} />
+        <ClaudeAccount doctor={doctor} account={account} running={running} usage={usage} onClose={() => setAccountOpen(false)} onRefresh={() => Promise.all([loadDoctor(true), loadAccount()])} />
       ) : null}
     </>
   );

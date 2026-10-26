@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expandHome, isValidSlug, safeJoin, shellQuote, slugify, studioHome } from './paths.js';
-import { DEFAULT_TIMEOUT_MS, renderTemplate } from './presets.js';
+import { preparePipeline } from './pipeline.js';
+import { DEFAULT_TIMEOUT_MS, renderTemplate, validatePreset } from './presets.js';
 
 // Lỗi có mã HTTP + code máy đọc (§10); extra (vd {cost}) được gộp vào body JSON.
 export class HttpError extends Error {
@@ -122,6 +123,22 @@ export function createProjects({ store, presets, channels, home } = {}) {
   };
   const homeDir = () => path.resolve(home ? expandHome(home) : studioHome());
   const findPreset = (id, list = presetList()) => list.find((p) => p && p.id === id) ?? null;
+  // Quy trình của dự án: bản chụp lúc tạo (cột pipeline) nếu có, không thì tìm mẫu theo preset_id.
+  const snapCache = new Map();
+  const presetFor = (p, list) => {
+    if (!p) return null;
+    if (!p.pipeline) return findPreset(p.preset_id, list);
+    const hit = snapCache.get(p.id);
+    if (hit && hit.text === p.pipeline) return hit.preset;
+    let preset = null;
+    try {
+      preset = validatePreset(JSON.parse(p.pipeline));
+    } catch {
+      /* bản chụp hỏng → coi như mất quy trình */
+    }
+    snapCache.set(p.id, { text: p.pipeline, preset });
+    return preset;
+  };
   const presetStepOf = (preset, key) => preset?.steps?.find((s) => s.key === key) ?? null;
   const tplCtx = (p, preset) => ({ slug: p.id, title: p.title, vars: preset?.vars ?? {} });
 
@@ -151,7 +168,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
   }
 
   function projectView(p, { withOutputs = true, presetsNow = presetList(), channelsNow = channelList() } = {}) {
-    const preset = findPreset(p.preset_id, presetsNow);
+    const preset = presetFor(p, presetsNow);
     const ch = p.channel_id ? channelsNow.find((c) => c && c.id === p.channel_id) : null;
     const steps = store.listSteps(p.id).map((s) => stepSummary(s, p, preset, withOutputs));
     const running = store.runningRunOf(p.id);
@@ -205,10 +222,32 @@ export function createProjects({ store, presets, channels, home } = {}) {
   }
 
   // ---- API
-  // Tạo dự án mới theo preset (§6 create); trả ProjectView hoặc throw HttpError 400/404/409.
-  function create({ presetId, title, slug, dir } = {}) {
+  // Quy trình cho dự án mới: object quy trình (đã sửa ở giao diện) hoặc id quy trình đã lưu → {preset, snapshot}.
+  function resolvePipeline(presetId, pipeline) {
+    if (pipeline != null) {
+      try {
+        const { raw, preset } = preparePipeline(pipeline);
+        return { preset, snapshot: JSON.stringify(raw) };
+      } catch (e) {
+        if (e.code !== 'EPRESET') throw e;
+        throw new HttpError(400, 'invalid_pipeline', e.message, { problems: e.problems ?? [e.message] });
+      }
+    }
     const preset = findPreset(presetId);
-    if (!preset) throw new HttpError(404, 'preset_not_found', `Không tìm thấy preset "${presetId ?? ''}".`);
+    if (!preset) throw new HttpError(404, 'preset_not_found', `Không tìm thấy quy trình "${presetId ?? ''}".`);
+    // Chụp lại bản thô (giữ đường dẫn skills đã giải) để sửa/xóa mẫu sau này không ảnh hưởng dự án.
+    const snapshot = preset.pipeline ? JSON.stringify({ ...preset.pipeline, skills: preset.skills }) : null;
+    return { preset, snapshot };
+  }
+
+  // Tạo dự án mới (§6 create) từ quy trình gửi lên hoặc quy trình đã lưu; trả ProjectView hoặc throw HttpError 400/404/409.
+  function create({ presetId, pipeline, channelId, title, slug, dir } = {}) {
+    const { preset, snapshot } = resolvePipeline(presetId, pipeline);
+    let channel = preset.channel ?? null;
+    if (channelId != null && channelId !== '') {
+      if (!channelList().some((c) => c && c.id === channelId)) throw new HttpError(400, 'channel_not_found', 'Không tìm thấy kênh đã chọn.');
+      channel = channelId;
+    }
 
     const t = typeof title === 'string' ? title.trim() : '';
     if (t.length < 1 || t.length > 200) {
@@ -256,7 +295,8 @@ export function createProjects({ store, presets, channels, home } = {}) {
         store.insertProject({
           id,
           preset_id: preset.id,
-          channel_id: preset.channel ?? null,
+          channel_id: channel,
+          pipeline: snapshot,
           title: t,
           dir: abs,
           claude_session_id: crypto.randomUUID(),
@@ -296,7 +336,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     const s = store.getStep(id, key);
     if (!s) return null;
     const presetsNow = presetList();
-    const preset = findPreset(p.preset_id, presetsNow);
+    const preset = presetFor(p, presetsNow);
     const ps = presetStepOf(preset, key);
     const project = projectView(p, { presetsNow });
     const summary = project.steps.find((x) => x.key === key) ?? stepSummary(s, p, preset, true);
@@ -334,13 +374,13 @@ export function createProjects({ store, presets, channels, home } = {}) {
     if (!p) return { ok: false, status: 404, code: 'not_found', message: `Không tìm thấy dự án "${id}".` };
     const s = store.getStep(id, key);
     if (!s) return { ok: false, status: 404, code: 'not_found', message: `Không tìm thấy bước "${key}" trong dự án "${id}".` };
-    const preset = findPreset(p.preset_id);
+    const preset = presetFor(p);
     if (!preset) {
-      return { ok: false, status: 404, code: 'preset_not_found', message: `Preset "${p.preset_id}" của dự án không còn (đã xóa hoặc đang lỗi) — sửa preset rồi thử lại.` };
+      return { ok: false, status: 404, code: 'preset_not_found', message: `Quy trình "${p.preset_id}" của dự án không còn (đã xóa hoặc đang lỗi) — sửa quy trình rồi thử lại.` };
     }
     const ps = presetStepOf(preset, key);
     if (!ps) {
-      return { ok: false, status: 409, code: 'not_runnable', message: `Bước "${key}" không còn trong preset "${preset.id}".` };
+      return { ok: false, status: 409, code: 'not_runnable', message: `Bước "${key}" không còn trong quy trình "${preset.name}".` };
     }
     const running = store.runningRunOf(id);
     if (running) {
@@ -450,7 +490,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
         store.updateStep(step.id, { state: stepState });
         if (stepState === 'done') {
           const p = store.getProject(projectId);
-          advanceNext(p, step, findPreset(p.preset_id));
+          advanceNext(p, step, presetFor(p));
         }
       }
       recomputeStatus(projectId);
@@ -478,7 +518,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
       const blocker = firstBlockingEarlier(id, s);
       if (blocker) throw new HttpError(409, 'not_runnable', `Bước trước chưa xong: "${blocker.name}".`);
       store.updateStep(s.id, { state: 'done' });
-      advanceNext(p, s, findPreset(p.preset_id));
+      advanceNext(p, s, presetFor(p));
       recomputeStatus(id);
     });
     snapshotSafe(id);
@@ -630,7 +670,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
   // Preset (đã chuẩn hóa) của dự án, hoặc null nếu dự án/preset không còn.
   function presetOf(id) {
     const p = store.getProject(id);
-    return p ? findPreset(p.preset_id) : null;
+    return presetFor(p);
   }
 
   // Ước tính chi phí dịch vụ của bước (§6.1): chars(file) | count(key) | số nguyên; không bao giờ throw.
@@ -639,7 +679,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     try {
       const p = store.getProject(id);
       if (!p) return null;
-      const preset = findPreset(p.preset_id);
+      const preset = presetFor(p);
       const ps = presetStepOf(preset, key);
       if (!ps || !ps.cost) return null;
       const expr = ps.cost.estimate == null ? null : String(ps.cost.estimate);

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Giả lập `claude -p --output-format stream-json` cho test (hợp đồng M1 §12) — không mạng, không gọi claude thật.
 // Kịch bản: dòng đầu của <cwd>/.fake-scenario, nếu không có thì env FAKE_SCENARIO, mặc định "done".
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -233,6 +234,25 @@ function resultLine(sessionId, { structured, denials = [], isError = false, subt
   return line;
 }
 
+// rate_limit_event như claude thật (gói Claude); % lấy từ FAKE_USAGE (JSON {five_hour, seven_day}) nếu có.
+function rateLimitLine(sessionId) {
+  let u = { five_hour: 0.42, seven_day: 0.17 };
+  try {
+    if (process.env.FAKE_USAGE) u = JSON.parse(process.env.FAKE_USAGE);
+  } catch {
+    /* giữ mặc định */
+  }
+  const resets = { five_hour: 1893456000, seven_day: 1894060800 };
+  const unifiedWindows = Object.fromEntries(Object.entries(u).map(([k, v]) => [k, { utilization: v, resetsAt: resets[k] ?? 1893456000 }]));
+  const full = Object.values(u).some((v) => v >= 1);
+  return {
+    type: 'rate_limit_event',
+    rate_limit_info: { status: full ? 'rejected' : 'allowed', resetsAt: 1893456000, rateLimitType: 'five_hour', unifiedWindows },
+    session_id: sessionId,
+    uuid: uuid(),
+  };
+}
+
 function structuredTurn(sessionId, structured) {
   const id = 'toolu_so_' + uuid().slice(0, 8);
   out(syntheticEnforce(sessionId));
@@ -287,9 +307,118 @@ async function doctorCommand() {
   return false;
 }
 
+// ---- Trợ lý AI (có --mcp-config): làm MCP client thật tới server "studio" trong file cấu hình, kịch bản theo câu hỏi.
+function mcpClient(cfgFile) {
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8')).mcpServers.studio;
+  const child = spawn(cfg.command, cfg.args || [], { env: { ...process.env, ...(cfg.env || {}) }, stdio: ['pipe', 'pipe', 'inherit'] });
+  const waiting = new Map();
+  let buf = '';
+  let seq = 0;
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (c) => {
+    buf += c;
+    let i;
+    while ((i = buf.indexOf('\n')) !== -1) {
+      const m = JSON.parse(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+      waiting.get(m.id)?.(m);
+      waiting.delete(m.id);
+    }
+  });
+  const rpc = (method, params = {}) =>
+    new Promise((resolve) => {
+      const id = ++seq;
+      waiting.set(id, resolve);
+      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    });
+  const call = async (name, args = {}) => {
+    const r = await rpc('tools/call', { name, arguments: args });
+    return { text: r.result?.content?.[0]?.text || '', isError: !!r.result?.isError };
+  };
+  return { rpc, call, close: () => child.kill() };
+}
+
+// Tìm số ref của dòng phần tử có tên khớp re trong kết quả read_page.
+function refOf(page, re) {
+  for (const line of page.split('\n')) {
+    const m = /^\[(\d+)\] [^"]*"([^"]*)"/.exec(line);
+    if (m && re.test(m[2])) return Number(m[1]);
+  }
+  return null;
+}
+
+async function assistantMode() {
+  const prompt = await readStdin();
+  try {
+    fs.appendFileSync(path.join(cwd, '.fake-assist.jsonl'), JSON.stringify({ argv, prompt }) + '\n');
+  } catch {
+    /* bỏ qua */
+  }
+  const sessionId = argVal('--resume') || argVal('--session-id') || uuid();
+  const say = (text) => out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] }, session_id: sessionId, uuid: uuid() });
+  out({ type: 'system', subtype: 'init', session_id: sessionId, model: MODEL, apiKeySource: 'none', tools: [], mcp_servers: [{ name: 'studio', status: 'connected' }] });
+  out(rateLimitLine(sessionId));
+  if (/chưa đăng nhập/i.test(prompt)) {
+    out({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login', session_id: sessionId });
+    return;
+  }
+  const mcp = mcpClient(argVal('--mcp-config'));
+  await mcp.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake', version: '1' } });
+  let reply = 'Chào bạn! Tôi có thể giúp gì?';
+  if (/chậm/i.test(prompt)) {
+    say('Để tôi xem…');
+    await sleep(60_000);
+  } else if (/60/.test(prompt)) {
+    let page = (await mcp.call('read_page')).text;
+    const add = refOf(page, /Dự án mới/);
+    page = (await mcp.call('click', { ref: add })).text;
+    const dur = refOf(page, /^Thời lượng$/);
+    const r = await mcp.call('fill', { ref: dur, value: '60' });
+    reply = r.isError ? `Không đặt được: ${r.text.split('\n')[0]}` : 'Đã đặt thời lượng 60 giây.';
+  } else if (/xóa/i.test(prompt)) {
+    const page = (await mcp.call('read_page')).text;
+    const del = refOf(page, /^Xóa/);
+    if (!del) reply = 'Không thấy nút Xóa.';
+    else {
+      const r = await mcp.call('click', { ref: del });
+      reply = r.isError ? `Không xóa: ${r.text.split('\n')[0]}` : 'Đã bấm Xóa.';
+    }
+  } else if (/trang/i.test(prompt)) {
+    const r = await mcp.call('read_page');
+    reply = `Bạn đang ở ${r.text.split('\n')[0]}`;
+  }
+  mcp.close();
+  say(reply);
+  out({ type: 'result', subtype: 'success', is_error: false, result: reply, num_turns: 2, session_id: sessionId, usage: { input_tokens: 7, output_tokens: 3, cache_read_input_tokens: 20 } });
+}
+
+// ---- Kiểm tra mức dùng (--no-session-persistence): FAKE_USAGE_MODE = none (không gửi %) | logout | slow.
+async function usageCheckMode() {
+  await readStdin();
+  try {
+    fs.appendFileSync(path.join(cwd, '.fake-usage.jsonl'), JSON.stringify({ argv }) + '\n');
+  } catch {
+    /* bỏ qua */
+  }
+  const mode = process.env.FAKE_USAGE_MODE || '';
+  if (mode === 'logout') {
+    process.stderr.write('Not logged in · Please run /login\n');
+    process.exitCode = 1;
+    return;
+  }
+  if (mode === 'slow') await sleep(60_000);
+  const sessionId = uuid();
+  out({ type: 'system', subtype: 'init', session_id: sessionId, model: MODEL, apiKeySource: 'none', tools: [] });
+  if (mode !== 'none') out(rateLimitLine(sessionId));
+  out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }, session_id: sessionId, uuid: uuid() });
+  out({ type: 'result', subtype: 'success', is_error: false, result: 'ok', session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1, cache_creation_input_tokens: 30 } });
+}
+
 // ---- kịch bản
 async function main() {
   if (await doctorCommand()) return;
+  if (argv.includes('--mcp-config')) return assistantMode();
+  if (argv.includes('--no-session-persistence')) return usageCheckMode();
   const scenario = pickScenario();
   const prompt = await readStdin();
   try {
@@ -328,6 +457,7 @@ async function main() {
   out({ type: 'system', subtype: 'hook_started', hook_id: 'h1', hook_name: 'SessionStart:startup', session_id: sessionId, uuid: uuid() });
   out({ type: 'system', subtype: 'hook_response', hook_id: 'h1', output: 'secret hook output', exit_code: 0, session_id: sessionId, uuid: uuid() });
   out(initLine(sessionId));
+  out(rateLimitLine(sessionId));
 
   if (scenario === 'fail') {
     out(resultLine(sessionId, { isError: true, subtype: 'error_during_execution', turns: 1, text: 'Lỗi giả lập khi chạy.' }));

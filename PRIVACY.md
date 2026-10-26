@@ -20,6 +20,8 @@ When you add a YouTube channel, the app requests the following permissions, for 
 
 - Google tokens are kept in your machine's secret store (Keychain on macOS). They never reach the browser or the logs.
 - Channel names, channel IDs and cached statistics (refreshed every 6 hours) are stored in a SQLite file under `~/.video-studio` on your machine.
+- To show your Claude plan usage, the app reads Claude Code's sign-in token (Keychain on macOS, `~/.claude/.credentials.json` elsewhere).
+  It is kept in memory only, sent only to `api.anthropic.com` (the same request as `/usage` in Claude Code), and never reaches the browser, the logs or a file.
 - The app shares this data with no one. Its only outbound connections go to Google's servers, for the purposes in the table above.
 
 ## Deleting data

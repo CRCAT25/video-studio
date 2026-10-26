@@ -13,7 +13,7 @@ import { loadChannels, loadPresets, REPO_ROOT } from '../server/presets.js';
 import { createProjects } from '../server/projects.js';
 import { createHub } from '../server/sse.js';
 import { createClaudeAccount } from '../server/claude-account.js';
-import { DEFAULT_PORT, listenWithFallback, main, parseArgs, parsePort, resolveClaudeBin, resolveHome } from '../server/cli.js';
+import { cachedPresets, DEFAULT_PORT, listenWithFallback, main, parseArgs, parsePort, resolveClaudeBin, resolveHome } from '../server/cli.js';
 
 const FIXTURE_PRESETS = path.join(REPO_ROOT, 'test', 'fixtures', 'presets');
 const REPO_PRESETS = path.join(REPO_ROOT, 'presets');
@@ -244,7 +244,7 @@ test('GET /api/channels, /api/presets (đủ field), /api/doctor (cache 60 s, re
   assert.ok(Array.isArray(body.errors));
   const p = body.presets.find((x) => x.id === 'e2e-short');
   assert.ok(p);
-  assert.deepEqual(Object.keys(p).sort(), ['channel', 'defaults', 'file', 'format', 'id', 'name', 'permissions', 'project_dir', 'skills', 'steps', 'vars', 'yaml'].sort());
+  assert.deepEqual(Object.keys(p).sort(), ['channel', 'defaults', 'file', 'format', 'id', 'mine', 'name', 'permissions', 'pipeline', 'project_dir', 'skills', 'steps', 'vars', 'yaml'].sort());
   assert.equal(p.steps.length, 4);
   assert.match(p.yaml, /e2e-short/);
 
@@ -357,6 +357,91 @@ test('POST /api/projects: lỗi 400/404/409 đúng mã', async () => {
   });
   assert.equal(dirTaken.statusCode, 409);
   assert.equal(dirTaken.json().error, 'dir_taken');
+});
+
+test('quy trình: catalog, suggest (mặc định + lỗi), lưu/xóa "Quy trình của tôi", mine trong /api/presets', async () => {
+  const mineDir = path.join(home, 'presets');
+  // cache dài như app thật: lưu/xóa phải bỏ cache, không thì danh sách cũ
+  await makeApp({ presets: cachedPresets([FIXTURE_PRESETS, mineDir], 60_000) });
+
+  const cat = await req({ url: '/api/pipeline/catalog' });
+  assert.equal(cat.statusCode, 200);
+  assert.deepEqual(Object.keys(cat.json()).sort(), ['aspects', 'lengths', 'orientations', 'steps']);
+
+  const def = (await req({ url: '/api/pipeline/suggest' })).json().pipeline;
+  assert.equal(def.name, 'Video ngắn dọc 9:16');
+  const sg = await req({ url: '/api/pipeline/suggest?orientation=horizontal&aspect=16:9&length=long&duration=1200&hd4k=1' });
+  assert.equal(sg.statusCode, 200);
+  const pl = sg.json().pipeline;
+  assert.equal(pl.vars.resolution, '3840x2160');
+  assert.equal(pl.vars.duration_label, '20 phút');
+  for (const [q, code] of [['orientation=x', 'invalid_format'], ['orientation=vertical&aspect=21:9', 'invalid_format'], ['length=short&duration=5', 'invalid_format'], ['duration=abc', 'invalid_format']]) {
+    const r = await req({ url: `/api/pipeline/suggest?${q}` });
+    assert.equal(r.statusCode, 400, q);
+    assert.equal(r.json().error, code, q);
+  }
+
+  assert.ok(!(await req({ url: '/api/presets' })).json().presets.some((p) => p.id === 'kenh-xe-dien')); // nạp cache trước
+  const sv = await req({ method: 'POST', url: '/api/pipelines', payload: { pipeline: pl, name: 'Kênh xe điện' } });
+  assert.equal(sv.statusCode, 201, sv.body);
+  assert.deepEqual(sv.json(), { id: 'kenh-xe-dien', name: 'Kênh xe điện' });
+  const list = (await req({ url: '/api/presets' })).json().presets;
+  assert.equal(list.find((p) => p.id === 'kenh-xe-dien').mine, true);
+  assert.equal(list.find((p) => p.id === 'e2e-short').mine, false);
+
+  for (const [payload, status, code] of [
+    [{ name: 'x' }, 400, 'invalid_body'],
+    [{ pipeline: pl, name: '' }, 400, 'invalid_format'],
+    [{ pipeline: { ...pl, steps: [] }, name: 'Rỗng' }, 400, 'invalid_pipeline'],
+  ]) {
+    const r = await req({ method: 'POST', url: '/api/pipelines', payload });
+    assert.equal(r.statusCode, status, JSON.stringify(payload).slice(0, 80));
+    assert.equal(r.json().error, code);
+  }
+
+  // xóa: chỉ quy trình trong <home>/presets; mẫu fixture/không tồn tại → 404
+  const del = (id) => req({ method: 'DELETE', url: `/api/pipelines/${id}`, payload: {} });
+  assert.equal((await del('e2e-short')).statusCode, 404);
+  assert.equal((await req({ method: 'DELETE', url: '/api/pipelines/kenh-xe-dien' })).statusCode, 415, 'thiếu JSON → chặn CSRF');
+  assert.equal((await del('kenh-xe-dien')).statusCode, 200);
+  assert.equal((await del('kenh-xe-dien')).json().error, 'pipeline_not_found');
+  assert.ok(!(await req({ url: '/api/presets' })).json().presets.some((p) => p.id === 'kenh-xe-dien'));
+});
+
+test('POST /api/projects với pipeline: kênh tùy chọn, saveAs lưu mẫu, lỗi invalid_pipeline kèm problems', async () => {
+  await makeApp();
+  const pl = (await req({ url: '/api/pipeline/suggest?length=short&duration=30' })).json().pipeline;
+
+  const a = await req({ method: 'POST', url: '/api/projects', payload: { pipeline: pl, title: 'Không kênh' } });
+  assert.equal(a.statusCode, 201, a.body);
+  assert.equal(a.json().channel, null);
+  assert.equal(a.json().saved, undefined);
+  assert.equal(a.json().steps.length, 7);
+
+  const b = await req({ method: 'POST', url: '/api/projects', payload: { pipeline: pl, title: 'Có kênh', channelId: 'tiktok', saveAs: '  Shorts 30 giây ' } });
+  assert.equal(b.statusCode, 201, b.body);
+  assert.equal(b.json().channel.id, 'tiktok');
+  assert.deepEqual(b.json().saved, { id: 'shorts-30-giay', name: 'Shorts 30 giây' });
+  assert.ok(fs.existsSync(path.join(home, 'presets', 'shorts-30-giay.yaml')));
+
+  const bad = structuredClone(pl);
+  bad.steps[0].prompt = '';
+  const cases = [
+    [{ pipeline: bad, title: 'Hỏng' }, 400, 'invalid_pipeline'],
+    [{ pipeline: 'x', title: 'Chuỗi' }, 400, 'invalid_body'],
+    [{ pipeline: pl, title: 'Kênh lạ', channelId: 'khong-co' }, 400, 'channel_not_found'],
+    [{ pipeline: pl, title: 'Kênh số', channelId: 5 }, 400, 'channel_not_found'],
+    [{ pipeline: pl, title: 'Tên dài', saveAs: 'x'.repeat(81) }, 400, 'invalid_name'],
+    [{ presetId: 'e2e-short', title: 'Lưu không pipeline', saveAs: 'abc' }, 400, 'invalid_name'],
+  ];
+  for (const [payload, status, code] of cases) {
+    const r = await req({ method: 'POST', url: '/api/projects', payload });
+    assert.equal(r.statusCode, status, payload.title);
+    assert.equal(r.json().error, code, payload.title);
+  }
+  const r = await req({ method: 'POST', url: '/api/projects', payload: { pipeline: bad, title: 'Hỏng' } });
+  assert.ok(Array.isArray(r.json().problems) && r.json().problems.length === 1);
+  assert.equal(projects.list().length, 2, 'lỗi không tạo dự án');
 });
 
 test('body JSON hỏng → 400, quá 256 KB → 413, sai content-type → 415 (đều invalid_body)', async () => {
@@ -1029,4 +1114,81 @@ test('update: có bản mới → POST chạy cập nhật; đã mới nhất �
   assert.equal(p.json().state, 'running');
   assert.equal(started, 1);
   assert.equal((await req({ method: 'POST', url: '/api/update/restart', payload: {} })).statusCode, 409);
+});
+
+test('assistant: không có → available:false, POST 503; có → tool là public, còn lại cần token; state đi qua SSE', async () => {
+  await makeApp();
+  assert.deepEqual((await req({ url: '/api/assistant' })).json(), { available: false, busy: false, messages: [] });
+  const off = await req({ method: 'POST', url: '/api/assistant/message', payload: { text: 'chào' } });
+  assert.equal(off.statusCode, 503);
+  assert.equal(off.json().error, 'assistant_unavailable');
+  assert.equal((await anon({ method: 'POST', url: '/api/assistant/tool', payload: { key: 'k' } })).statusCode, 401);
+  await app.close();
+
+  const calls = [];
+  let listener;
+  const fake = {
+    state: () => ({ busy: false, messages: [] }),
+    send: (text, o) => (calls.push(['send', text, o.tabId]), { busy: true, messages: [] }),
+    stop: () => ({ busy: false, messages: [] }),
+    reset: () => ({ busy: false, messages: [] }),
+    callTool: (key, tool, args) => (calls.push(['tool', key, tool, args]), { text: 'trang', isError: false }),
+    toolResult: (id, b) => (calls.push(['result', id, b]), { ok: true }),
+    on: (fn) => ((listener = fn), () => {}),
+  };
+  await makeApp({ assistant: fake });
+  assert.equal((await req({ url: '/api/assistant' })).json().available, true);
+  assert.equal((await anon({ url: '/api/assistant' })).statusCode, 401);
+  assert.equal((await anon({ method: 'POST', url: '/api/assistant/message', payload: { text: 'x' } })).statusCode, 401);
+  assert.equal((await req({ method: 'POST', url: '/api/assistant/message', payload: { text: 1 } })).statusCode, 400);
+  const s = await req({ method: 'POST', url: '/api/assistant/message', payload: { text: 'chào', tabId: 't'.repeat(100) } });
+  assert.equal(s.json().busy, true);
+  const t = await anon({ method: 'POST', url: '/api/assistant/tool', payload: { key: 'k', tool: 'read_page', args: {} } });
+  assert.deepEqual(t.json(), { text: 'trang', isError: false });
+  assert.equal((await anon({ method: 'POST', url: '/api/assistant/tool/1/result', payload: {} })).statusCode, 401);
+  await req({ method: 'POST', url: '/api/assistant/tool/1/result', payload: { hold: true } });
+  assert.deepEqual(calls, [
+    ['send', 'chào', 't'.repeat(64)],
+    ['tool', 'k', 'read_page', {}],
+    ['result', '1', { hold: true }],
+  ]);
+  listener({ kind: 'state', state: { busy: false, messages: [] } });
+  assert.deepEqual(sent.at(-1), ['assistant', { kind: 'state', state: { busy: false, messages: [] } }]);
+});
+
+test('mức dùng: không có → 503; có → GET summary, POST check (lỗi 429 đi qua), cần token, SSE usage', async () => {
+  const { HttpError } = await import('../server/projects.js');
+  await makeApp();
+  const off = await req({ url: '/api/claude/usage' });
+  assert.equal(off.statusCode, 503);
+  assert.equal(off.json().error, 'usage_unavailable');
+  await app.close();
+
+  let listener;
+  let n = 0;
+  const args = [];
+  const snap = { limits: { status: 'allowed', windows: { five_hour: { utilization: 0.5, resetsAt: 1 } } }, checking: false, tokens: null };
+  const fake = {
+    summary: () => snap,
+    check: async (o) => {
+      args.push(o);
+      if (++n > 1) throw new HttpError(429, 'usage_cooldown', 'Vừa kiểm tra');
+      return { ...snap, checking: false };
+    },
+    on: (fn) => ((listener = fn), () => {}),
+  };
+  await makeApp({ usage: fake });
+  assert.equal((await anon({ url: '/api/claude/usage' })).statusCode, 401);
+  assert.equal((await anon({ method: 'POST', url: '/api/claude/usage/check', payload: {} })).statusCode, 401);
+  assert.deepEqual((await req({ url: '/api/claude/usage' })).json(), snap);
+  const ok = await req({ method: 'POST', url: '/api/claude/usage/check', payload: {} });
+  assert.equal(ok.statusCode, 200, ok.body);
+  assert.equal(ok.json().limits.status, 'allowed');
+  const again = await req({ method: 'POST', url: '/api/claude/usage/check', payload: {} });
+  assert.equal(again.statusCode, 429);
+  assert.equal(again.json().error, 'usage_cooldown');
+  await req({ method: 'POST', url: '/api/claude/usage/check', payload: { auto: true } });
+  assert.deepEqual(args, [{ auto: false }, { auto: false }, { auto: true }]);
+  listener(snap);
+  assert.deepEqual(sent.at(-1), ['usage', snap]);
 });

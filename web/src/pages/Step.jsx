@@ -5,6 +5,7 @@ import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
 import LogTerminal from '../components/LogTerminal.jsx';
 import Outputs, { Checks } from '../components/Outputs.jsx';
+import { Sk, SkFlow, SkLines, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useSSE, useSSEStatus } from '../hooks/useSSE.js';
 import { useNow } from '../hooks/useNow.js';
@@ -51,10 +52,61 @@ function StepRedirect({ projectId }) {
     return () => ac.abort();
   }, [projectId]);
   if (err) return <NotFound message={err.status === 404 ? `Không tìm thấy dự án "${projectId}".` : err.message} />;
+  return <StepSkeleton label="Đang mở dự án" />;
+}
+
+// Khung chờ trang bước: đường dẫn, tiêu đề + thông số, dải bước lớn, tab, nội dung + cột phải.
+function StepSkeleton({ label }) {
   return (
-    <div className="card pad empty">
-      <span className="spinner" aria-hidden="true" /> Đang mở dự án…
-    </div>
+    <SkZone label={label}>
+      <div className="crumb">
+        <Sk w="16em" />
+      </div>
+      <div className="step-head">
+        <div>
+          <h1>
+            <Sk w="9em" />
+          </h1>
+          <div className="meta">
+            {['5em', '4em', '8em', '5em', '7em'].map((w, i) => (
+              <span key={i} className="ro">
+                <Sk w={w} />
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="acts">
+          <Sk block w={88} h={34} />
+        </div>
+      </div>
+      <div className="line-panel">
+        <SkFlow n={7} lg />
+      </div>
+      <div className="subtabs">
+        {['4.5em', '4em', '4.5em', '3.5em'].map((w, i) => (
+          <button key={i} type="button" tabIndex={-1} disabled>
+            <Sk w={w} />
+          </button>
+        ))}
+      </div>
+      <div className="step-grid">
+        <Sk block h={477} />
+        <div className="side">
+          <div className="card pad">
+            <h2>
+              <Sk w="6em" />
+            </h2>
+            <SkLines n={3} />
+          </div>
+          <div className="card pad">
+            <h2>
+              <Sk w="4em" />
+            </h2>
+            <Sk block h={80} />
+          </div>
+        </div>
+      </div>
+    </SkZone>
   );
 }
 
@@ -129,7 +181,7 @@ function ResultBody({ run, live = false }) {
               ✕ {denialText(d)}
             </div>
           ))}
-          <p className="note">Thêm quyền vào mục permissions của preset nếu bước thật sự cần.</p>
+          <p className="note">Thêm quyền vào mục permissions của quy trình nếu bước thật sự cần.</p>
         </>
       ) : null}
     </div>
@@ -255,11 +307,7 @@ function StepPage({ projectId, stepKey }) {
     );
   }
   if (!view || !step || !project) {
-    return (
-      <div className="card pad empty">
-        <span className="spinner" aria-hidden="true" /> Đang tải bước…
-      </div>
-    );
+    return <StepSkeleton label="Đang tải bước" />;
   }
 
   const st = step.state;
@@ -562,7 +610,7 @@ function StepPage({ projectId, stepKey }) {
               <pre className="box-pre">{selRun ? selRun.prompt || '(không lưu prompt)' : step.prompt_template || '(trống)'}</pre>
               {selRun && step.prompt_template ? (
                 <details style={{ marginTop: 14 }}>
-                  <summary className="sum">Mẫu prompt trong preset</summary>
+                  <summary className="sum">Lời dặn trong quy trình</summary>
                   <pre className="box-pre" style={{ marginTop: 8 }}>{step.prompt_template}</pre>
                 </details>
               ) : null}

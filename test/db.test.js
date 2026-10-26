@@ -24,16 +24,16 @@ function seed(id = 'p1', steps = ['a', 'b']) {
   return steps.map((key, i) => store.insertStep({ project_id: id, key, name: key.toUpperCase(), ord: i, state: i === 0 ? 'ready' : 'pending' }));
 }
 
-test('tạo schema v3, WAL, foreign_keys, busy_timeout; tạo thư mục cha', () => {
+test('tạo schema v5, WAL, foreign_keys, busy_timeout; tạo thư mục cha', () => {
   assert.ok(fs.existsSync(path.join(tmp, 'sub', 'studio.db')));
-  assert.equal(store.db.pragma('user_version', { simple: true }), 3);
+  assert.equal(store.db.pragma('user_version', { simple: true }), 5);
   assert.equal(store.db.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(store.db.pragma('foreign_keys', { simple: true }), 1);
   assert.equal(store.db.pragma('busy_timeout', { simple: true }), 5000);
   const tables = store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(tables, ['artifacts', 'checks', 'costs', 'projects', 'run_events', 'runs', 'sessions', 'settings', 'steps', 'yt_channels', 'yt_quota', 'yt_stats_cache', 'yt_uploads']);
+  assert.deepEqual(tables, ['artifacts', 'checks', 'costs', 'projects', 'run_events', 'runs', 'sessions', 'settings', 'steps', 'token_usage', 'yt_channels', 'yt_quota', 'yt_stats_cache', 'yt_uploads']);
   const idx = store.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'ix_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(idx, ['ix_events_run', 'ix_runs_step']);
+  assert.deepEqual(idx, ['ix_events_run', 'ix_runs_step', 'ix_token_usage_at']);
 });
 
 test('mở lại DB giữ dữ liệu; DB có user_version mới hơn → lỗi rõ ràng', () => {
@@ -235,4 +235,31 @@ test(':memory: hoạt động', () => {
   } finally {
     m.close();
   }
+});
+
+test('token_usage: ghi theo nguồn, tổng từ mốc thời gian gồm cả runs.usage_json', () => {
+  const [a] = seed();
+  const run = store.insertRun({ step_id: a.id, project_id: 'p1' });
+  store.updateRun(run.id, { usage: { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 100, cache_read_input_tokens: 50 } });
+  store.addTokenUsage('assistant', { input_tokens: 3, output_tokens: 4, cache_read_input_tokens: 7, junk: 9 });
+  store.addTokenUsage('assistant', { input_tokens: '2', output_tokens: -5 });
+  store.addTokenUsage('check', { input_tokens: 1, output_tokens: 1 }, '2020-01-01T00:00:00.000Z');
+  const t = store.tokenTotals('2024-01-01T00:00:00.000Z');
+  assert.deepEqual(t.steps, { input: 10, output: 5, cache: 150, total: 165 });
+  assert.deepEqual(t.assistant, { input: 5, output: 4, cache: 7, total: 16 });
+  assert.deepEqual(t.check, { input: 0, output: 0, cache: 0, total: 0 });
+  assert.equal(store.tokenTotals('2019-01-01T00:00:00.000Z').check.total, 2);
+  assert.equal(store.tokenTotals(new Date(Date.now() + 86_400_000)).steps.total, 0);
+});
+
+test('nâng cấp DB v4 → v5 giữ dữ liệu, thêm bảng token_usage', () => {
+  seed();
+  store.db.exec('DROP TABLE token_usage');
+  store.db.pragma('user_version = 4');
+  store.close();
+  store = openStore(path.join(tmp, 'sub', 'studio.db'));
+  assert.equal(store.db.pragma('user_version', { simple: true }), 5);
+  assert.equal(store.listProjects().length, 1);
+  store.addTokenUsage('check', { output_tokens: 2 });
+  assert.equal(store.tokenTotals('2000-01-01').check.total, 2);
 });

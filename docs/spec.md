@@ -90,8 +90,10 @@ Each item: project, step, how long it has waited, auto-approve deadline (if the 
   (see 4.5). The feedback becomes the prompt for the next run, in the same Claude session (`--resume`).
 
 ### 4.4 New project
-Pick channel → preset → enter an idea / pick from the **Idea bank** → slug + working title → preview the steps and gates →
-Create. The app creates the folder (or attaches to an existing one — **import an old project**) and writes `.studio/project.json`.
+Pick a **format** (vertical 9:16/4:5, horizontal 16:9 (+4K)/21:9, square 1:1; short 15–60 s or long 3–30 min) to get a
+suggested workflow, or pick a saved one → customize the steps (on/off, order, name, gate, prompt, outputs, add from the library) →
+title, optional channel, optional "save as my workflow" → slug + folder → Create.
+The project keeps a snapshot of its workflow, so later edits to saved workflows never change it. The app creates the folder (or attaches to an existing one — **import an old project**) and writes `.studio/project.json`.
 
 ### 4.5 Channels & Rules
 - Channel info, root folder, bundled skills, publishing schedule.
@@ -112,8 +114,9 @@ The **Channels** tab (`#/channels`) starts empty. The user clicks **+ Thêm kên
 - **Tests**: `VS_SECRETS=file` (never touches the real Keychain) and `VS_GOOGLE_BASE=<fake server>` (`test/fixtures/fake-google.mjs`).
 - **Phase 2 (not done)**: pick each channel's delivered-videos folder in the app, upload videos from it (reading `publish.md`), always Private, `madeForKids=false`, resumable upload with progress, then thumbnails / captions / playlists.
 
-### 4.6 Presets
-View/edit YAML, view the step diagram, validate (schema), duplicate a preset.
+### 4.6 Workflows (Quy trình)
+No built-in workflows. "Gợi ý": pick a format → preview the suggested steps → customize → save as "Quy trình của tôi".
+"Quy trình của tôi": step diagram, details/YAML, delete (with confirm). Saved workflows are YAML files in `~/.video-studio/presets/`.
 
 ### 4.7 Calendar & Idea bank (V2)
 - Monthly calendar: slots per channel rules (e.g. a long video every 2 days; 2 Shorts on the days in between).
@@ -286,7 +289,7 @@ version to `.studio/runs/<step>/<n>/artifacts/` (hard-link when possible) for A/
 ```yaml
 id: string                 # unique
 name: string
-channel: string            # channel id
+channel: string?           # channel id (optional; picked when creating a project)
 format: long | short
 project_dir: string        # template, e.g. ~/Videos/projects/{slug}
 skills: [path]             # added to --add-dir + Claude is told to read SKILL.md
@@ -308,7 +311,7 @@ steps:
     manual: bool?          # a step the user does by hand (e.g. clicking Schedule in YouTube Studio) — checklist only
 ```
 
-Sample preset in the repo: `presets/tiktok-short.yaml`; personal presets go in `~/.video-studio/presets/`.
+Workflows are generated from a format (`server/pipeline.js`) and saved to `~/.video-studio/presets/`; the repo only ships `presets/channels.yaml`.
 
 ---
 

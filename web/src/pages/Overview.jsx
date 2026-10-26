@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import Flow from '../components/Flow.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useNow } from '../hooks/useNow.js';
 import { LINE_CLASS, STATE_LABEL, fmtDateTime, fmtNum, fmtRelative, fmtTokens, fmtUsd, usageTokens } from '../lib/format.js';
@@ -128,6 +129,48 @@ function WaitPanel({ items, now }) {
   );
 }
 
+// Khung chờ Tổng quan: 3 ô số + vài hàng dự án (tên, trạng thái, meta, dải bước).
+function OverviewSkeleton() {
+  return (
+    <SkZone label="Đang tải dự án">
+      <div className="stats">
+        {['5em', '4em', '7em'].map((w) => (
+          <div key={w} className="card stat">
+            <span className="lbl">
+              <Sk w={w} />
+            </span>
+            <span className="num">
+              <Sk w="1.5em" />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="proj-list">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card proj">
+            <div className="proj-h">
+              <div className="ph">
+                <span className="ptitle">
+                  <Sk w={['14em', '10em', '12em'][i]} />
+                </span>
+              </div>
+              <Sk block w={52} h={28} />
+            </div>
+            <div className="proj-meta">
+              <Sk w="8em" />
+              <Sk w="6em" />
+            </div>
+            <SkFlow n={7} />
+            <p className="proj-now">
+              <Sk w="16em" />
+            </p>
+          </div>
+        ))}
+      </div>
+    </SkZone>
+  );
+}
+
 function StatCards({ stats, projects }) {
   const st = stats || {};
   const waitBy = { needs_input: 0, failed: 0, manual: 0 };
@@ -197,11 +240,7 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
         </div>
       ) : null}
 
-      {!data && !error ? (
-        <div className="empty">
-          <span className="spinner" aria-hidden="true" /> Đang tải…
-        </div>
-      ) : null}
+      {!data && !error ? <OverviewSkeleton /> : null}
 
       {data ? (
         <>

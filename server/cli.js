@@ -7,6 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildApp } from './app.js';
+import { createAssistant } from './assistant.js';
+import { createPlanApi } from './claude-plan.js';
+import { createUsage } from './usage.js';
 import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
 import { openStore } from './db.js';
@@ -133,15 +136,19 @@ export function resolveClaudeBin(v) {
   return /[\\/]/.test(s) ? path.resolve(s) : s;
 }
 
-// Hàm đọc preset có cache ngắn (1 s) để mỗi request không phải parse lại YAML nhiều lần.
+// Hàm đọc preset có cache ngắn (1 s) để mỗi request không phải parse lại YAML nhiều lần; .invalidate() bỏ cache sau khi lưu/xóa.
 export function cachedPresets(dirs, ttlMs = 1000) {
   let cache = null;
-  return () => {
+  const get = () => {
     if (cache && Date.now() - cache.at < ttlMs) return cache.value;
     const value = loadPresets(dirs);
     cache = { at: Date.now(), value };
     return value;
   };
+  get.invalidate = () => {
+    cache = null;
+  };
+  return get;
 }
 
 // Thư mục dữ liệu: VS_HOME trong env được truyền vào (test truyền thư mục tạm), không có → studioHome().
@@ -230,10 +237,17 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   // Lệnh `claude auth` không cần (và không được thấy) biến VS_* như token của app.
   const authEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('VS_')));
   const account = createClaudeAccount({ claudeBin, env: authEnv });
+  // Trợ lý AI: MCP gọi về app theo địa chỉ biết sau khi listen.
+  let assistUrl = null;
+  // Mức dùng gói Claude: bắt % từ mọi lượt claude -p; Kiểm tra hỏi API như /usage (token Claude Code chỉ đọc lúc kiểm tra),
+  // lỗi thì chạy 1 câu ngắn. VS_CLAUDE_CREDENTIALS / VS_CLAUDE_API_BASE: file token + API giả khi test.
+  const usage = createUsage({ home, store, claudeBin, env: authEnv, planApi: createPlanApi({ env }) });
+  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage });
   try {
     const projects = createProjects({ store, presets, channels, home });
     const fixed = projects.recoverOnStartup();
     runner = createRunner({ store, projects, presets, claudeBin, model: opts.model, home, lockHost: os.hostname() });
+    runner.on('rate_limit', (info) => usage.observe(info));
     const youtube = createYouTube({
       store,
       // VS_SECRETS=file: lưu bí mật vào $VS_HOME/secrets.json thay vì Keychain (dùng khi test).
@@ -268,6 +282,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       token,
       doctor: () => runDoctor({ claudeBin }),
       account,
+      assistant,
+      usage,
       youtube,
       googleWizard: wizard,
       login: createLogin({
@@ -285,6 +301,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     stopBackups = startBackups(store.db, path.join(home, 'backups'), { onError: (e) => console.error('Sao lưu DB lỗi:', e?.message || e) });
     const shownHost = opts.host === '::1' ? '[::1]' : opts.host;
     const url = `http://${shownHost}:${port}/`;
+    assistUrl = url;
 
     if (port !== opts.port && opts.port !== 0) console.log(`Cổng ${opts.port} đang bận — dùng cổng ${port}.`);
     console.log(`Video Studio đang chạy: ${url}`);
@@ -293,7 +310,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     console.log(`Thư mục dữ liệu (VS_HOME): ${home}`);
     if (fixed > 0) console.log(`Đã đánh dấu ${fixed} lượt chạy dở (server dừng giữa chừng) là thất bại.`);
     const { errors } = presets();
-    for (const e of errors || []) console.warn(`Preset lỗi — ${e.file}: ${e.message}`);
+    for (const e of errors || []) console.warn(`Quy trình lỗi — ${e.file}: ${e.message}`);
     // --open: tự mở trình duyệt (mặc định chỉ in link).
     if (opts.open && !opts.service && !opts.dev) openUrl(url);
     if (opts.dev) {
@@ -309,6 +326,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     const close = async () => {
       stopBackups();
       account.dispose();
+      assistant.dispose();
+      usage.dispose();
       wizard?.dispose();
       try {
         if (runner && typeof runner.shutdown === 'function') await Promise.race([runner.shutdown(), delay(8000)]);
@@ -327,6 +346,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     return { app, port, url, token, home, close };
   } catch (e) {
     account.dispose();
+    assistant.dispose();
     wizard?.dispose();
     try {
       if (app) await app.close();

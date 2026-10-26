@@ -254,7 +254,7 @@ test('buildPrompt: tiêu đề, đầu ra, góp ý (nội tuyến hoặc mục r
   assert.equal(lines[0], '# Bước 2/3: Bước B (id: b)');
   assert.equal(lines[1], 'Dự án: Đà Lạt — slug: du-an');
   assert.equal(lines[2], 'Thư mục dự án (cwd): /tmp/du-an');
-  assert.equal(lines[3], 'Preset: E2E (e2e-short)');
+  assert.equal(lines[3], 'Quy trình: E2E (e2e-short)');
   assert.equal(lines[4], 'Đầu ra bắt buộc: ["audio/du-an.wav"]');
   assert.equal(lines[5], '');
   assert.equal(lines[6], '## Việc cần làm');
@@ -327,6 +327,8 @@ test('luồng đầy đủ 4 bước: args, prompt qua stdin, session → resume
   const changes = [];
   runner.on('event', (e) => events.push(e));
   runner.on('change', (c) => changes.push(c));
+  const limits = [];
+  runner.on('rate_limit', (d) => limits.push(d));
   process.env.VS_TOKEN = 'tok-bi-mat-khong-duoc-lo';
   process.env.VS_PORT = '4999';
   let hook;
@@ -339,6 +341,8 @@ test('luồng đầy đủ 4 bước: args, prompt qua stdin, session → resume
 
   // --- bước 1: hook
   assert.equal(hook.state, 'done', hook.error);
+  assert.ok(limits.length >= 1, 'runner phát rate_limit');
+  assert.equal(limits[0].unifiedWindows.five_hour.utilization, 0.42);
   assert.equal(hook.n, 1);
   assert.equal(hook.exit_code, 0);
   assert.equal(hook.summary, 'Đã tạo 1 file đầu ra cho bước.');

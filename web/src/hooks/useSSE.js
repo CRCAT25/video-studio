@@ -58,6 +58,14 @@ function connect() {
     const d = parse(ev);
     if (d) emit({ type: 'update', data: d });
   });
+  es.addEventListener('usage', (ev) => {
+    const d = parse(ev);
+    if (d) emit({ type: 'usage', data: d });
+  });
+  es.addEventListener('assistant', (ev) => {
+    const d = parse(ev);
+    if (d) emit({ type: 'assistant', data: d });
+  });
   es.addEventListener('log', (ev) => {
     const d = parse(ev);
     if (d && d.event) emit({ type: 'log', data: d });
@@ -74,7 +82,7 @@ function connect() {
   };
 }
 
-// Đăng ký nhận sự kiện SSE ({type:'hello'|'change'|'log'|'account'|'youtube'|'google-setup'|'update'|'reconnect', data}); trả hàm hủy.
+// Đăng ký nhận sự kiện SSE ({type:'hello'|'change'|'log'|'account'|'youtube'|'google-setup'|'update'|'assistant'|'usage'|'reconnect', data}); trả hàm hủy.
 export function subscribeSSE(fn) {
   subs.add(fn);
   connect();

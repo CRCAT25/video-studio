@@ -34,6 +34,7 @@ server/
   paths.js      # studioHome, expandHome, safeJoin, slugify, isInside
   db.js         # openStore(file) → Store
   presets.js    # loadPresets, validatePreset, renderTemplate, loadChannels
+  pipeline.js   # format catalog, suggestPipeline, preparePipeline, savePipeline, deletePipeline (§3.4)
   projects.js   # createProjects({store, presets, home}) → ProjectService (create projects, views, state transitions)
   stream.js     # normalizeLine(obj) → NormEvent[] ; parseJsonLines
   checks.js     # runChecks(...) ; builtin studio-check outputs
@@ -46,7 +47,7 @@ test/
   fixtures/fake-claude.mjs                                              # fake claude for tests/e2e
   fixtures/presets/e2e-short.yaml                                       # test preset (calls no real skill)
   e2e/run.mjs                                                           # playwright-core
-presets/  channels.yaml  tiktok-short.yaml   # personal presets/channels: ~/.video-studio/presets/
+presets/  channels.yaml   # no built-in workflows; saved workflows ("Quy trình của tôi") + channels: ~/.video-studio/presets/
 ```
 
 ## 2. Paths & user folder (`server/paths.js`)
@@ -65,7 +66,7 @@ trim leading/trailing `-`, cut to 60 characters (no trailing `-` after cutting).
 Examples: `"Chuyến xe buýt cuối số 13"` → `chuyen-xe-buyt-cuoi-so-13`; `"Đà Lạt — mùa mưa!"` → `da-lat-mua-mua`.
 Valid slug: `/^[a-z0-9][a-z0-9-]{0,63}$/`. The web has an identical copy in `web/src/lib/slug.js`.
 
-User folder `$VS_HOME` (default `~/.video-studio`): `studio.db`, `presets/*.yaml` (personal presets),
+User folder `$VS_HOME` (default `~/.video-studio`): `studio.db`, `presets/*.yaml` (saved workflows, written by the app or by hand),
 `token` (no — the token lives in memory only, see §9).
 
 ## 3. Presets (`server/presets.js`)
@@ -87,7 +88,7 @@ Preset folders in order: `<repo>/presets`, `$VS_HOME/presets` (skipped if missin
 {
   id, name, channel, format,            // format: 'short' | 'long' (default 'short')
   file,                                 // path of the yaml file
-  yaml,                                 // raw text (for the Preset screen)
+  yaml,                                 // raw text (for the Quy trình screen)
   project_dir,                          // template, still contains {slug}
   skills: [absPath],                    // expandHome applied
   vars: {k: v},
@@ -123,7 +124,26 @@ Valid placeholders: `{slug} {title} {feedback} {skill} {prev.summary} {vars.<nam
 ### 3.3 Channels
 
 `presets/channels.yaml` (sample): only `tiktok` — YouTube channels are added in the app (table `yt_channels`, `ytChannelList(store)` merges them into the channel list); `$VS_HOME/presets/channels.yaml` takes priority. A preset points `channel` at a channel id;
-an unknown channel → still loads, the UI shows the id.
+an unknown channel → still loads, the UI shows the id. `channel` is optional (missing → `null`; the channel is picked when creating a project).
+
+### 3.4 Workflows (`server/pipeline.js`)
+
+The repo ships no ready-made workflow. A new project starts from a **suggestion by format** or from a saved workflow.
+
+- **Format** = `{orientation, aspect, length, duration, hd4k}`:
+  `vertical` → `9:16` | `4:5`; `horizontal` → `16:9` | `21:9` (`hd4k` only for 16:9 → 3840×2160); `square` → `1:1`.
+  `short` = 15–60 s (default 45 s); `long` = 3–30 min (default 10 min). Invalid → 400 `invalid_format`.
+- `suggestPipeline(format)` → raw YAML-shaped object: id like `ngan-doc-9x16` / `dai-ngang-16x9-4k`, name like
+  "Video ngắn dọc 9:16", `vars` (`orientation_label`, `aspect`, `resolution`, `duration`, `duration_label`) used by the prompts.
+  Short = 7 steps; long = 10 steps with "Cắt Shorts" present but `enabled: false`. Paid steps always have `cost.always_ask: true`.
+- `formatCatalog()` → `{orientations, aspects, lengths, steps}` (`steps` = step library for "+ Thêm bước").
+- `preparePipeline(raw)` → `{raw, preset}`: drops `enabled: false` steps, strips `enabled`/`file`/`yaml`, adds the built-in
+  `studio-check outputs` check to `auto_if_checks` steps without checks, then validates. Errors → `EPRESET` with `problems[]`.
+- `savePipeline(home, raw, name)` → writes `<home>/presets/<slug(name)>.yaml` (`-2`, `-3`… on collision; never `channels.yaml`).
+- `deletePipeline(home, id)` → deletes the file in `<home>/presets` whose YAML `id` matches; anything else → 404 `pipeline_not_found`.
+
+**Snapshot:** `create` stores the prepared workflow as JSON in `projects.pipeline`. Editing or deleting a saved workflow never
+changes existing projects. Projects created before v4 (`pipeline` NULL) still read the template by `preset_id`.
 
 ## 4. SQLite (`server/db.js`)
 
@@ -137,6 +157,7 @@ CREATE TABLE projects(
   claude_session_id TEXT,         -- uuid, created with the project
   session_started INTEGER NOT NULL DEFAULT 0,   -- 1 once the first run successfully reaches system/init
   status TEXT NOT NULL DEFAULT 'active',        -- active | running | done | failed
+  pipeline TEXT,                  -- v4: JSON snapshot of the workflow used (§3.4); NULL for older projects
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE steps(
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -204,6 +225,8 @@ store.addCheck(runId, {name, cmd, passed, output, duration_ms}) / store.listChec
 store.addCost(runId, {kind, units, unit_name, usd, note}) / store.listCostsByRun(runId)
 store.costSummary(projectId)                          // {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, usd, runs}
 store.tokensSince(iso)                                // sum of units of 'claude_tokens' costs whose run.started_at ≥ iso
+store.addTokenUsage(source, usage)                    // v5 table token_usage: tokens of turns that are not video steps ('assistant' | 'check')
+store.tokenTotals(iso)                                // {steps, assistant, check} each {input, output, cache, total} since iso (steps = runs.usage_json)
 store.close()
 ```
 
@@ -246,7 +269,7 @@ Transitions (performed by ProjectService, called by the runner):
 ```js
 export function createProjects({store, presets /* () => {presets, errors} */, channels /* () => Channel[] */, home})
 → {
-  create({presetId, title, slug?, dir?}) → ProjectView   // throws HttpError(400|404|409, message)
+  create({pipeline | presetId, channelId?, title, slug?, dir?}) → ProjectView   // throws HttpError(400|404|409, message)
   list()  → OverviewItem[]
   view(id) → ProjectView | null
   stepView(id, key) → StepView | null
@@ -264,7 +287,10 @@ export class HttpError extends Error { constructor(status, code, message) }
 ```
 
 `create`:
-- The preset must exist (404 `preset_not_found`). `title` trimmed, 1–200 characters (400 `invalid_title`).
+- `pipeline` (object edited in the UI) → `preparePipeline`; errors → 400 `invalid_pipeline` with `problems[]`.
+  Otherwise the saved workflow `presetId` must exist (404 `preset_not_found`). The result is stored as the snapshot (§3.4).
+- `channelId` (optional) must be a known channel (400 `channel_not_found`); missing → the workflow's `channel` or `null`.
+- `title` trimmed, 1–200 characters (400 `invalid_title`).
 - `slug` = the given slug (must be valid, 400 `invalid_slug`) or `slugify(title)`; an existing project id → 409 `slug_taken`.
 - `dir` = the given `dir` (expandHome, must be absolute after expansion, 400 `invalid_dir`) or
   `expandHome(renderTemplate(preset.project_dir, {slug}))`; a template yielding a **relative** path → resolved from `home` (`$VS_HOME`).
@@ -457,7 +483,7 @@ export async function checkOutputs({dir, outputs, since}) → {passed, output}
 ```js
 export async function buildApp({store, projects, runner, presets, channels, token, webDist, doctor, logger=false}) → fastify
 ```
-`presets` = a function returning `{presets, errors}` (re-reading on every GET /api/presets is fine; M1 needs no watching).
+`presets` = a function returning `{presets, errors}` (the CLI caches it for 1 s; `presets.invalidate()`, if present, is called after a workflow is saved or deleted).
 
 ### 9.1 Security
 - `token` = `crypto.randomBytes(24).toString('base64url')`, stored persistently in `$VS_HOME/token` by default (mode 600, see §9.6); the env `VS_TOKEN`
@@ -499,15 +525,21 @@ export async function buildApp({store, projects, runner, presets, channels, toke
 | `GET /api/health` | `{ok:true, version, boot}` (no auth needed; `boot` changes on every server start) |
 | `GET /api/doctor` | `{claude: {found, path, version}, auth: {loggedIn, authMethod, subscriptionType} \| null, node, platform, home, problems: [Vietnamese strings]}` (cached 60 s; `?refresh=1` bypasses the cache) |
 | `GET /api/channels` | `Channel[]` |
-| `GET /api/presets` | `{presets: [{id,name,channel,format,file,yaml,project_dir,skills,vars,permissions,defaults,steps}], errors}` |
+| `GET /api/presets` | `{presets: [{id,name,channel,format,file,yaml,project_dir,skills,vars,permissions,defaults,steps,mine,pipeline}], errors}` — `mine` = file in `$VS_HOME/presets` (deletable) |
+| `GET /api/pipeline/catalog` | `formatCatalog()` (§3.4) |
+| `GET /api/pipeline/suggest?orientation=&aspect=&length=&duration=&hd4k=` | `{pipeline}` ; 400 `invalid_format` |
+| `POST /api/pipelines` `{pipeline, name}` | 201 `{id, name}` ; 400 `invalid_body`/`invalid_format`/`invalid_pipeline` |
+| `DELETE /api/pipelines/:id` (body `{}`) | `{ok:true}` ; 404 `pipeline_not_found` |
 | `GET /api/projects` | `{projects: OverviewItem[], stats: {total, running, waiting, done, tokens_month}}` — `waiting` = number of steps in `needs_input`+`failed`+`manual`; `tokens_month` = total claude_tokens units this month |
-| `POST /api/projects` `{presetId, title, slug?, dir?}` | 201 `ProjectView` ; 400/404/409 |
+| `POST /api/projects` `{pipeline \| presetId, title, channelId?, slug?, dir?, saveAs?}` | 201 `ProjectView` (+ `saved: {id,name} \| {error}` when `saveAs`) ; 400/404/409 |
 | `GET /api/projects/:id` | `ProjectView` ; 404 |
 | `GET /api/projects/:id/steps/:key` | `StepView` ; 404 |
 | `POST /api/projects/:id/steps/:key/run` `{feedback?, allowPaid?}` | 202 `{run: RunSummary}` ; 409 `{error:'busy'|'locked'|'not_runnable'}` ; 412 `{error:'cost_confirm_required', cost}` ; feedback ≤ 20,000 characters |
 | `POST /api/runs/:id/stop` | 200 `{ok:true}` ; 404 if not running |
 | `POST /api/projects/:id/steps/:key/complete` | 200 `StepView` ; 409 |
 | `GET /api/runs/:id/events?after=<seq>&limit=` | `{events: [{seq, ts, kind, text, payload}], done: bool}` |
+| `GET /api/claude/usage` | `{limits: {status, type, resetsAt, windows: {five_hour, seven_day: {utilization 0..1, resetsAt}}, at} \| null, checking, tokens: {today, week} \| null, via, nextCheckAt}` (§9.7) ; 503 `usage_unavailable` |
+| `POST /api/claude/usage/check` (body `{auto?}`) | same shape + `via: 'api'\|'claude'`, `nextCheckAt` (ms \| null), and `apiError` when it fell back to `claude -p` (§9.7) ; `auto: true` never falls back and returns the summary inside the cooldown ; 429 `usage_cooldown`, 502 `usage_unavailable`, 503 `claude_unavailable`, 504 `usage_timeout` |
 | `GET /api/stream` | SSE (§9.3) |
 | `GET /media/:projectId/*` | a file in the project folder (§9.4) |
 | `GET /assets/*`, `/*` | `web/dist` (index.html for `/`); no build → an HTML page explaining `npm run build` |
@@ -518,6 +550,7 @@ Events:
 - `event: change` `data: {"projectId": "..."}` — the UI reloads the project/step being viewed (150 ms client-side debounce).
 - `event: log` `data: {"runId": "...", "projectId":"...", "event": {seq, ts, kind, text, payload}}`.
 - `event: hello` `data: {"version": "..."}` on connect.
+- `event: usage` `data: <same shape as GET /api/claude/usage>` — whenever plan limits or app token totals change.
 Hub `sse.js`: `createHub()` → `{add(reply), broadcast(event, data), size(), closeAll()}`; dropped clients are removed automatically.
 `buildApp` wires `runner.on('event')` → `log`, `runner.on('change')` → `change`; it broadcasts `change` itself after creating a project /
 marking a step done. (`buildApp` also takes an optional `hub`; if none is passed it creates one.)
@@ -567,6 +600,26 @@ export async function runDoctor({claudeBin}) → {claude:{found,path,version}, a
 - `open` opens `http://127.0.0.1:<port>/`; no password yet → prints a new setup code. `uninstall` removes the plist and keeps the data.
 - Tests/smoke: `VS_SERVICE_LABEL`, `VS_SERVICE_PORT` change the service name/port — never install `com.videostudio.app` in tests.
 
+### 9.7 Plan usage (`usage.js`)
+- Every `claude -p` turn (steps, assistant, check) prints a `rate_limit_event` line; `rate_limit_info.unifiedWindows`
+  (undocumented) carries `five_hour` / `seven_day` `{utilization 0..1, resetsAt (seconds)}`. `createUsage().observe(info)`
+  keeps the latest one in `$VS_HOME/usage.json` (mode 600) and emits SSE `usage`. Missing windows → the UI shows "no data yet".
+- The percentages are for the **whole Claude account** (also terminal / desktop use); token totals count only this app's turns.
+- "Kiểm tra ngay" first calls `GET https://api.anthropic.com/api/oauth/usage` like Claude Code's `/usage` (`claude-plan.js`, no tokens):
+  `authorization: Bearer <Claude Code OAuth access token>`, `anthropic-beta: oauth-2025-04-20`, 10 s timeout. Body (undocumented)
+  `{five_hour, seven_day: {utilization 0..100, resets_at ISO}}` → mapped to the `rate_limit_info` shape and passed to `observe`.
+  Token source: macOS Keychain item `Claude Code-credentials` (`security find-generic-password -w`, 60 s for the permission prompt),
+  otherwise `~/.claude/.credentials.json`; `VS_CLAUDE_CREDENTIALS` (file) / `VS_CLAUDE_API_BASE` override both in tests — tests never
+  touch the real Keychain or API. The token stays in server memory: never sent to the UI, logged or written; 401/403 → re-read once.
+  The app never refreshes the token; expired → error. Cooldown 10 s.
+- Fallback (no token, Keychain denied, expired, HTTP / network error, unknown body): `claude -p --output-format stream-json --verbose
+  --tools '' --no-session-persistence --strict-mcp-config` with a one-word prompt in `$VS_HOME/usage-check` (a few thousand tokens),
+  90 s timeout, 60 s cooldown; the response carries `apiError` and the UI shows a toast. One check at a time.
+- Opening the Claude dialog sends `{auto: true}`: API only, never `claude -p`; a failed auto check does not start the cooldown, and
+  after "no token" / "Keychain denied" auto checks stop until a manual check succeeds.
+- UI: header pill `5h NN%` (hidden ≤ 420 px), yellow ≥ 80 % or `allowed_warning`, red at 100 % or `rejected` (+ one toast per reset time);
+  the Claude account dialog shows both bars, "updated … ago", and a tokens table (today / 7 days by source; "today" = local midnight).
+
 ## 10. Error codes
 
 | HTTP | code | When |
@@ -587,15 +640,17 @@ export async function runDoctor({claudeBin}) → {claude:{found,path,version}, a
 - Port the CSS tokens, grid background, bolted panels, conveyor belt + step cells + connecting pipes + valves/gates, header ticker, CRT terminal,
   monitor player, and light theme (`:root[data-theme="light"]`) from the prototype. Dark theme by default, the ◐ button saves to `localStorage`
   (wrapped in try/catch).
-- Hash router: `#/` (Overview), `#/p/:id/:key` (Step detail), `#/presets`.
-- **Header:** logo + the name "VIDEO STUDIO", nav (Tổng quan, Preset), ticker (Claude <version> · <signed in/not>,
+- Hash router: `#/` (Overview), `#/p/:id/:key` (Step detail), `#/quy-trinh` (Workflows; `#/presets` still works).
+- **Header:** logo + the name "VIDEO STUDIO", nav (Tổng quan, Quy trình, Kênh), ticker (Claude <version> · <signed in/not>,
   number of running lines, number of steps waiting on you, clock), theme button.
 - **Doctor banner** (red/amber) when `problems.length > 0`.
 - **Overview:** stat cards (Projects, Running, Waiting on you, Tokens this month); each project = one production line: name, channel/preset,
   a conveyor of step cells (colored by §5 state, `running` cells animated; click a cell → Step detail), a "now doing" line
-  (current step + progress_msg/summary), tokens, last update. A "＋ Dự án mới" button → modal: pick a preset (grouped by
-  channel), title, auto-generated slug (editable, validated), folder preview (`project_dir` with `{slug}` substituted), step
-  preview; Create → POST, 409 errors shown in place. The empty state has guidance.
+  (current step + progress_msg/summary), tokens, last update. A "＋ Dự án mới" button → two-stage modal:
+  (1) pick a format (suggestion) or a saved workflow, with a step preview; (2) title, channel (optional), step editor
+  (on/off, reorder, rename, gate, prompt, outputs, + add step), "Lưu làm quy trình của tôi", auto-generated slug (editable, validated),
+  folder preview; Create → POST, errors shown in place.
+- **Quy trình:** "Gợi ý" (format picker → preview → customize steps → save) and "Quy trình của tôi" (cards, details, Xóa with confirm). The empty state has guidance.
 - **Step detail:** breadcrumb; header panel (step name, state, run n, live-counting run time, tokens this run, gate (display
   only), service cost if any); buttons ▶ Chạy / ↻ Chạy lại, ■ Dừng, Đánh dấu xong, "Mở trong terminal" (copies `resume_cmd`);
   the project's large conveyor (current step highlighted); tabs:

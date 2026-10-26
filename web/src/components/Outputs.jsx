@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { fetchText, mediaUrl } from '../api.js';
 import { KIND_LABEL, fmtBytes, fmtDateTime, fmtDuration } from '../lib/format.js';
 import { DownloadIcon } from './icons.jsx';
+import { SkLines, SkZone } from './Skeleton.jsx';
 
 const ORDER = ['video', 'audio', 'image', 'markdown', 'json', 'text', 'other'];
 const TEXT_KINDS = new Set(['markdown', 'json', 'text']);
@@ -88,9 +89,9 @@ function TextPreview({ projectId, a, auto }) {
       </div>
       {open ? (
         state.loading ? (
-          <div className="note">
-            <span className="spinner" aria-hidden="true" /> Đang tải…
-          </div>
+          <SkZone className="sk-prebox" label="Đang tải nội dung">
+            <SkLines n={6} cls="sk-pre" />
+          </SkZone>
         ) : state.error ? (
           <div className="err-note" role="alert">
             {state.error.message}
@@ -235,7 +236,7 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
         ) : (
           <div className="empty">
             <b>Bước này không có kiểm tra tự động.</b>
-            <p className="note">Khai báo trong mục <span className="mono">checks</span> của preset nếu muốn app tự chạy lệnh kiểm tra.</p>
+            <p className="note">Khai báo trong mục <span className="mono">checks</span> của quy trình nếu muốn app tự chạy lệnh kiểm tra.</p>
           </div>
         )}
       </div>
@@ -264,7 +265,7 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
         );
       })}
       <p className="note" style={{ margin: '10px 0 0' }}>
-        App tự chạy các lệnh trong <span className="mono">checks</span> của preset — Claude không tự chấm.
+        App tự chạy các lệnh trong <span className="mono">checks</span> của quy trình — Claude không tự chấm.
       </p>
     </div>
   );

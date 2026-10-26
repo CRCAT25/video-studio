@@ -24,7 +24,7 @@ export default function CostModal({ stepName, cost, withFeedback = false, busy =
         <button type="button" className="btn" onClick={onClose} disabled={busy} data-autofocus>
           Hủy
         </button>
-        <button type="button" className="btn paid" onClick={onConfirm} disabled={busy}>
+        <button type="button" className="btn paid" onClick={onConfirm} disabled={busy} data-ai="block">
           {busy ? <span className="spinner" aria-hidden="true" /> : '$'} Đồng ý, chạy
         </button>
       </div>

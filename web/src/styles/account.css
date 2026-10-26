@@ -21,3 +21,40 @@
   .acc-box{grid-template-columns:auto minmax(0,1fr)}
   .acc-box > .btn{grid-column:1 / -1;justify-self:start}
 }
+
+/* ===== Mức dùng gói Claude: nút % trên đầu trang + mục trong bảng Tài khoản ===== */
+.use-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:var(--fs-sm);font-weight:500;cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
+.use-btn:hover{background:var(--surface-2)}
+.use-btn .use-v{color:var(--text)}
+.use-btn.warn{border-color:color-mix(in srgb,var(--wait) 45%,var(--line));background:var(--wait-soft)}
+.use-btn.warn .use-v{color:var(--wait)}
+.use-btn.bad{border-color:color-mix(in srgb,var(--err) 45%,var(--line));background:var(--err-soft)}
+.use-btn.bad .use-v{color:var(--err)}
+.use-box{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:0 0 16px}
+.use-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.use-flag{font-size:var(--fs-xs);font-weight:500;letter-spacing:0;text-transform:none;color:var(--err);background:var(--err-soft);border-radius:999px;padding:1px 8px}
+.use-bars{display:grid;gap:14px}
+.use-row-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.use-row-v{color:var(--muted);font-size:var(--fs-sm);font-variant-numeric:tabular-nums;text-align:right}
+.use-row-v b{font-weight:500;color:inherit}
+.use-bar{height:8px;border-radius:999px;background:var(--surface-2);margin-top:8px;overflow:hidden}
+.use-bar i{display:block;height:100%;border-radius:999px;background:var(--muted)}
+.use-row.warn .use-bar i{background:var(--wait)} .use-row.warn .use-row-v b{color:var(--wait)}
+.use-row.bad .use-bar i{background:var(--err)} .use-row.bad .use-row-v b{color:var(--err)}
+.use-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px}
+.use-refresh{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:var(--text);font:inherit;cursor:pointer}
+.use-refresh:hover:not(:disabled){text-decoration:underline}
+.use-refresh:disabled{color:var(--dim);cursor:default}
+.use-at{font-size:var(--fs-xs);color:var(--muted);background:var(--surface-2);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.use-sk{display:grid;gap:14px}
+.use-tbl{width:100%;margin-top:12px;border-collapse:collapse;font-size:var(--fs-sm)}
+.use-tbl th,.use-tbl td{padding:6px 0;border-top:1px solid var(--line);text-align:right;font-weight:400;font-variant-numeric:tabular-nums}
+.use-tbl th[scope=row],.use-tbl thead th:first-child{text-align:left;color:var(--muted)}
+.use-tbl thead th{border-top:0;color:var(--dim);font-size:var(--fs-xs)}
+@media (max-width:420px){
+  .use-btn{display:none}
+}
+@media (max-width:520px){
+  .hide-s{display:none!important}
+  .use-btn{padding:0 8px}
+}

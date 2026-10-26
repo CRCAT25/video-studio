@@ -13,6 +13,7 @@ import { chromium } from 'playwright-core';
 const THUMB_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#3a6"/></svg>';
 const fakeThumbs = (ctx) => ctx.route('https://i.ytimg.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: THUMB_SVG }));
 import { FAKE_CLIENT_SECRET, fakeClientSecretFor, startFakeGoogle } from '../fixtures/fake-google.mjs';
+import { fakeCredentials, startFakeClaudeApi } from '../fixtures/fake-claude-api.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const FAKE_BIN = path.join(ROOT, 'test', 'fixtures', 'fake-claude.mjs');
@@ -76,7 +77,7 @@ function freePort() {
 }
 
 // Khởi server thật; chờ dòng "Video Studio đang chạy: <url>".
-function startServer(port, home, googleBase) {
+function startServer(port, home, googleBase, claudeApiBase) {
   const env = {
     ...process.env,
     VS_SECRETS: 'file',
@@ -86,6 +87,9 @@ function startServer(port, home, googleBase) {
     VS_HOME: home,
     VS_TOKEN: TOKEN,
     VS_CLAUDE_BIN: FAKE_BIN,
+    // Mức dùng: token giả + API giả — không đọc Keychain thật, không gọi api.anthropic.com.
+    VS_CLAUDE_CREDENTIALS: path.join(home, 'fake-claude-credentials.json'),
+    VS_CLAUDE_API_BASE: claudeApiBase,
     FAKE_AUTH_FILE: path.join(home, 'fake-auth.json'),
     FAKE_LOGIN_MS: '1500',
     FAKE_BROWSER_LOG: path.join(home, 'fake-browser.jsonl'),
@@ -172,11 +176,14 @@ async function main() {
   let server;
   let browser;
   let google;
+  let claudeApi;
   try {
     google = await startFakeGoogle();
+    claudeApi = await startFakeClaudeApi({ five_hour: 47, seven_day: 18 });
+    fs.writeFileSync(path.join(home, 'fake-claude-credentials.json'), fakeCredentials());
     google.state.release = { tag_name: 'v9.9.9', name: 'v9.9.9', html_url: 'https://github.com/CRCAT25/video-studio/releases/tag/v9.9.9' };
     const port = await freePort();
-    server = startServer(port, home, google.base);
+    server = startServer(port, home, google.base, claudeApi.base);
     const base = await server.ready;
     record('Server thật khởi động', true, base);
 
@@ -223,10 +230,10 @@ async function main() {
       if (req.method() === 'POST' && /\/api\/projects\/[^/]+\/steps\/[^/]+\/run$/.test(new URL(req.url()).pathname)) runPosts.push(req.url());
     });
 
-    const shot = async (name, p = page) => {
+    const shot = async (name, p = page, fullPage = true) => {
       shotN += 1;
       const file = path.join(SHOTS, `${String(shotN).padStart(2, '0')}-${name}.png`);
-      await p.screenshot({ path: file, fullPage: true });
+      await p.screenshot({ path: file, fullPage }); // menu nổi (position:fixed) cần fullPage=false
       return file;
     };
     const stateTag = () => page.locator('.step-head h1 .state-tag');
@@ -315,11 +322,15 @@ async function main() {
       return '28 lần Tab trong hộp';
     });
 
-    await check('Tạo dự án qua modal với preset e2e-short', async () => {
+    await check('Tạo dự án qua modal: chọn quy trình đã lưu e2e-short → Tiếp tục', async () => {
       await page.getByRole('button', { name: /Dự án mới/ }).first().click();
       const modal = page.locator('.modal[role="dialog"]');
       await modal.waitFor();
-      await choose(modal, 'e2e-short');
+      await modal.getByRole('tab', { name: /Quy trình đã lưu/ }).click();
+      await modal.locator('.saved-item', { hasText: 'E2E short' }).click();
+      await modal.locator('.fld.prev:not(.sk-zone)').waitFor();
+      await shot('new-project-pick');
+      await modal.getByRole('button', { name: 'Tiếp tục' }).click();
       await modal.locator('input[data-autofocus]').fill(TITLE);
       await modal.locator('details.adv summary').click();
       const slug = await modal.getByLabel('Slug').inputValue();
@@ -508,18 +519,91 @@ async function main() {
       return btns.join(' | ');
     });
 
-    await check('Màn Preset có tiktok-short và e2e-short; nhãn cổng trong ô không bị cắt', async () => {
-      await page.locator('header.top a', { hasText: 'Preset' }).click();
-      await page.locator('.page-h h1', { hasText: 'Preset' }).waitFor();
+    await check('Màn Quy trình: quy trình của tôi e2e-short/e2e-manual; nhãn cổng trong ô không bị cắt', async () => {
+      await page.locator('header.top a', { hasText: 'Quy trình' }).click();
+      await page.locator('.page-h h1', { hasText: 'Quy trình' }).waitFor();
       await page.locator('section.bp', { hasText: 'e2e-short' }).waitFor();
-      await page.locator('section.bp', { hasText: 'tiktok-short' }).waitFor();
+      await page.locator('section.bp', { hasText: 'e2e-manual' }).waitFor();
+      assert((await page.locator('section.bp', { hasText: 'tiktok-short' }).count()) === 0, 'còn preset dựng sẵn tiktok-short');
       const clipped = await page.evaluate(() =>
         [...document.querySelectorAll('.flow.static .box .st')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
       );
       assert(!clipped.length, `nhãn bị cắt: ${clipped.join(', ')}`);
       const autoLab = await page.locator('section.bp', { hasText: 'e2e-manual' }).locator('.box .st', { hasText: 'Tự · 30 phút' }).first().innerText();
       await shot('presets');
-      return `${await page.locator('section.bp').count()} preset · ${autoLab}`;
+      return `${await page.locator('section.bp').count()} quy trình · ${autoLab}`;
+    });
+
+    await check('Gợi ý: ngắn → dài → ngắn chỉ gọi API 2 lần (cache + tải sẵn), quay lại hiện ngay', async () => {
+      const sg = page.locator('form.sg');
+      const urls = [];
+      const onReq = (r) => r.url().includes('/api/pipeline/suggest') && urls.push(r.url());
+      page.on('request', onReq);
+      try {
+        await sg.getByRole('radio', { name: /Ngang/ }).click();
+        await sg.locator('h2', { hasText: 'Video ngắn ngang 16:9' }).waitFor();
+        await page.waitForResponse((r) => r.url().includes('length=long'), { timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(100);
+        const t0 = Date.now();
+        await sg.getByRole('radio', { name: /Video dài/ }).click();
+        await sg.locator('h2', { hasText: 'Video dài ngang 16:9' }).waitFor();
+        const ms = Date.now() - t0;
+        await sg.getByRole('radio', { name: /Video ngắn/ }).click();
+        await sg.locator('h2', { hasText: 'Video ngắn ngang 16:9' }).waitFor();
+        await page.waitForTimeout(400);
+        assert(urls.length === 2, `${urls.length} request: ${urls.join(' , ')}`);
+        assert(ms < 200, `chuyển sang dài mất ${ms} ms`);
+        return `${urls.length} request · dài hiện sau ${ms} ms`;
+      } finally {
+        page.off('request', onReq);
+      }
+    });
+
+    await check('Dropdown đồng nhất: cổng duyệt + thêm bước dùng Select chung, không còn <select> gốc', async () => {
+      const sg = page.locator('form.sg');
+      await sg.locator('summary', { hasText: 'Tùy chỉnh các bước' }).click();
+      const row = sg.locator('.se-row').first();
+      const gate = row.locator('.se-gate');
+      await choose(gate, 'auto_if_checks');
+      const gTxt = await gate.locator('.sel-btn').innerText();
+      assert(/Tự duyệt khi kiểm đạt/.test(gTxt), `cổng = ${gTxt}`);
+      const n0 = await sg.locator('.se-row').count();
+      await choose(sg.locator('.se-add-sel'), '__custom');
+      await sg.locator('.se-row input.se-name[value="Bước mới"]').waitFor();
+      assert((await sg.locator('.se-row').count()) === n0 + 1, 'chưa thêm bước');
+      const addTxt = await sg.locator('.se-add-sel .sel-btn').innerText();
+      assert(addTxt.includes('Thêm bước'), `ô thêm bước không quay về chữ gợi ý: ${addTxt}`);
+      await sg.locator('.se-add-sel .sel-btn').click();
+      await page.waitForTimeout(250); // chờ menu hiện xong
+      await shot('dropdown-add-step', page, false);
+      await page.keyboard.press('Escape');
+      const native = await page.locator('select').count();
+      assert(native === 0, `còn ${native} <select> gốc`);
+      await sg.locator('summary', { hasText: 'Tùy chỉnh các bước' }).click();
+      return `cổng: ${gTxt.trim()} · ${n0} → ${n0 + 1} bước`;
+    });
+
+    await check('Gợi ý: đổi định dạng → lưu làm quy trình của tôi → xóa', async () => {
+      const sg = page.locator('form.sg');
+      await sg.getByRole('radio', { name: /Ngang/ }).click();
+      await sg.getByRole('radio', { name: /Video dài/ }).click();
+      await sg.locator('h2', { hasText: 'Video dài ngang 16:9' }).waitFor();
+      const name = 'Kênh E2E dài';
+      await sg.getByLabel('Tên quy trình').fill(name);
+      await sg.getByRole('button', { name: /Lưu làm quy trình của tôi/ }).click();
+      const card = page.locator('section.bp', { hasText: name });
+      await card.waitFor();
+      const id = await card.locator('.bp-h .mono').innerText();
+      assert(id === 'kenh-e2e-dai', `id = ${id}`);
+      assert(fs.existsSync(path.join(home, 'presets', 'kenh-e2e-dai.yaml')), 'không thấy file YAML');
+      await shot('pipeline-saved');
+      await card.getByRole('button', { name: 'Xóa' }).click();
+      const dlg = page.locator('.modal', { hasText: 'Xóa quy trình?' });
+      await dlg.getByRole('button', { name: 'Xóa' }).click();
+      await card.waitFor({ state: 'detached' });
+      assert(!fs.existsSync(path.join(home, 'presets', 'kenh-e2e-dai.yaml')), 'file YAML còn sau khi xóa');
+      assert((await page.locator('section.bp', { hasText: 'e2e-short' }).locator('.bp-del').count()) === 1, 'thiếu nút Xóa cho quy trình của tôi');
+      return id;
     });
 
     await check('Đổi theme sáng/tối (nhớ sau khi tải lại)', async () => {
@@ -532,7 +616,7 @@ async function main() {
       await page.waitForTimeout(300); // chờ transition màu xong rồi mới chụp
       await shot(`presets-${t1}`);
       await page.reload();
-      await page.locator('.page-h h1', { hasText: 'Preset' }).waitFor();
+      await page.locator('.page-h h1', { hasText: 'Quy trình' }).waitFor();
       assert((await theme()) === t1, 'theme không được nhớ sau reload');
       await page.locator('header.top .theme-btn').click();
       assert((await theme()) === t0, 'không đổi lại được');
@@ -553,7 +637,7 @@ async function main() {
       const screens = [
         ['overview', '#/', '.page-h h1'],
         ['step', `#/p/${SLUG}/deliver`, '.step-head h1'],
-        ['presets', '#/presets', 'section.bp'],
+        ['presets', '#/quy-trinh', 'section.bp'],
       ];
       for (const [name, hash, sel] of screens) {
         await m.goto(`${base}/${hash}`);
@@ -569,6 +653,47 @@ async function main() {
       await m.close();
       assert(!bad.length, bad.join('; '));
       return 'overview, step, presets';
+    });
+
+    await check('Skeleton: API chậm → khung chờ (không chữ "Đang tải…"), tải xong hiện nội dung; 390 px sáng/tối', async () => {
+      const m = await context.newPage();
+      m.setDefaultTimeout(WAIT);
+      await m.setViewportSize({ width: 390, height: 844 });
+      // làm chậm mọi API dữ liệu 1,2 s để kịp thấy skeleton
+      await m.route('**/api/**', async (r) => {
+        await new Promise((ok) => setTimeout(ok, 1200));
+        await r.continue().catch(() => {});
+      });
+      const theme = () => m.evaluate(() => document.documentElement.dataset.theme);
+      const screens = [
+        ['overview', '#/', '.proj'],
+        ['step', `#/p/${SLUG}/deliver`, '.step-head h1 .state-tag'],
+        ['presets', '#/quy-trinh', 'section.bp'],
+      ];
+      const seen = [];
+      for (const pass of [0, 1]) {
+        for (const [name, hash, real] of screens) {
+          await m.goto(`${base}/${hash}`);
+          await m.reload(); // đổi hash không tải lại trang → ép tải lần đầu
+          if (pass === 1 && !seen.includes('toggled')) {
+            await m.locator('header.top .theme-btn').click();
+            seen.push('toggled');
+          }
+          const zone = m.locator('.sk-zone[aria-busy="true"]').first();
+          await zone.waitFor();
+          await m.waitForTimeout(400); // qua 150 ms trễ + mờ dần
+          const txt = await m.locator('main, #root').first().innerText();
+          assert(!/Đang tải…|Đang kiểm tra…/.test(txt), `${name}: còn chữ loading`);
+          const w = await m.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth);
+          assert(w <= 0, `${name}: cuộn ngang ${w}px khi đang skeleton`);
+          await shot(`sk-${name}-${await theme()}`, m);
+          await m.waitForFunction(() => !document.querySelector('.sk-zone'), null, { timeout: WAIT });
+          assert(await m.locator(real).first().isVisible(), `${name}: không thấy nội dung thật sau khi tải xong`);
+        }
+      }
+      await m.locator('header.top .theme-btn').click(); // trả theme cũ
+      await m.close();
+      return 'overview, step, presets × sáng/tối';
     });
 
     // ---- tài khoản Claude (fake-claude: auth login/logout chỉ ghi file giả, không mở trình duyệt)
@@ -635,6 +760,93 @@ async function main() {
         assert(last.profile === prof && last.browser.endsWith('open-chrome-profile.sh'), `BROWSER sai: ${JSON.stringify(last)}`);
       }
       return prof === '__default__' ? 'không có hồ sơ Chrome — trình duyệt mặc định' : `hồ sơ ${prof}`;
+    });
+
+    // ---- mức dùng gói Claude (fake-claude gửi rate_limit_event 5h 42% / tuần 17%)
+    const meter = () => page.locator('header.top .use-btn');
+    await check('Mức dùng: ô đầu trang hiện % 5h (42% từ lượt chạy / 47% từ API khi mở bảng Tài khoản)', async () => {
+      await page.goto(`${base}/#/`);
+      await meter().locator('.use-v', { hasText: /^(42|47)%$/ }).waitFor();
+      const cls = await meter().getAttribute('class');
+      assert(!/warn|bad/.test(cls), `màu sai: ${cls}`);
+      return await meter().innerText();
+    });
+    await check('Mức dùng: mở bảng → tự lấy % qua API (47/18, không tốn token); Kiểm tra ngay → số mới, khóa nút', async () => {
+      await meter().click();
+      const box = accModal().locator('.use-box');
+      const bar = (name) => box.getByRole('progressbar', { name });
+      await box.waitFor();
+      await box.locator('[role=progressbar][aria-label="Phiên 5 giờ"][aria-valuenow="47"]').waitFor();
+      assert((await bar('Tuần').getAttribute('aria-valuenow')) === '18', 'tuần ≠ 18');
+      assert( claudeApi.calls.every((c) => c.auth === 'Bearer fake-oauth-token' && c.beta === 'oauth-2025-04-20'), `API giả: ${JSON.stringify(claudeApi.calls)}`);
+      const btn = box.getByRole('button', { name: /Kiểm tra ngay/ });
+      // Mở bảng vừa hỏi → nút khóa ~10 s; chờ mở lại rồi bấm.
+      await page.waitForFunction(() => {
+        const b = [...document.querySelectorAll('.use-box button')].find((x) => /Kiểm tra ngay/.test(x.textContent));
+        return b && !b.disabled;
+      }, null, { timeout: 15_000 });
+      claudeApi.set({ five_hour: 55 });
+      const n0 = claudeApi.calls.length;
+      await btn.click();
+      await box.locator('[role=progressbar][aria-label="Phiên 5 giờ"][aria-valuenow="55"]').waitFor();
+      assert(claudeApi.calls.length === n0 + 1, `số lần gọi API: ${claudeApi.calls.length - n0}`);
+      assert((await box.locator('.use-tbl tr', { hasText: 'Kiểm tra' }).count()) === 0, 'Kiểm tra qua API mà vẫn có dòng token');
+      assert(await btn.isDisabled(), 'nút không khóa sau khi kiểm tra');
+      await box.locator('.use-at', { hasText: 'Cập nhật' }).waitFor();
+      await shot('usage-panel');
+      return `API ${claudeApi.calls.length} lần, 5h 47% → 55%, không có dòng token Kiểm tra`;
+    });
+    await check('Mức dùng: API lỗi → Kiểm tra ngay quay về claude -p, toast báo, dòng Kiểm tra = 33 token', async () => {
+      const box = accModal().locator('.use-box');
+      claudeApi.set({ status: 500 });
+      await page.waitForFunction(() => {
+        const b = [...document.querySelectorAll('.use-box button')].find((x) => /Kiểm tra ngay/.test(x.textContent));
+        return b && !b.disabled;
+      }, null, { timeout: 15_000 });
+      await box.getByRole('button', { name: /Kiểm tra ngay/ }).click();
+      await page.locator('.toast', { hasText: 'đã hỏi Claude thay' }).waitFor();
+      await box.locator('.use-tbl tr', { hasText: 'Kiểm tra' }).locator('td', { hasText: '33' }).first().waitFor();
+      await box.locator('[role=progressbar][aria-label="Phiên 5 giờ"][aria-valuenow="42"]').waitFor();
+      claudeApi.set({ status: 200 });
+      await page.keyboard.press('Escape');
+      await accModal().waitFor({ state: 'detached' });
+      return 'fallback 42% từ fake-claude';
+    });
+    await check('Mức dùng: ≥80% → ô vàng; chạm 100% → ô đỏ + toast một lần; 390 px ẩn ô, sáng/tối', async () => {
+      const fake = (u5, status) => ({
+        limits: { status, type: 'five_hour', resetsAt: 1893456000, at: new Date().toISOString(), windows: { five_hour: { utilization: u5, resetsAt: 1893456000 }, seven_day: { utilization: 0.3, resetsAt: 1894060800 } } },
+        checking: false,
+        tokens: null,
+      });
+      let body = fake(0.85, 'allowed_warning');
+      await page.route('**/api/claude/usage', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
+      try {
+        await page.reload();
+        await page.locator('header.top .use-btn.warn', { hasText: '85%' }).waitFor();
+        await shot('usage-warn');
+        body = fake(1, 'rejected');
+        await page.reload();
+        await page.locator('header.top .use-btn.bad', { hasText: '100%' }).waitFor();
+        await page.locator('.toast', { hasText: 'Đã chạm giới hạn gói Claude' }).waitFor();
+        await page.setViewportSize({ width: 390, height: 844 });
+        const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
+        const seen = [];
+        for (let i = 0; i < 2; i++) {
+          await page.waitForTimeout(300);
+          const w = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth);
+          assert(w <= 0, `cuộn ngang ${w}px (${await theme()})`);
+          assert(!(await meter().isVisible()), 'màn 390 px vẫn hiện ô mức dùng');
+          seen.push(await theme());
+          await shot(`usage-390-${await theme()}`, page, false);
+          await page.locator('header.top .theme-btn').click();
+        }
+        assert((await page.locator('.toast', { hasText: 'Đã chạm giới hạn' }).count()) <= 1, 'toast lặp');
+        return seen.join(' + ');
+      } finally {
+        await page.unroute('**/api/claude/usage');
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await page.reload();
+      }
     });
 
     // ---- Kênh YouTube (Google giả, bí mật lưu file trong VS_HOME)
@@ -777,6 +989,28 @@ async function main() {
       await shot('yt-reload-all');
       return `reports ${r0}→${r1} · videos ${v0}→${v1}`;
     });
+    await check('Kênh: Tự làm mới 5 phút → tới hạn tự gọi lại Google, nhớ lựa chọn; tắt thì không gọi', async () => {
+      await page.clock.install();
+      await page.goto(`${base}/#/channels`);
+      await ytRow('Kênh Giả').locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      const count = (p) => google.calls.filter((c) => c.path.includes(p)).length;
+      const sel = page.locator('.page-h .acts .yt-range-sel', { has: page.getByLabel('Tự làm mới') });
+      await choose(sel, '5');
+      assert((await page.evaluate(() => localStorage.getItem('vs.yt.auto'))) === '5', 'không nhớ lựa chọn');
+      const r0 = count('/reports');
+      await page.clock.fastForward(4 * 60_000);
+      await page.waitForTimeout(400);
+      assert(count('/reports') === r0, 'gọi Google trước 5 phút');
+      await page.clock.fastForward(61_000);
+      for (let i = 0; i < 40 && count('/reports') === r0; i++) await page.waitForTimeout(100);
+      const r1 = count('/reports');
+      assert(r1 > r0, 'đủ 5 phút mà không tự làm mới');
+      await choose(sel, 'off');
+      await page.clock.fastForward(6 * 60_000);
+      await page.waitForTimeout(500);
+      assert(count('/reports') === r1, 'tắt rồi mà vẫn tự làm mới');
+      return `reports ${r0} → ${r1}, tắt → giữ nguyên`;
+    });
     await check('Kênh: chọn khoảng ngày 7 / 365 / tùy chọn → ô số, biểu đồ, bảng đổi theo; nhớ sau khi tải lại', async () => {
       await page.goto(`${base}/${ytHash}`);
       const card = ytCard('Kênh Giả');
@@ -904,6 +1138,95 @@ async function main() {
       return `dự án ${pid}`;
     });
 
+    // ---- Trợ lý AI (fake-claude chế độ --mcp-config: gọi MCP thật → app → tab này thao tác DOM)
+    const ai = () => page.locator('aside.ai-panel');
+    const aiSay = async (text) => {
+      await ai().getByLabel('Tin nhắn cho trợ lý').fill(text);
+      await ai().getByLabel('Tin nhắn cho trợ lý').press('Enter');
+    };
+    const aiIdle = () => ai().locator('.ai-form button[type=submit]').waitFor();
+    await check('Trợ lý AI: mở sidebar → "60" → trợ lý mở Dự án mới và nhập Thời lượng = 60', async () => {
+      await page.goto(`${base}/#/`);
+      await page.locator('.page-h h1').waitFor();
+      await page.locator('header.top .ai-btn').click();
+      await ai().waitFor();
+      assert((await page.locator('header.top .ai-btn').getAttribute('aria-pressed')) === 'true', 'nút không bật');
+      await ai().locator('.ai-ex .chip').first().waitFor();
+      await aiSay('Tạo dự án mới, video dài 60 giây');
+      await ai().locator('.ai-bot', { hasText: 'Đã đặt thời lượng 60 giây.' }).waitFor();
+      const modal = page.locator('.modal', { hasText: 'Dự án mới' });
+      await modal.waitFor();
+      const v = await modal.locator('.fmt-dur input').first().inputValue();
+      assert(v === '60', `Thời lượng = ${v}`);
+      const acts = await ai().locator('.ai-act').allInnerTexts();
+      assert(acts.some((t) => t.includes('Dự án mới')) && acts.some((t) => t.includes('"60"')), acts.join(' | '));
+      // gõ trong panel khi modal mở: Tab không bị modal giữ, panel không inert
+      assert(!(await ai().evaluate((el) => !!el.closest('[inert]'))), 'panel bị inert khi có modal');
+      await shot('ai-60');
+      await modal.getByRole('button', { name: 'Hủy', exact: true }).click();
+      await modal.waitFor({ state: 'detached' });
+      await aiIdle();
+      return acts.join(' · ');
+    });
+
+    await check('Trợ lý AI: nút nhạy cảm (Xóa) → thẻ xin phép; Không → không xóa', async () => {
+      await page.goto(`${base}/#/quy-trinh`);
+      await page.locator('section.bp').first().waitFor();
+      const before = await page.locator('section.bp').count();
+      await aiSay('xóa quy trình đầu tiên');
+      const card = ai().locator('.ai-ask');
+      await card.waitFor();
+      assert((await card.innerText()).includes('Bấm "Xóa"'), await card.innerText());
+      await shot('ai-ask');
+      await card.getByRole('button', { name: 'Không' }).click();
+      await ai().locator('.ai-bot', { hasText: 'Không xóa' }).waitFor();
+      await ai().locator('.ai-act.bad', { hasText: 'Không cho phép' }).waitFor();
+      assert(!(await page.locator('.modal', { hasText: 'Xóa quy trình?' }).count()), 'đã mở hộp xóa');
+      assert((await page.locator('section.bp').count()) === before, 'số quy trình đổi');
+      await aiIdle();
+      return `còn ${before} quy trình`;
+    });
+
+    await check('Trợ lý AI: đang chạy → Dừng; Cuộc mới xóa lịch sử; nhớ trạng thái mở sau tải lại', async () => {
+      await aiSay('làm chậm thôi');
+      await ai().locator('.ai-wait').waitFor();
+      await ai().getByRole('button', { name: 'Dừng' }).click();
+      await ai().locator('.ai-note', { hasText: 'Đã dừng.' }).waitFor();
+      await aiIdle();
+      await page.reload();
+      await ai().waitFor();
+      await ai().locator('.ai-user', { hasText: 'làm chậm thôi' }).waitFor();
+      await ai().getByRole('button', { name: 'Cuộc mới' }).click();
+      await ai().locator('.ai-ex .chip').first().waitFor();
+      assert(!(await ai().locator('.ai-msg').count()), 'còn tin cũ');
+      return 'Dừng → Đã dừng; Cuộc mới → trống';
+    });
+
+    await check('Trợ lý AI: 390 px sáng + tối không cuộn ngang; Esc đóng sidebar', async () => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
+      const seen = [];
+      for (let i = 0; i < 2; i++) {
+        await page.waitForTimeout(300);
+        const w = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth);
+        assert(w <= 0, `cuộn ngang ${w}px (${await theme()})`);
+        const box = await ai().boundingBox();
+        assert(box && box.x >= 0 && box.x + box.width <= 391, `panel lệch ${JSON.stringify(box)}`);
+        seen.push(await theme());
+        await shot(`ai-390-${await theme()}`);
+        if (i === 0) {
+          // panel phủ cả header ở màn hẹp → bấm theme qua DOM
+          await page.evaluate(() => document.querySelector('header.top .theme-btn').click());
+        }
+      }
+      await page.evaluate(() => document.querySelector('header.top .theme-btn').click());
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await ai().getByLabel('Tin nhắn cho trợ lý').press('Escape');
+      await ai().waitFor({ state: 'detached' });
+      assert(!(await page.evaluate(() => document.body.classList.contains('ai-open'))), 'body còn ai-open');
+      return seen.join(' + ');
+    });
+
     await check('Console sạch (không error/warning)', async () => {
       assert(!consoleIssues.length, consoleIssues.slice(0, 5).join(' | '));
     });
@@ -951,6 +1274,7 @@ async function main() {
     if (browser) await browser.close().catch(() => {});
     if (server) await stopServer(server.child).catch(() => {});
     if (google) await google.close().catch(() => {});
+    if (claudeApi) await claudeApi.close().catch(() => {});
     fs.rmSync(home, { recursive: true, force: true });
   }
 }

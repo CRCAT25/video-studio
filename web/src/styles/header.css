@@ -30,7 +30,11 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
 }
 @media (max-width:520px){
   .brand span{display:none}
-  nav.tabs a{padding:0 8px}
+  .top-in{gap:8px;padding:0 12px}
+  .top-right{gap:6px}
+  nav.tabs{gap:0}
+  nav.tabs a{padding:0 6px}
+  nav.tabs a.on:after{left:6px;right:6px}
   /* Màn hẹp: nút tài khoản chỉ còn đèn (trạng thái nằm trong aria-label) để đủ chỗ cho các tab */
   .acc-btn{width:32px;padding:0;justify-content:center}
   .acc-btn .acc-st{display:none}

@@ -1,0 +1,49 @@
+/* ===== Trợ lý AI: nút ở đầu trang + sidebar phải (desktop: nội dung co lại; màn hẹp: phủ toàn màn hình) ===== */
+.ai-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-sm);font-weight:500;cursor:pointer;white-space:nowrap}
+.ai-btn:hover{background:var(--surface-2)}
+.ai-btn.on{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.ai-btn .spark{color:var(--accent-tx)}
+
+body.ai-open{padding-right:380px}
+/* hộp thoại căn giữa phần còn lại, không bị sidebar che */
+body.ai-open .modal-bg{right:380px}
+.ai-panel{position:fixed;top:0;right:0;bottom:0;width:380px;z-index:57;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);box-shadow:var(--shadow-lg)}
+.ai-head{display:flex;align-items:center;justify-content:space-between;gap:8px;height:56px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);flex:none}
+.ai-head b{font-size:var(--fs-lg);font-weight:500}
+.ai-head-acts{display:flex;gap:6px}
+.ai-x{width:28px;padding:0;font-size:var(--fs-lg)}
+
+.ai-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px;display:flex;flex-direction:column;gap:10px}
+.ai-list .sk-line{height:20px}
+.ai-msg{font-size:var(--fs-md);white-space:pre-wrap;overflow-wrap:anywhere}
+.ai-user{align-self:flex-end;max-width:85%;padding:8px 12px;border-radius:var(--r);background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 25%,var(--line))}
+.ai-bot{color:var(--text)}
+.ai-act{font-size:var(--fs-sm);color:var(--muted);padding-left:10px;border-left:2px solid var(--line-2)}
+.ai-act.bad{color:var(--err);border-left-color:var(--err)}
+.ai-note{font-size:var(--fs-sm);color:var(--muted)}
+.ai-err{font-size:var(--fs-sm);color:var(--err)}
+.ai-fe{padding:0 16px 8px}
+.ai-wait{display:flex;align-items:center;gap:8px}
+.ai-empty .note{margin:0 0 10px}
+.ai-ex{display:flex;flex-wrap:wrap;gap:6px}
+.ai-ex .chip{height:auto;min-height:28px;text-align:left}
+
+.ai-ask{padding:12px;border:1px solid color-mix(in srgb,var(--ask) 45%,var(--line));border-radius:var(--r);background:var(--ask-soft);font-size:var(--fs-sm);overflow-wrap:anywhere}
+.ai-ask-acts{display:flex;justify-content:flex-end;gap:6px;margin-top:10px}
+
+.ai-form{display:flex;gap:8px;align-items:flex-end;padding:12px 16px 16px;border-top:1px solid var(--line);flex:none}
+.ai-form textarea{flex:1;min-width:0;resize:none;max-height:160px;font-size:var(--fs-md)}
+
+/* phần tử trợ lý vừa thao tác: viền sáng thoáng qua */
+.ai-hl{outline:2px solid var(--accent)!important;outline-offset:2px;transition:outline-color .2s}
+
+@media (max-width:900px){
+  body.ai-open{padding-right:0}
+  body.ai-open .modal-bg{right:0}
+  .ai-panel{width:100%;border-left:0}
+}
+/* màn rất hẹp: chỉ còn biểu tượng (giống nút tài khoản) để đủ chỗ cho các tab */
+@media (max-width:520px){
+  .ai-btn{width:32px;padding:0;justify-content:center}
+  .ai-btn .ai-t{display:none}
+}

@@ -46,6 +46,44 @@ Next time, just run `video-studio` and open `http://127.0.0.1:4317/`.
 
 > On Windows the automatic Google Cloud install is not available yet. Use **Tự làm thủ công** in the setup page and paste your `client_secret.json`.
 
+## Workflows
+
+A workflow is the list of steps Claude runs for one video (script, scenes, images, voice, subtitles, edit, publish pack…).
+
+1. Click **+ Dự án mới** and pick a format: vertical (9:16, 4:5), horizontal (16:9 with optional 4K, 21:9) or square (1:1),
+   then a short video (15–60 s) or a long video (3–30 min). The app suggests a full workflow for it.
+2. Click **Tiếp tục** to customize: turn steps on or off, reorder them, rename them, choose how each step is approved,
+   edit what Claude is told, or add a step. Steps that cost money always ask you first.
+3. Tick **Lưu làm quy trình của tôi** to reuse it next time, or save one from the **Quy trình** page.
+
+Saved workflows are YAML files in `presets/` inside the data folder; you can also edit them by hand.
+Each project keeps its own copy, so editing or deleting a workflow never changes projects you already created.
+
+## AI assistant
+
+Click **Trợ lý AI** in the header to open a sidebar and ask Claude to work the page for you,
+e.g. "set the video length to 60". It reads the open page, clicks and types like you would, and shows each action in the chat.
+
+- It runs `claude` with the account you are signed in to, so it uses your plan's usage just like Claude Code in a terminal.
+  It uses your account's default model.
+- Before deleting, stopping, running or other risky clicks it asks you first (**Cho phép** / **Không**).
+  Buttons that spend money or touch secrets are blocked; you click those yourself.
+- The chat is kept across reloads. **Cuộc mới** starts a fresh conversation; **Dừng** stops the current answer.
+
+## Plan usage
+
+The header shows how much of your Claude plan's **5-hour limit** is used (e.g. `5h 42%`). It turns yellow at 80% and red when you hit the limit.
+Click it to see the 5-hour and weekly bars with their reset times, and how many tokens this app used today and in the last 7 days
+(video steps, AI assistant, checks).
+
+- The numbers update after every Claude turn the app runs, and when you open the panel.
+  **Kiểm tra ngay** fetches fresh numbers the same way `/usage` does in Claude Code: no tokens used, every 10 s at most.
+- To do that the app reads Claude Code's sign-in token (on macOS, allow the Keychain prompt with **Always Allow**).
+  The token stays inside the app server and is sent only to `api.anthropic.com`.
+  If it can't be read or the request fails, **Kiểm tra ngay** asks Claude instead (a few thousand tokens, once a minute at most) and says so.
+- The percentages cover your whole Claude account, including Claude Code in a terminal or the desktop app. Token counts cover only this app.
+- It needs a Claude plan sign-in (Pro / Max); with an API key there are no plan limits to show.
+
 ## Update
 
 The app shows a banner when a new release is out. Click **Cập nhật**, then **Khởi động lại**. That's it.
@@ -79,7 +117,7 @@ On Windows, keep a PowerShell window running `video-studio` instead.
 
 | | macOS | Windows |
 |---|---|---|
-| Data folder (DB, settings, presets) | `~/.video-studio` | `%USERPROFILE%\.video-studio` |
+| Data folder (DB, settings, workflows) | `~/.video-studio` | `%USERPROFILE%\.video-studio` |
 | Google tokens and secrets | Keychain | `secrets.json` in the data folder (not encrypted — keep this folder private) |
 
 ## Troubleshooting
@@ -103,7 +141,7 @@ Optional settings:
 | `--port <n>` / `VS_PORT` | `4317` | Port |
 | `--open` | off | Open the browser at startup |
 | `--model <name>` / `VS_MODEL` | — | Default model for steps |
-| `VS_HOME` | `~/.video-studio` | Data folder (DB, settings, presets) |
+| `VS_HOME` | `~/.video-studio` | Data folder (DB, settings, workflows) |
 | `VS_CLAUDE_BIN` | `claude` on PATH | Path to Claude Code |
 | `VS_UPDATE_CHECK=0` | on | Turn off the new-release check |
 
@@ -115,9 +153,6 @@ $env:VS_PORT = 5000; video-studio      # Windows PowerShell
 ```
 
 Run `video-studio --help` to see all options.
-
-**Your own presets:** put YAML files in `presets/` inside the data folder, using the same format as [`presets/`](presets).
-A preset with the same `id` overrides the built-in one, so updates never touch your config.
 
 **Google sign-in (optional):** after Google setup, click **Bật đăng nhập Google** to make your account the only one allowed.
 The password keeps working.

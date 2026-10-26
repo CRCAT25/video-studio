@@ -5,6 +5,8 @@ import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useToast } from './Toast.jsx';
 import Select, { profileOptions } from './Select.jsx';
+import { Sk } from './Skeleton.jsx';
+import { UsagePanel } from './Usage.jsx';
 
 const PROFILE_KEY = 'vs.chromeProfile';
 const DEFAULT_BROWSER = '__default__';
@@ -48,8 +50,8 @@ export function accountResultMessage(last) {
   return { msg: `${login ? 'Đăng nhập' : 'Đăng xuất'} không thành công${last.code != null ? ` (mã thoát ${last.code})` : ''}.`, kind: 'err' };
 }
 
-// account = trạng thái từ server ({busy, method, profile, startedAt, last}); running = số bước đang chạy.
-export default function ClaudeAccount({ doctor, account, running = 0, onClose, onRefresh }) {
+// account = trạng thái từ server ({busy, method, profile, startedAt, last}); running = số bước đang chạy; usage = useUsage().
+export default function ClaudeAccount({ doctor, account, running = 0, usage = null, onClose, onRefresh }) {
   const toast = useToast();
   const [chrome, setChrome] = useState(null); // {supported, profiles}
   const [profile, setProfile] = useState(() => savedProfile());
@@ -113,7 +115,7 @@ export default function ClaudeAccount({ doctor, account, running = 0, onClose, o
       <div className={`acc-box${logged ? ' on' : ''}`}>
         <i className={`lamp ${!doctor ? 'idle' : logged ? 'ok' : 'err'}`} />
         <div>
-          <b>{!doctor ? 'Đang kiểm tra…' : !found ? 'Chưa cài Claude Code' : logged ? 'Đã đăng nhập' : 'Chưa đăng nhập'}</b>
+          <b aria-busy={!doctor || undefined}>{!doctor ? <><Sk w="8em" /><span className="sr-only">Đang kiểm tra</span></> : !found ? 'Chưa cài Claude Code' : logged ? 'Đã đăng nhập' : 'Chưa đăng nhập'}</b>
           {logged ? (
             <div className="acc-meta">
               <span>Gói <b>{auth.subscriptionType ? String(auth.subscriptionType).toUpperCase() : '—'}</b></span>
@@ -126,6 +128,8 @@ export default function ClaudeAccount({ doctor, account, running = 0, onClose, o
           ↻ Làm mới
         </button>
       </div>
+
+      {logged && usage && !waiting && !confirmOut ? <UsagePanel usage={usage} /> : null}
 
       {waiting ? (
         <div className="acc-wait" role="status">
