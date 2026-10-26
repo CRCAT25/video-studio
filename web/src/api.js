@@ -86,6 +86,11 @@ async function request(method, url, body, { signal } = {}) {
 }
 
 const enc = encodeURIComponent;
+// {a: '1', b: null} → "?a=1" (bỏ giá trị rỗng).
+const qs = (o) => {
+  const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v != null && v !== ''));
+  return p.size ? `?${p}` : '';
+};
 const stepPath = (id, key) => `/api/projects/${enc(id)}/steps/${enc(key)}`;
 
 // Các hàm gọi endpoint theo hợp đồng §9.2.
@@ -135,7 +140,8 @@ export const api = {
   ytConnect: (id, { profileDir } = {}) => request('POST', `/api/youtube/channels/${enc(id)}/connect`, { profileDir: profileDir ?? null }),
   ytConnectCancel: (id) => request('POST', `/api/youtube/channels/${enc(id)}/connect/cancel`, {}),
   ytDisconnect: (id) => request('POST', `/api/youtube/channels/${enc(id)}/disconnect`, {}),
-  ytStats: (id, refresh = false) => request('GET', `/api/youtube/channels/${enc(id)}/stats${refresh ? '?refresh=1' : ''}`),
+  ytStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/stats${qs({ refresh: refresh ? '1' : null, range })}`),
+  ytVideoStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/video-stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytVideos: (id, refresh = false) => request('GET', `/api/youtube/channels/${enc(id)}/videos${refresh ? '?refresh=1' : ''}`),
   runEvents: (runId, after = 0, limit = 1000, opts) =>
     request('GET', `/api/runs/${enc(runId)}/events?after=${Number(after) || 0}&limit=${limit}`, undefined, opts),

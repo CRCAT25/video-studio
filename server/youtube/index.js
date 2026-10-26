@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { BROWSER_SCRIPT } from '../claude-account.js';
 import { listChromeProfiles } from '../chrome-profiles.js';
 import { HttpError } from '../projects.js';
-import { DAILY_QUOTA, createYouTubeApi, quotaDay } from './api.js';
+import { DAILY_QUOTA, PERIOD_DAYS, createYouTubeApi, parseRange, quotaDay } from './api.js';
 import { googleEndpoints, toHttpError } from './http.js';
 import { READ_SCOPES, UPLOAD_SCOPES, clientHint, createOAuth } from './oauth.js';
 
@@ -215,8 +215,16 @@ export function createYouTube({
     return { ok: true, revoked: r.revoked };
   }
 
-  // Lấy số liệu (kind 'stats' | 'videos'): cache còn hạn → trả luôn; refresh hoặc hết hạn → gọi Google (gộp lượt trùng).
-  async function cached(channelId, kind, refresh) {
+  // Khoảng ngày hợp lệ (theo ngày hạn mức hiện tại) hoặc 400.
+  function needRange(range) {
+    const r = parseRange(range ?? PERIOD_DAYS, quotaDay(new Date(now())));
+    if (!r) throw new HttpError(400, 'invalid_range', 'Khoảng ngày không hợp lệ.');
+    return r;
+  }
+
+  // Lấy số liệu theo kind ('stats', 'stats:<khoảng>', 'videos', 'vstats:<khoảng>'): cache còn hạn → trả luôn;
+  // refresh hoặc hết hạn → fetcher(token, today) gọi Google (gộp lượt trùng).
+  async function cached(channelId, kind, refresh, fetcher) {
     const row = needChannel(channelId);
     const hit = store.ytCacheGet(channelId, kind);
     const fresh = hit && now() - Date.parse(hit.fetched_at) < cacheTtlMs;
@@ -224,7 +232,8 @@ export function createYouTube({
     const key = `${channelId}:${kind}`;
     if (!inflight.has(key)) {
       const token = (force) => oauth.accessToken(channelId, { force });
-      const p = (kind === 'stats' ? api.channelStats(token, { today: quotaDay(new Date(now())) }) : api.videos(token, { today: quotaDay(new Date(now())) }))
+      const today = quotaDay(new Date(now()));
+      const p = fetcher(token, today)
         .then((data) => {
           const at = store.ytCachePut(channelId, kind, data, new Date(now()).toISOString());
           if (row.status !== 'ok') store.ytSetChannelStatus(channelId, 'ok');
@@ -252,8 +261,16 @@ export function createYouTube({
     cancelConnect,
     callback,
     disconnect,
-    stats: (id, { refresh = false } = {}) => cached(id, 'stats', refresh),
-    videos: (id, { refresh = false } = {}) => cached(id, 'videos', refresh),
+    // range: "7"|"28"|"90"|"365"|"YYYY-MM-DD_YYYY-MM-DD"; 28 ngày giữ kind 'stats' cũ.
+    stats: async (id, { refresh = false, range } = {}) => {
+      const r = needRange(range);
+      return cached(id, r.key === String(PERIOD_DAYS) ? 'stats' : `stats:${r.key}`, refresh, (t, today) => api.channelStats(t, { today, range: r.key }));
+    },
+    videos: (id, { refresh = false } = {}) => cached(id, 'videos', refresh, (t, today) => api.videos(t, { today })),
+    videoStats: async (id, { refresh = false, range } = {}) => {
+      const r = needRange(range);
+      return cached(id, `vstats:${r.key}`, refresh, (t, today) => api.videoStats(t, { today, range: r.key }));
+    },
     accessToken: (id, opts) => oauth.accessToken(id, opts),
     endpoints,
     googleClient: () => oauth.getClient(),

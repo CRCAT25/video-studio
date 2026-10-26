@@ -1,8 +1,9 @@
 // Trang Kênh: danh sách kênh YouTube (thông tin chung) + thêm kênh bằng đăng nhập Google (chọn hồ sơ Chrome).
-// Trang chi tiết kênh (#/channels/:id): số liệu 28 ngày, biểu đồ, bảng video, kết nối lại / xóa kênh.
+// Trang chi tiết kênh (#/channels/:id): số liệu theo khoảng ngày, biểu đồ, bảng video, kết nối lại / xóa kênh.
 // Token Google nằm ở server (Keychain); trang chỉ thấy trạng thái và số liệu.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../components/Modal.jsx';
+import RangePicker, { rangeLabel, savedRange } from '../components/RangePicker.jsx';
 import YtChart from '../components/YtChart.jsx';
 import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } from '../components/Select.jsx';
 import { useToast } from '../components/Toast.jsx';
@@ -53,8 +54,8 @@ const COLS = [
   { id: 'views', label: 'Lượt xem', num: true },
   { id: 'likes', label: 'Thích', num: true, cls: 'hide-sm' },
   { id: 'comments', label: 'Bình luận', num: true, cls: 'hide-sm' },
-  { id: 'avgViewDuration', label: 'Xem TB', num: true, cls: 'hide-sm', hint: 'trọn đời; Analytics trễ 1–2 ngày so với Studio' },
-  { id: 'subs', label: 'Đăng ký', num: true, cls: 'hide-sm', hint: 'ròng: mới − hủy, trọn đời; Analytics trễ 1–2 ngày so với Studio' },
+  { id: 'avgViewDuration', label: 'Xem TB', num: true, cls: 'hide-sm', hint: 'trong khoảng ngày đã chọn; Analytics trễ 1–2 ngày so với Studio' },
+  { id: 'subs', label: 'Đăng ký', num: true, cls: 'hide-sm', hint: 'ròng: mới − hủy, trong khoảng ngày đã chọn; Analytics trễ 1–2 ngày so với Studio' },
 ];
 // Shorts: API không có cờ riêng, YouTube cho Shorts dài tối đa 3 phút → coi video ≤ 180 giây là Shorts.
 const SHORT_MAX = 180;
@@ -65,6 +66,23 @@ const TABS = [
 ];
 const PAGE_SIZES = [10, 30, 50];
 
+// Gộp số liệu ngày cho biểu đồ: > 400 ngày → theo tháng, > 90 ngày → theo tuần (7 ngày tính từ ngày đầu), còn lại giữ ngày.
+export function bucketDays(days, span) {
+  const unit = span > 400 ? 'month' : span > 90 ? 'week' : 'day';
+  if (unit === 'day') return { unit, rows: days };
+  const rows = [];
+  days.forEach((d, i) => {
+    const k = unit === 'month' ? d.date.slice(0, 7) : Math.floor(i / 7);
+    const last = rows[rows.length - 1];
+    if (last && last.k === k) {
+      last.end = d.date;
+      for (const m of METRICS) last[m.id] += d[m.id] || 0;
+    } else rows.push({ k, date: d.date, end: d.date, ...Object.fromEntries(METRICS.map((m) => [m.id, d[m.id] || 0])) });
+  });
+  return { unit, rows };
+}
+const UNIT = { day: 'ngày', week: 'tuần', month: 'tháng' };
+
 // Đầu trang + thẻ từng kênh. yt = trạng thái /api/youtube (App tải lại khi có SSE 'youtube').
 export default function Channels({ yt, error, onReload }) {
   const toast = useToast();
@@ -74,6 +92,7 @@ export default function Channels({ yt, error, onReload }) {
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState({});
   const [reloading, setReloading] = useState(false);
+  const [range, setRange] = useState(savedRange);
 
   // Kênh lấy được số liệu (không cần kết nối lại / không đang chờ).
   const live = (yt?.channels || []).filter((c) => c.status !== 'reauth' && !c.pending);
@@ -83,13 +102,13 @@ export default function Channels({ yt, error, onReload }) {
   const loadStats = useCallback(
     async (refresh = false) => {
       const res = await Promise.allSettled(
-        live.map((c) => Promise.all([api.ytStats(c.id, refresh), refresh ? api.ytVideos(c.id, true) : null])),
+        live.map((c) => Promise.all([api.ytStats(c.id, refresh, range), refresh ? api.ytVideos(c.id, true) : null])),
       );
       setStats(Object.fromEntries(live.map((c, i) => [c.id, res[i].status === 'fulfilled' ? res[i].value[0] : false])));
       return res.filter((r) => r.status === 'rejected').length;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [liveKey],
+    [liveKey, range],
   );
 
   useEffect(() => {
@@ -187,6 +206,16 @@ export default function Channels({ yt, error, onReload }) {
             </span>
           ) : null}
           {live.length ? (
+            <RangePicker
+              value={range}
+              onChange={(v) => {
+                setStats({});
+                setRange(v);
+              }}
+              disabled={reloading}
+            />
+          ) : null}
+          {live.length ? (
             <button type="button" className="btn" onClick={reloadAll} disabled={reloading} title="Tải lại số liệu mới nhất từ YouTube cho tất cả kênh">
               {reloading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới tất cả
             </button>
@@ -242,7 +271,7 @@ export default function Channels({ yt, error, onReload }) {
           </div>
         ) : null
       ) : (
-        <ChannelList channels={yt.channels} stats={stats} />
+        <ChannelList range={range} channels={yt.channels} stats={stats} />
       )}
 
       {addOpen ? (
@@ -270,7 +299,7 @@ function chState(c) {
 }
 
 // Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có nút vào chi tiết.
-function ChannelList({ channels, stats }) {
+function ChannelList({ channels, stats, range }) {
   return (
     <div className="tbl-wrap yt-chlist">
       <table className="yt-tbl">
@@ -279,7 +308,7 @@ function ChannelList({ channels, stats }) {
             <th>Kênh</th>
             <th className="num">Người đăng ký</th>
             <th className="num hide-sm">Video</th>
-            <th className="num hide-sm">Lượt xem · 28 ngày</th>
+            <th className="num hide-sm">Lượt xem · {rangeLabel(range)}</th>
             <th>
               <span className="sr-only">Thao tác</span>
             </th>
@@ -571,46 +600,69 @@ function ConnectModal({ title, start: begin, onClose, onStarted }) {
   );
 }
 
-// Số liệu kênh đã kết nối: ô số, biểu đồ 28 ngày, bảng video. Tự tải khi hiện; tick tăng (nút Làm mới ở đầu thẻ) → gọi lại Google.
+// Số liệu kênh đã kết nối theo khoảng ngày: ô số, biểu đồ, bảng video. Tự tải khi hiện / đổi khoảng; tick tăng (nút Làm mới ở đầu thẻ) → gọi lại Google.
 function ChannelStats({ c, tick, onLoading }) {
+  const [range, setRange] = useState(savedRange);
   const [stats, setStats] = useState(null);
   const [videos, setVideos] = useState(null);
+  const [vstats, setVstats] = useState(null);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
   const [metric, setMetric] = useState('views');
+  const seq = useRef(0);
 
   const load = useCallback(
     async (refresh = false) => {
+      const my = ++seq.current;
       setLoading(true);
       try {
-        const [s, v] = await Promise.all([api.ytStats(c.id, refresh), api.ytVideos(c.id, refresh)]);
-        setStats(s);
+        const [s, v, vs] = await Promise.all([api.ytStats(c.id, refresh, range), api.ytVideos(c.id, refresh), api.ytVideoStats(c.id, refresh, range)]);
+        // Bỏ kết quả cũ khi đã đổi khoảng ngày giữa chừng.
+        if (my !== seq.current) return;
+        setStats({ ...s, range });
         setVideos(v);
+        setVstats(vs);
         setErr(null);
       } catch (e) {
-        setErr(e);
+        if (my === seq.current) setErr(e);
       } finally {
-        setLoading(false);
+        if (my === seq.current) setLoading(false);
       }
     },
-    [c.id],
+    [c.id, range],
   );
   useEffect(() => {
     load(false);
   }, [load]);
+  // Chỉ chạy khi bấm Làm mới (không chạy lại khi đổi khoảng ngày).
+  const loadRef = useRef(load);
+  loadRef.current = load;
   useEffect(() => {
-    if (tick) load(true);
-  }, [tick, load]);
+    if (tick) loadRef.current(true);
+  }, [tick]);
   useEffect(() => {
     onLoading?.(loading);
   }, [loading, onLoading]);
 
+  // Xem TB / Đăng ký trong bảng lấy theo khoảng ngày; video không có lượt xem trong khoảng → "—".
+  const rows = useMemo(() => {
+    if (!videos) return null;
+    const by = vstats?.videos || {};
+    return videos.videos.map((v) => ({ ...v, avgViewDuration: by[v.id]?.avgViewDuration ?? null, subs: by[v.id]?.subs ?? null }));
+  }, [videos, vstats]);
+
   const m = METRICS.find((x) => x.id === metric);
   const t = stats?.totals;
   const ch = stats?.channel;
+  const rl = stats ? rangeLabel(stats.range) : '';
+  const chart = useMemo(() => (stats ? bucketDays(stats.days, stats.period.days) : null), [stats]);
 
   return (
     <div className="yt-body">
+      <div className="yt-bar">
+        <RangePicker value={range} onChange={setRange} disabled={loading && !stats} />
+        {loading && stats ? <span className="spinner" aria-label="Đang tải" /> : null}
+      </div>
       {err ? <p className="err-note">{err.message}</p> : null}
       {!stats && !err ? (
         <p className="note">
@@ -621,14 +673,14 @@ function ChannelStats({ c, tick, onLoading }) {
         <>
           <div className="yt-tiles">
             <Tile label="Người đăng ký" value={ch?.subscribers == null ? 'Ẩn' : fmtNum(ch.subscribers)} sub={`${fmtNum(ch?.videos)} video`} />
-            <Tile label="Lượt xem · 28 ngày" value={fmtNum(t.views)} sub={`Tổng kênh ${fmtNum(ch?.views)}`} />
-            <Tile label="Giờ xem · 28 ngày" value={fmtHours(t.minutes)} sub={`Xem TB ${fmtSecs(t.avgViewDuration)}`} />
-            <Tile label="Đăng ký ròng · 28 ngày" value={signed(t.subsGained - t.subsLost)} sub={`+${fmtNum(t.subsGained)} / −${fmtNum(t.subsLost)}`} />
+            <Tile label={`Lượt xem · ${rl}`} value={fmtNum(t.views)} sub={`Tổng kênh ${fmtNum(ch?.views)}`} />
+            <Tile label={`Giờ xem · ${rl}`} value={fmtHours(t.minutes)} sub={`Xem TB ${fmtSecs(t.avgViewDuration)}`} />
+            <Tile label={`Đăng ký ròng · ${rl}`} value={signed(t.subsGained - t.subsLost)} sub={`+${fmtNum(t.subsGained)} / −${fmtNum(t.subsLost)}`} />
           </div>
 
           <div className="yt-chart-h">
             <h3>
-              {m.label} theo ngày <span className="muted small">{dm(stats.period.start)} – {dm(stats.period.end)}</span>
+              {m.label} theo {UNIT[chart.unit]} <span className="muted small">{dm(stats.period.start)} – {dm(stats.period.end)}</span>
             </h3>
             <div className="chips" role="radiogroup" aria-label="Số liệu biểu đồ">
               {METRICS.map((x) => (
@@ -638,11 +690,11 @@ function ChannelStats({ c, tick, onLoading }) {
               ))}
             </div>
           </div>
-          <YtChart days={stats.days} field={m.id} label={m.label} fmt={m.fmt} />
+          <YtChart days={chart.rows} unit={chart.unit} field={m.id} label={m.label} fmt={m.fmt} />
         </>
       ) : null}
 
-      {videos ? <VideoTable videos={videos.videos} truncated={videos.truncated} /> : null}
+      {rows ? <VideoTable videos={rows} truncated={videos.truncated} /> : null}
 
       {stats ? (
         <div className="yt-foot">

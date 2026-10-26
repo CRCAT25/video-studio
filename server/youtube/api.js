@@ -24,6 +24,30 @@ export function parseDuration(s) {
   return (Number(m[1] || 0) * 24 + Number(m[2] || 0)) * 3600 + Number(m[3] || 0) * 60 + Number(m[4] || 0);
 }
 
+export const RANGE_PRESETS = [7, 28, 90, 365];
+export const MIN_DATE = '2005-02-14';
+const MAX_SPAN = 1096; // ~3 năm
+
+const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+// Khoảng ngày: "7"|"28"|"90"|"365" (tới hôm qua) hoặc "YYYY-MM-DD_YYYY-MM-DD"; sai → null.
+export function parseRange(range, today = quotaDay()) {
+  const r = String(range ?? PERIOD_DAYS);
+  if (/^\d+$/.test(r)) {
+    const n = Number(r);
+    if (!RANGE_PRESETS.includes(n)) return null;
+    const end = addDays(today, -1);
+    return { start: addDays(end, -(n - 1)), end, days: n, key: String(n) };
+  }
+  const m = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(r);
+  if (!m || !isYmd(m[1]) || !isYmd(m[2])) return null;
+  const [, start, end] = m;
+  if (start > end || start < MIN_DATE || end > today) return null;
+  const days = Math.round((Date.parse(end) - Date.parse(start)) / 86_400_000) + 1;
+  if (days > MAX_SPAN) return null;
+  return { start, end, days, key: r };
+}
+
 const num = (v) => (v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
 
 // Bảng Analytics {columnHeaders, rows} → mảng object theo tên cột.
@@ -65,11 +89,10 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
     };
   }
 
-  // Tổng quan kênh + 28 ngày gần nhất (theo ngày) từ Analytics.
-  async function channelStats(token, { today = quotaDay() } = {}) {
+  // Tổng quan kênh + số liệu theo ngày trong khoảng (mặc định 28 ngày tới hôm qua) từ Analytics.
+  async function channelStats(token, { today = quotaDay(), range } = {}) {
+    const { start, end, days: span } = parseRange(range, today) || parseRange(PERIOD_DAYS, today);
     const channel = await myChannel(token);
-    const end = addDays(today, -1);
-    const start = addDays(end, -(PERIOD_DAYS - 1));
     const rep = await analytics(token, {
       startDate: start,
       endDate: end,
@@ -93,7 +116,7 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
     }
     if (totals.views > 0) totals.avgViewDuration = Math.round(weighted / totals.views);
     const { uploads, ...pub } = channel || {};
-    return { channel: channel ? pub : null, period: { start, end, days: PERIOD_DAYS }, totals, days };
+    return { channel: channel ? pub : null, period: { start, end, days: span }, totals, days };
   }
 
   // Ảnh thu nhỏ cỡ vừa; chỉ nhận i.ytimg.com (CSP img-src chỉ mở host này).
@@ -157,5 +180,27 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
     return { videos: out, truncated };
   }
 
-  return { myChannel, channelStats, videos };
+  // Số liệu từng video trong khoảng ngày (chỉ Analytics, 0 điểm hạn mức): id → {views, avgViewDuration, subs}.
+  async function videoStats(token, { today = quotaDay(), range } = {}) {
+    const { start, end, days } = parseRange(range, today) || parseRange(PERIOD_DAYS, today);
+    const rep = await analytics(token, {
+      startDate: start,
+      endDate: end,
+      metrics: 'views,averageViewDuration,subscribersGained,subscribersLost',
+      dimensions: 'video',
+      sort: '-views',
+      maxResults: String(MAX_VIDEOS),
+    });
+    const byVideo = {};
+    for (const r of analyticsRows(rep)) {
+      byVideo[r.video] = {
+        views: num(r.views) ?? 0,
+        avgViewDuration: num(r.averageViewDuration),
+        subs: (num(r.subscribersGained) ?? 0) - (num(r.subscribersLost) ?? 0),
+      };
+    }
+    return { period: { start, end, days }, videos: byVideo };
+  }
+
+  return { myChannel, channelStats, videos, videoStats };
 }

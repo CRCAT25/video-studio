@@ -463,9 +463,13 @@ export async function buildApp({
 
   app.post('/api/youtube/channels/:id/disconnect', async (req) => needYoutube().disconnect(req.params.id));
 
-  app.get('/api/youtube/channels/:id/stats', async (req) => needYoutube().stats(req.params.id, { refresh: isRefresh(req) }));
+  const rangeOf = (req) => (typeof req.query?.range === 'string' ? req.query.range : undefined);
+
+  app.get('/api/youtube/channels/:id/stats', async (req) => needYoutube().stats(req.params.id, { refresh: isRefresh(req), range: rangeOf(req) }));
 
   app.get('/api/youtube/channels/:id/videos', async (req) => needYoutube().videos(req.params.id, { refresh: isRefresh(req) }));
+
+  app.get('/api/youtube/channels/:id/video-stats', async (req) => needYoutube().videoStats(req.params.id, { refresh: isRefresh(req), range: rangeOf(req) }));
 
   // Trang Google chuyển về: không lộ code/token; chỉ báo kết quả để người dùng quay lại app.
   app.get(CALLBACK_PATH, async (req, reply) => {

@@ -770,6 +770,43 @@ async function main() {
       await shot('yt-reload-all');
       return `reports ${r0}→${r1} · videos ${v0}→${v1}`;
     });
+    await check('Kênh: chọn khoảng ngày 7 / 365 / tùy chọn → ô số, biểu đồ, bảng đổi theo; nhớ sau khi tải lại', async () => {
+      await page.goto(`${base}/${ytHash}`);
+      const card = ytCard('Kênh Giả');
+      const bar = card.locator('.yt-bar');
+      await card.locator('.yt-tiles .yt-tile').first().waitFor();
+      const lastReport = (dims) => google.calls.filter((c) => c.path.includes('/reports') && c.query.dimensions === dims).at(-1)?.query;
+      await choose(bar, '7');
+      await card.locator('.yt-tile', { hasText: 'Lượt xem · 7 ngày' }).waitFor();
+      const bars7 = await card.locator('.ytc-hit').count();
+      assert(bars7 === 7, `7 ngày nhưng có ${bars7} cột`);
+      const d = lastReport('day');
+      assert(Math.round((Date.parse(d.endDate) - Date.parse(d.startDate)) / 864e5) === 6, `kỳ gửi Google sai: ${d.startDate}–${d.endDate}`);
+      assert(lastReport('video').startDate === d.startDate, 'bảng video không theo khoảng');
+      await choose(bar, '365');
+      await card.locator('.yt-chart-h', { hasText: 'theo tuần' }).waitFor();
+      const weeks = await card.locator('.ytc-hit').count();
+      assert(weeks === 53, `365 ngày gộp tuần ra ${weeks} cột`);
+      await shot('yt-range-365');
+      const ymd = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+      await choose(bar, 'custom');
+      await bar.getByLabel('Từ ngày').fill(ymd(40));
+      await bar.getByLabel('Đến ngày').fill(ymd(11));
+      await bar.getByRole('button', { name: 'Áp dụng' }).click();
+      const lbl = `${ymd(40).slice(8, 10)}/${ymd(40).slice(5, 7)}/${ymd(40).slice(2, 4)}`;
+      await card.locator('.yt-tile', { hasText: lbl }).first().waitFor();
+      const bars = await card.locator('.ytc-hit').count();
+      assert(bars === 30, `tùy chọn 30 ngày nhưng có ${bars} cột`);
+      await page.reload();
+      await card.locator('.yt-tile', { hasText: lbl }).first().waitFor();
+      await page.goto(`${base}/#/channels`);
+      await page.locator('.yt-chlist th', { hasText: `Lượt xem · ${lbl}` }).waitFor();
+      await ytRow('Kênh Giả').locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      await shot('yt-range-list');
+      await choose(page.locator('.page-h .yt-range'), '28');
+      await page.locator('.yt-chlist th', { hasText: 'Lượt xem · 28 ngày' }).waitFor();
+      return `7 ngày: ${bars7} cột · 365: ${weeks} tuần · tùy chọn: ${bars} cột · ${lbl}`;
+    });
     await check('Kênh: 390 px sáng + tối không cuộn ngang', async () => {
       const bad = [];
       for (const scheme of ['light', 'dark']) {

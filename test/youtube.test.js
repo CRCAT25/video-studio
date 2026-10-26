@@ -8,7 +8,7 @@ import { openStore } from '../server/db.js';
 import { createSecretStore, fileStore, keychainStore } from '../server/keychain.js';
 import { REPO_ROOT } from '../server/presets.js';
 import { createProjects } from '../server/projects.js';
-import { addDays, analyticsRows, parseDuration, quotaDay } from '../server/youtube/api.js';
+import { addDays, analyticsRows, parseDuration, parseRange, quotaDay } from '../server/youtube/api.js';
 import { GoogleError, googleEndpoints, toHttpError } from '../server/youtube/http.js';
 import { CALLBACK_PATH, createYouTube, slugify, uniqueId } from '../server/youtube/index.js';
 import { READ_SCOPES, UPLOAD_SCOPES, clientHint, parseClientSecret, tokenName } from '../server/youtube/oauth.js';
@@ -301,6 +301,54 @@ test('stats: 28 ngày kết thúc hôm qua, tổng đúng, cache 6 giờ, refres
   await assert.rejects(() => yt.stats('khong-co'), (e) => e.status === 404);
 });
 
+test('parseRange: preset tới hôm qua; tùy chọn trong giới hạn; sai → null', () => {
+  const T = '2026-10-24';
+  assert.deepEqual(parseRange('7', T), { start: '2026-10-17', end: '2026-10-23', days: 7, key: '7' });
+  assert.deepEqual(parseRange(undefined, T), { start: '2026-09-26', end: '2026-10-23', days: 28, key: '28' });
+  assert.equal(parseRange('365', T).start, '2025-10-24');
+  assert.deepEqual(parseRange('2026-09-01_2026-09-30', T), { start: '2026-09-01', end: '2026-09-30', days: 30, key: '2026-09-01_2026-09-30' });
+  assert.equal(parseRange('2026-10-24_2026-10-24', T).days, 1);
+  for (const bad of ['5', '0', 'abc', '2026-09-30_2026-09-01', '2026-02-30_2026-03-01', '2026-10-01_2026-10-25', '2004-01-01_2004-02-01', '2020-01-01_2026-01-01', '2026-9-1_2026-9-30', '7;drop'])
+    assert.equal(parseRange(bad, T), null, bad);
+});
+
+test('stats theo khoảng ngày: đúng kỳ, cache riêng từng khoảng, khoảng sai → 400', async () => {
+  await yt.setup(FAKE_CLIENT_SECRET);
+  await connectChannel();
+  const s7 = await yt.stats('kenh-gia', { range: '7' });
+  assert.deepEqual(s7.period, { start: '2026-10-17', end: '2026-10-23', days: 7 });
+  assert.equal(s7.days.length, 7);
+  const rep = google.calls.findLast((c) => c.path === '/v2/reports');
+  assert.equal(rep.query.startDate, '2026-10-17');
+  assert.equal(rep.query.endDate, '2026-10-23');
+  assert.ok(store.ytCacheGet('kenh-gia', 'stats:7'));
+  assert.equal(store.ytCacheGet('kenh-gia', 'stats'), null);
+  assert.equal((await yt.stats('kenh-gia', { range: '7' })).cached, true);
+  assert.equal((await yt.stats('kenh-gia', { range: '28' })).cached, false);
+  const c = await yt.stats('kenh-gia', { range: '2026-01-01_2026-06-30' });
+  assert.equal(c.period.days, 181);
+  assert.equal(c.days.length, 181);
+  await assert.rejects(() => yt.stats('kenh-gia', { range: '9' }), (e) => e.status === 400 && e.code === 'invalid_range');
+});
+
+test('videoStats: Analytics theo video trong khoảng, 0 điểm hạn mức, cache riêng', async () => {
+  await yt.setup(FAKE_CLIENT_SECRET);
+  await connectChannel();
+  const before = store.ytQuota('2026-10-24');
+  const n = google.calls.length;
+  const v = await yt.videoStats('kenh-gia', { range: '90' });
+  assert.deepEqual(v.period, { start: '2026-07-26', end: '2026-10-23', days: 90 });
+  assert.deepEqual(v.videos.vid1, { views: 1000, avgViewDuration: 120, subs: 2 });
+  assert.equal(v.videos.vid3, undefined);
+  const calls = google.calls.slice(n);
+  assert.deepEqual(calls.map((c) => c.path), ['/v2/reports']);
+  assert.equal(calls[0].query.dimensions, 'video');
+  assert.equal(calls[0].query.startDate, '2026-07-26');
+  assert.equal(store.ytQuota('2026-10-24'), before);
+  assert.equal((await yt.videoStats('kenh-gia', { range: '90' })).cached, true);
+  await assert.rejects(() => yt.videoStats('kenh-gia', { range: 'x' }), (e) => e.status === 400);
+});
+
 test('stats: hai lượt cùng lúc chỉ gọi Google một lần', async () => {
   await yt.setup(FAKE_CLIENT_SECRET);
   await connectChannel();
@@ -491,6 +539,14 @@ test('route: thêm kênh → callback công khai (không cần token, chỉ cầ
     assert.equal(s.json().days.length, 28);
     const v = await app.inject({ url: '/api/youtube/channels/kenh-gia/videos?refresh=1', headers: h });
     assert.equal(v.json().videos.length, 3);
+    const s7 = await app.inject({ url: '/api/youtube/channels/kenh-gia/stats?range=7', headers: h });
+    assert.equal(s7.json().days.length, 7);
+    const vs = await app.inject({ url: '/api/youtube/channels/kenh-gia/video-stats?range=2026-10-01_2026-10-20', headers: h });
+    assert.equal(vs.statusCode, 200);
+    assert.equal(vs.json().period.days, 20);
+    const badRange = await app.inject({ url: '/api/youtube/channels/kenh-gia/stats?range=8', headers: h });
+    assert.equal(badRange.statusCode, 400);
+    assert.equal(badRange.json().error, 'invalid_range');
     const none = await app.inject({ url: '/api/youtube/channels/khong-co/stats', headers: h });
     assert.equal(none.statusCode, 404);
     const st = await app.inject({ url: '/api/youtube', headers: h });

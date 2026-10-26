@@ -136,3 +136,9 @@
 .yt-chact{text-align:right;width:1%;white-space:nowrap}
 @media (max-width:560px){.yt-chlist .yt-tbl{min-width:0}.yt-chlist .hide-sm{display:none}}
 .yt-del{margin-top:12px}
+.yt-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.yt-range-sel{width:200px}
+.yt-range-sel .sel-btn{height:34px}
+.yt-range-c{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.yt-range-c input[type=date]{height:34px;padding:0 8px}
+.yt-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}

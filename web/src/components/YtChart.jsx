@@ -1,4 +1,4 @@
-// Biểu đồ cột theo ngày (một chuỗi số liệu YouTube): cột ≤24px bo 4px đầu, lưới mảnh, tooltip theo cột, bảng số thay thế.
+// Biểu đồ cột theo ngày / tuần / tháng (một chuỗi số liệu YouTube): cột ≤24px bo 4px đầu, lưới mảnh, tooltip theo cột, bảng số thay thế.
 import { useEffect, useRef, useState } from 'react';
 import { fmtNum } from '../lib/format.js';
 
@@ -30,9 +30,14 @@ function ticks(max) {
 const dm = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const WEEKDAY = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const dayName = (d) => WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()];
+// Nhãn trục và tooltip theo đơn vị cột.
+const axisLabel = (d, unit) => (unit === 'month' ? `${d.date.slice(5, 7)}/${d.date.slice(2, 4)}` : dm(d.date));
+const tipLabel = (d, unit) =>
+  unit === 'month' ? `Tháng ${Number(d.date.slice(5, 7))}/${d.date.slice(0, 4)}` : unit === 'week' ? `${dm(d.date)} – ${dm(d.end || d.date)}` : `${dayName(d.date)} ${dm(d.date)}`;
+const UNIT = { day: 'ngày', week: 'tuần', month: 'tháng' };
 
-// days = [{date, ...}], field = khóa số liệu, label = tên số liệu, fmt? = định dạng giá trị tooltip/bảng.
-export default function YtChart({ days = [], field, label, fmt = fmtNum }) {
+// days = [{date, end?, ...}], unit = 'day'|'week'|'month', field = khóa số liệu, label = tên số liệu, fmt? = định dạng giá trị tooltip/bảng.
+export default function YtChart({ days = [], unit = 'day', field, label, fmt = fmtNum }) {
   const wrap = useRef(null);
   const [w, setW] = useState(600);
   const [hover, setHover] = useState(null);
@@ -60,7 +65,7 @@ export default function YtChart({ days = [], field, label, fmt = fmtNum }) {
   return (
     <figure className="ytc">
       <div className="ytc-plot" ref={wrap} onPointerLeave={() => setHover(null)}>
-        <svg width={w} height={H} role="img" aria-label={`${label} theo ngày, ${days.length} ngày`}>
+        <svg width={w} height={H} role="img" aria-label={`${label} theo ${UNIT[unit]}, ${days.length} ${UNIT[unit]}`}>
           {t.map((v) => (
             <g key={v}>
               <line x1={PAD.left} x2={w - PAD.right} y1={y(v)} y2={y(v)} className="ytc-grid" />
@@ -87,14 +92,14 @@ export default function YtChart({ days = [], field, label, fmt = fmtNum }) {
                   height={ih}
                   className="ytc-hit"
                   tabIndex={0}
-                  aria-label={`${dm(d.date)}: ${fmt(v)}`}
+                  aria-label={`${tipLabel(d, unit)}: ${fmt(v)}`}
                   onPointerEnter={() => setHover(i)}
                   onFocus={() => setHover(i)}
                   onBlur={() => setHover(null)}
                 />
                 {i % every === 0 ? (
                   <text x={PAD.left + i * band + band / 2} y={H - 6} textAnchor="middle" className="ytc-ax">
-                    {dm(d.date)}
+                    {axisLabel(d, unit)}
                   </text>
                 ) : null}
               </g>
@@ -110,7 +115,7 @@ export default function YtChart({ days = [], field, label, fmt = fmtNum }) {
           >
             <b>{fmt(vals[hover])}</b>
             <span>
-              {label} · {dayName(hv.date)} {dm(hv.date)}
+              {label} · {tipLabel(hv, unit)}
             </span>
           </div>
         ) : null}
