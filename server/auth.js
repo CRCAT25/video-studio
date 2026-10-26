@@ -6,7 +6,7 @@ export const TOKEN_HEADER = 'x-studio-token';
 export const UNAUTHORIZED_MESSAGE = 'Phiên đăng nhập đã hết — tải lại trang để đăng nhập.';
 
 export const CSP =
-  "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; " +
+  "default-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; " +
   "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 export const SECURITY_HEADERS = Object.freeze({

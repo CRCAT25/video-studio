@@ -231,7 +231,7 @@ export function startFakeGoogle({ port = 0, state = defaultState() } = {}) {
           .filter((v) => ids.has(v.id))
           .map((v) => ({
             id: v.id,
-            snippet: { title: v.title, publishedAt: v.publishedAt },
+            snippet: { title: v.title, description: v.description ?? `Mô tả ${v.title}`, publishedAt: v.publishedAt, thumbnails: v.thumbnails ?? { medium: { url: `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg` } } },
             contentDetails: { duration: v.duration },
             status: { privacyStatus: v.privacy },
             statistics: { viewCount: v.views, likeCount: v.likes, commentCount: v.comments },

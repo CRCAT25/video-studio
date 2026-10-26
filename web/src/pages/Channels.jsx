@@ -46,15 +46,23 @@ const METRICS = [
   { id: 'subsGained', label: 'Người đăng ký mới', fmt: fmtNum },
 ];
 const COLS = [
-  { id: 'title', label: 'Video', num: false },
-  { id: 'publishedAt', label: 'Ngày đăng', num: false },
-  { id: 'duration', label: 'Dài', num: true },
+  { id: 'title', label: 'Video' },
+  { id: 'privacy', label: 'Chế độ hiển thị', sort: false, cls: 'hide-sm' },
+  { id: 'publishedAt', label: 'Ngày', cls: 'hide-sm' },
   { id: 'views', label: 'Lượt xem', num: true },
-  { id: 'likes', label: 'Thích', num: true },
-  { id: 'comments', label: 'Bình luận', num: true },
-  { id: 'avgViewDuration', label: 'Xem TB', num: true, hint: '28 ngày' },
-  { id: 'subsGained', label: 'Đăng ký', num: true, hint: '28 ngày' },
+  { id: 'likes', label: 'Thích', num: true, cls: 'hide-sm' },
+  { id: 'comments', label: 'Bình luận', num: true, cls: 'hide-sm' },
+  { id: 'avgViewDuration', label: 'Xem TB', num: true, cls: 'hide-sm', hint: 'trọn đời' },
+  { id: 'subsGained', label: 'Đăng ký', num: true, cls: 'hide-sm', hint: 'trọn đời' },
 ];
+// Shorts: API không có cờ riêng, YouTube cho Shorts dài tối đa 3 phút → coi video ≤ 180 giây là Shorts.
+const SHORT_MAX = 180;
+const isShort = (v) => v.duration != null && v.duration <= SHORT_MAX;
+const TABS = [
+  { id: 'video', label: 'Video', test: (v) => !isShort(v) },
+  { id: 'short', label: 'Shorts', test: isShort },
+];
+const PAGE_SIZES = [10, 30, 50];
 
 // Đầu trang + thẻ từng kênh. yt = trạng thái /api/youtube (App tải lại khi có SSE 'youtube').
 export default function Channels({ yt, error, onReload }) {
@@ -578,12 +586,33 @@ function Tile({ label, value, sub }) {
   );
 }
 
-// Bảng video có sắp xếp theo cột (bấm tiêu đề cột).
+// Biểu tượng chế độ hiển thị (quả địa cầu / mắt gạch / khóa).
+function PrivacyIcon({ p }) {
+  const d = {
+    public: 'M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM1.5 8h13M8 1.5c1.8 1.8 2.6 4 2.6 6.5S9.8 12.7 8 14.5M8 1.5C6.2 3.3 5.4 5.5 5.4 8s.8 4.7 2.6 6.5',
+    unlisted: 'M6.5 9.5l3-3M5 7.5 3.5 9a2.1 2.1 0 0 0 3 3L8 10.5M8 5.5 9.5 4a2.1 2.1 0 0 1 3 3L11 8.5',
+    private: 'M4 7V5a4 4 0 0 1 8 0v2M3 7h10v7H3z',
+  }[p];
+  if (!d) return null;
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+}
+
+// Bảng video kiểu YouTube Studio: tab Video/Shorts, ảnh thu nhỏ + mô tả, sắp xếp theo cột, phân trang.
 function VideoTable({ videos, truncated }) {
+  const all = videos || [];
+  const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t.id, all.filter(t.test).length])), [all]);
+  const [tab, setTab] = useState(() => (counts.video || !counts.short ? 'video' : 'short'));
   const [sort, setSort] = useState({ id: 'publishedAt', dir: -1 });
+  const [size, setSize] = useState(30);
+  const [page, setPage] = useState(0);
   const rows = useMemo(() => {
     const k = sort.id;
-    return [...(videos || [])].sort((a, b) => {
+    const t = TABS.find((x) => x.id === tab);
+    return all.filter(t.test).sort((a, b) => {
       const x = a[k];
       const y = b[k];
       if (x == null && y == null) return 0;
@@ -591,52 +620,131 @@ function VideoTable({ videos, truncated }) {
       if (y == null) return -1;
       return (typeof x === 'string' ? x.localeCompare(y, 'vi') : x - y) * sort.dir;
     });
-  }, [videos, sort]);
-  const by = (id) => setSort((s) => (s.id === id ? { id, dir: -s.dir } : { id, dir: id === 'title' ? 1 : -1 }));
+  }, [all, tab, sort]);
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const pg = Math.min(page, pages - 1);
+  const shown = rows.slice(pg * size, pg * size + size);
+  const by = (id) => {
+    setSort((s) => (s.id === id ? { id, dir: -s.dir } : { id, dir: id === 'title' ? 1 : -1 }));
+    setPage(0);
+  };
+  const pick = (id) => {
+    setTab(id);
+    setPage(0);
+  };
 
-  if (!videos?.length) return <p className="note">Kênh chưa có video.</p>;
+  if (!all.length) return <p className="note">Kênh chưa có video.</p>;
   return (
     <div className="yt-videos">
-      <h3>
-        Video <span className="muted small">{fmtNum(videos.length)}{truncated ? ' video mới nhất' : ''}</span>
-      </h3>
-      <div className="tbl-wrap">
-        <table className="yt-tbl">
-          <thead>
-            <tr>
-              {COLS.map((col) => (
-                <th key={col.id} className={col.num ? 'num' : ''} aria-sort={sort.id === col.id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" className="th-btn" onClick={() => by(col.id)} title={col.hint ? `${col.label} (${col.hint})` : undefined}>
-                    {col.label}
-                    <span className="th-ar" aria-hidden="true">
-                      {sort.id === col.id ? (sort.dir > 0 ? '▲' : '▼') : ''}
-                    </span>
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((v) => (
-              <tr key={v.id}>
-                <td className="yt-title">
-                  <a href={`https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}`} target="_blank" rel="noopener noreferrer">
-                    {v.title}
-                  </a>
-                  {v.privacy && v.privacy !== 'public' ? <span className="tag">{PRIVACY[v.privacy] || v.privacy}</span> : null}
-                </td>
-                <td className="nowrap">{fmtDate(v.publishedAt)}</td>
-                <td className="num">{fmtSecs(v.duration)}</td>
-                <td className="num">{fmtNum(v.views)}</td>
-                <td className="num">{fmtNum(v.likes)}</td>
-                <td className="num">{fmtNum(v.comments)}</td>
-                <td className="num">{fmtSecs(v.avgViewDuration)}</td>
-                <td className="num">{v.subsGained == null ? '—' : fmtNum(v.subsGained)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="yt-vtabs" role="tablist" aria-label="Loại nội dung">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`yt-vtab${tab === t.id ? ' on' : ''}`} onClick={() => pick(t.id)}>
+            {t.label} <span className="muted">{fmtNum(counts[t.id])}</span>
+          </button>
+        ))}
       </div>
+      {!rows.length ? (
+        <p className="note">Chưa có {tab === 'short' ? 'Shorts' : 'video'} nào.</p>
+      ) : (
+        <>
+          <div className="tbl-wrap">
+            <table className="yt-tbl">
+              <thead>
+                <tr>
+                  {COLS.map((col) => (
+                    <th
+                      key={col.id}
+                      className={[col.num ? 'num' : '', col.cls || ''].join(' ').trim() || undefined}
+                      aria-sort={col.sort === false ? undefined : sort.id === col.id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}
+                    >
+                      {col.sort === false ? (
+                        col.label
+                      ) : (
+                        <button type="button" className="th-btn" onClick={() => by(col.id)} title={col.hint ? `${col.label} (${col.hint})` : undefined}>
+                          {col.label}
+                          <span className="th-ar" aria-hidden="true">
+                            {sort.id === col.id ? (sort.dir > 0 ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((v) => {
+                  const href = `https://www.youtube.com/${isShort(v) ? 'shorts/' : 'watch?v='}${encodeURIComponent(v.id)}`;
+                  return (
+                    <tr key={v.id}>
+                      <td className="yt-title">
+                        <div className="yt-vid">
+                          <a className="yt-thumb" href={href} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true">
+                            {v.thumb ? <img src={v.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
+                            <span className="yt-dur">{fmtSecs(v.duration)}</span>
+                          </a>
+                          <div className="yt-vtext">
+                            <a href={href} target="_blank" rel="noopener noreferrer">
+                              {v.title}
+                            </a>
+                            {v.description ? <p className="yt-desc">{v.description}</p> : null}
+                            <span className="yt-mdate muted small">{fmtDate(v.publishedAt)}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="hide-sm">
+                        <span className="yt-priv">
+                          <PrivacyIcon p={v.privacy} />
+                          {PRIVACY[v.privacy] || v.privacy || '—'}
+                        </span>
+                      </td>
+                      <td className="nowrap hide-sm">{fmtDate(v.publishedAt)}</td>
+                      <td className="num">{fmtNum(v.views)}</td>
+                      <td className="num hide-sm">{fmtNum(v.likes)}</td>
+                      <td className="num hide-sm">{fmtNum(v.comments)}</td>
+                      <td className="num hide-sm">{fmtSecs(v.avgViewDuration)}</td>
+                      <td className="num hide-sm">{v.subsGained == null ? '—' : fmtNum(v.subsGained)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="yt-pager">
+            {truncated ? <span className="muted small yt-trunc">{fmtNum(all.length)} video mới nhất</span> : null}
+            <label className="small muted yt-psize">
+              Số hàng mỗi trang
+              <select
+                value={size}
+                onChange={(e) => {
+                  setSize(Number(e.target.value));
+                  setPage(0);
+                }}
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="small muted" aria-live="polite">
+              {pg * size + 1}–{pg * size + shown.length}/{rows.length}
+            </span>
+            <span className="yt-pbtns">
+              {[
+                ['Trang đầu', '|‹', 0, pg === 0],
+                ['Trang trước', '‹', pg - 1, pg === 0],
+                ['Trang sau', '›', pg + 1, pg >= pages - 1],
+                ['Trang cuối', '›|', pages - 1, pg >= pages - 1],
+              ].map(([label, ch, to, off]) => (
+                <button key={label} type="button" className="btn sm ghost" aria-label={label} title={label} disabled={off} onClick={() => setPage(to)}>
+                  {ch}
+                </button>
+              ))}
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

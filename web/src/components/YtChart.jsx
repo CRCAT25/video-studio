@@ -115,29 +115,6 @@ export default function YtChart({ days = [], field, label, fmt = fmtNum }) {
           </div>
         ) : null}
       </div>
-      <details className="ytc-tbl">
-        <summary>Xem dạng bảng</summary>
-        <div className="tbl-wrap">
-          <table className="yt-tbl">
-            <thead>
-              <tr>
-                <th>Ngày</th>
-                <th className="num">{label}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {days.map((d, i) => (
-                <tr key={d.date}>
-                  <td>
-                    {dayName(d.date)} {dm(d.date)}/{d.date.slice(0, 4)}
-                  </td>
-                  <td className="num">{fmt(vals[i])}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
     </figure>
   );
 }

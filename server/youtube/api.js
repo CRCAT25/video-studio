@@ -96,6 +96,12 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
     return { channel: channel ? pub : null, period: { start, end, days: PERIOD_DAYS }, totals, days };
   }
 
+  // Ảnh thu nhỏ cỡ vừa; chỉ nhận i.ytimg.com (CSP img-src chỉ mở host này).
+  function thumbUrl(t) {
+    const u = t?.medium?.url || t?.default?.url;
+    return typeof u === 'string' && u.startsWith('https://i.ytimg.com/') ? u : null;
+  }
+
   // Danh sách video (tối đa MAX_VIDEOS mới nhất) + số liệu Data API + Analytics trọn đời theo video.
   async function videos(token, { today = quotaDay() } = {}) {
     const channel = await myChannel(token);
@@ -133,6 +139,8 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
       return {
         id: v.id,
         title: v.snippet?.title ?? '',
+        description: (v.snippet?.description || '').slice(0, 300),
+        thumb: thumbUrl(v.snippet?.thumbnails),
         publishedAt: v.snippet?.publishedAt ?? null,
         duration: parseDuration(v.contentDetails?.duration),
         privacy: v.status?.privacyStatus ?? null,

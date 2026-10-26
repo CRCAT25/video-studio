@@ -8,6 +8,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+
+// Ảnh thu nhỏ i.ytimg.com của Google giả → trả ảnh SVG tại chỗ, không ra mạng thật.
+const THUMB_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#3a6"/></svg>';
+const fakeThumbs = (ctx) => ctx.route('https://i.ytimg.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: THUMB_SVG }));
 import { FAKE_CLIENT_SECRET, fakeClientSecretFor, startFakeGoogle } from '../fixtures/fake-google.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -203,6 +207,7 @@ async function main() {
     // ---- trình duyệt
     browser = await chromium.launch({ executablePath: CHROME, headless: process.env.E2E_HEADED !== '1' });
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, colorScheme: 'dark', locale: 'vi-VN' });
+    await fakeThumbs(context);
     const page = await context.newPage();
     page.setDefaultTimeout(WAIT);
     const consoleIssues = [];
@@ -697,17 +702,23 @@ async function main() {
       await card.locator('.yt-chart-h', { hasText: 'Phút xem theo ngày' }).waitFor();
       const rows = card.locator('.yt-videos table.yt-tbl tbody tr');
       await rows.first().waitFor();
-      const titles = () => card.locator('.yt-videos table.yt-tbl tbody td.yt-title').allInnerTexts();
+      const titles = () => card.locator('.yt-videos table.yt-tbl tbody .yt-vtext > a').allInnerTexts();
       const t0 = await titles();
       await card.locator('.yt-videos th button', { hasText: 'Lượt xem' }).click();
       const sortAttr = await card.locator('.yt-videos th', { hasText: 'Lượt xem' }).getAttribute('aria-sort');
       assert(sortAttr !== 'none', 'aria-sort không đổi');
       const t1 = await titles();
-      assert(t0.length === 3, `${t0.length} video`);
-      assert(t0.some((t) => t.includes('Riêng tư')), 'video private thiếu nhãn');
+      assert(t0.length === 2, `tab Video có ${t0.length} video`);
+      assert(await rows.locator('.yt-priv', { hasText: 'Riêng tư' }).count() === 1, 'video private thiếu nhãn');
+      assert(await rows.locator('.yt-thumb img').count() === 2, 'thiếu ảnh thu nhỏ');
+      assert(!(await card.getByText('Xem dạng bảng').count()), 'còn "Xem dạng bảng"');
+      await card.getByRole('tab', { name: /Shorts/ }).click();
+      const ts = await titles();
+      assert(ts.length === 1 && ts[0] === 'Video hai', `tab Shorts: ${ts}`);
+      await card.getByRole('tab', { name: /Video/ }).click();
       await page.waitForTimeout(300);
       await shot('yt-stats');
-      return `${bars} ngày · ${t0.length} video · sắp xếp ${sortAttr} (${t0[0].split('\n')[0]} → ${t1[0].split('\n')[0]})`;
+      return `${bars} ngày · ${t0.length} video + ${ts.length} short · sắp xếp ${sortAttr} (${t0[0]} → ${t1[0]})`;
     });
     await check('Kênh: Làm mới gọi lại Google; vào lại trang dùng cache', async () => {
       const card = ytCard('Kênh Giả');
@@ -731,6 +742,7 @@ async function main() {
       for (const scheme of ['light', 'dark']) {
         const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: scheme, locale: 'vi-VN' });
         await ctx.addCookies([{ name: 'vs_token', value: TOKEN, url: base }]);
+        await fakeThumbs(ctx);
         const m = await ctx.newPage();
         m.on('pageerror', (e) => consoleIssues.push(`pageerror (390 ${scheme}): ${e.message}`));
         for (const [name, hash, sel] of [

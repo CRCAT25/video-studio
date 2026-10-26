@@ -322,11 +322,21 @@ test('videos: mới nhất trước, gộp số liệu Data + Analytics, thời 
   assert.equal(one.likes, 50);
   assert.equal(one.avgViewDuration, 120);
   assert.equal(one.subsGained, 3);
+  assert.equal(one.description, 'Mô tả Video một');
+  assert.equal(one.thumb, 'https://i.ytimg.com/vi/vid1/mqdefault.jpg');
   assert.equal(v.videos[0].privacy, 'private');
   assert.equal(v.videos[0].avgViewDuration, null);
   const rep = google.calls.find((c) => c.path === '/v2/reports' && c.query.dimensions === 'video');
   assert.equal(rep.query.startDate, '2024-01-15');
   assert.equal(rep.query.ids, 'channel==MINE');
+});
+
+test('videos: ảnh thu nhỏ ngoài i.ytimg.com bị bỏ', async () => {
+  google.state.videos[0].thumbnails = { medium: { url: 'https://evil.example/x.jpg' } };
+  await yt.setup(FAKE_CLIENT_SECRET);
+  await connectChannel();
+  const v = await yt.videos('kenh-gia');
+  assert.equal(v.videos.find((x) => x.id === 'vid1').thumb, null);
 });
 
 test('videos: nhiều hơn 200 → cắt + truncated', async () => {
