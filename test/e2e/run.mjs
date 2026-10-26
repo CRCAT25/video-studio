@@ -737,6 +737,21 @@ async function main() {
       assert(n2 === n1, `vào lại vẫn gọi Google (${n1} → ${n2})`);
       return `reports: ${n0} → ${n1} → ${n2}`;
     });
+    await check('Kênh: Làm mới tất cả ở danh sách gọi lại Google cho mọi kênh', async () => {
+      await page.goto(`${base}/#/channels`);
+      await ytRow('Kênh Giả').locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      const count = (p) => google.calls.filter((c) => c.path.includes(p)).length;
+      const r0 = count('/reports'), v0 = count('/videos');
+      const btn = page.getByRole('button', { name: /Làm mới tất cả/ });
+      await btn.click();
+      await page.getByText('Đã tải lại tất cả kênh.').waitFor();
+      await btn.and(page.locator(':enabled')).waitFor();
+      const r1 = count('/reports'), v1 = count('/videos');
+      assert(r1 > r0 && v1 > v0, `không gọi lại Google (reports ${r0}→${r1}, videos ${v0}→${v1})`);
+      await ytRow('Kênh Giả').locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      await shot('yt-reload-all');
+      return `reports ${r0}→${r1} · videos ${v0}→${v1}`;
+    });
     await check('Kênh: 390 px sáng + tối không cuộn ngang', async () => {
       const bad = [];
       for (const scheme of ['light', 'dark']) {

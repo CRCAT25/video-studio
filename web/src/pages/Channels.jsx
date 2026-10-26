@@ -71,6 +71,40 @@ export default function Channels({ yt, error, onReload }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addUrl, setAddUrl] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [stats, setStats] = useState({});
+  const [reloading, setReloading] = useState(false);
+
+  // Kênh lấy được số liệu (không cần kết nối lại / không đang chờ).
+  const live = (yt?.channels || []).filter((c) => c.status !== 'reauth' && !c.pending);
+  const liveKey = live.map((c) => `${c.id}:${c.connectedAt}`).join(',');
+
+  // Tải số liệu mọi kênh; refresh = gọi lại Google (cả danh sách video) thay vì dùng cache.
+  const loadStats = useCallback(
+    async (refresh = false) => {
+      const res = await Promise.allSettled(
+        live.map((c) => Promise.all([api.ytStats(c.id, refresh), refresh ? api.ytVideos(c.id, true) : null])),
+      );
+      setStats(Object.fromEntries(live.map((c, i) => [c.id, res[i].status === 'fulfilled' ? res[i].value[0] : false])));
+      return res.filter((r) => r.status === 'rejected').length;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveKey],
+  );
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  const reloadAll = async () => {
+    setReloading(true);
+    try {
+      const failed = await loadStats(true);
+      if (failed) toast(`${failed} kênh tải lỗi — thử lại sau.`, 'err');
+      else toast('Đã tải lại tất cả kênh.', 'ok');
+    } finally {
+      setReloading(false);
+    }
+  };
 
   // Báo khi vừa thêm / kết nối lại kênh hoặc vừa lỗi (so với lần tải trước).
   useEffect(() => {
@@ -139,6 +173,11 @@ export default function Channels({ yt, error, onReload }) {
           <QuotaBar used={q.used} limit={q.limit} />
         </div>
         <div className="acts">
+          {live.length ? (
+            <button type="button" className="btn" onClick={reloadAll} disabled={reloading} title="Tải lại số liệu mới nhất từ YouTube cho tất cả kênh">
+              {reloading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới tất cả
+            </button>
+          ) : null}
           <a className="btn" href="#/channels/setup">
             Thiết lập Google
           </a>
@@ -190,7 +229,7 @@ export default function Channels({ yt, error, onReload }) {
           </div>
         ) : null
       ) : (
-        <ChannelList channels={yt.channels} />
+        <ChannelList channels={yt.channels} stats={stats} />
       )}
 
       {addOpen ? (
@@ -218,7 +257,7 @@ function chState(c) {
 }
 
 // Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có nút vào chi tiết.
-function ChannelList({ channels }) {
+function ChannelList({ channels, stats }) {
   return (
     <div className="tbl-wrap yt-chlist">
       <table className="yt-tbl">
@@ -235,7 +274,7 @@ function ChannelList({ channels }) {
         </thead>
         <tbody>
           {channels.map((c) => (
-            <ChannelRow key={c.id} c={c} />
+            <ChannelRow key={c.id} c={c} s={stats[c.id]} />
           ))}
         </tbody>
       </table>
@@ -243,24 +282,12 @@ function ChannelList({ channels }) {
   );
 }
 
-// Một hàng kênh; số liệu lấy từ cache server (không gọi lại Google nếu còn mới).
-function ChannelRow({ c }) {
-  const [s, setS] = useState(null);
+// Một hàng kênh; s = số liệu (undefined: đang tải, false: lỗi) do trang danh sách tải.
+function ChannelRow({ c, s }) {
   const ok = c.status !== 'reauth' && !c.pending;
-  useEffect(() => {
-    if (!ok) return undefined;
-    let live = true;
-    api
-      .ytStats(c.id)
-      .then((r) => live && setS(r))
-      .catch(() => live && setS(false));
-    return () => {
-      live = false;
-    };
-  }, [c.id, c.connectedAt, ok]);
   const st = chState(c);
   const ch = s?.channel;
-  const cell = (v) => (s == null ? <span className="muted">…</span> : s === false ? '—' : v);
+  const cell = (v) => (s === undefined ? <span className="muted">…</span> : s === false ? '—' : v);
   return (
     <tr>
       <td>
