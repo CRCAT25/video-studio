@@ -1,4 +1,4 @@
-// Dịch vụ "Kênh YouTube": thiết lập client Google, kết nối từng kênh (channels.yaml), số liệu có cache SQLite, hạn mức.
+// Dịch vụ "Kênh YouTube": thiết lập client Google, thêm kênh bằng đăng nhập Google (lưu DB), số liệu có cache SQLite, hạn mức.
 import { spawn } from 'node:child_process';
 import { BROWSER_SCRIPT } from '../claude-account.js';
 import { listChromeProfiles } from '../chrome-profiles.js';
@@ -9,6 +9,33 @@ import { READ_SCOPES, UPLOAD_SCOPES, clientHint, createOAuth } from './oauth.js'
 
 export const CACHE_TTL_MS = 6 * 3600_000;
 export const CALLBACK_PATH = '/api/youtube/oauth/callback';
+// Khóa luồng "Thêm kênh" (chưa có mã kênh cho tới khi Google trả về) — không trùng mã kênh vì có ký tự '+'.
+export const NEW_CHANNEL = '+new';
+
+// Tên kênh → mã nội bộ: bỏ dấu, chữ thường, nối bằng '-' ("Bếp Nhà Mình" → "bep-nha-minh").
+export function slugify(title) {
+  const s = String(title ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
+  return s || 'kenh';
+}
+
+// Mã chưa dùng: slug, slug-2, slug-3…
+export function uniqueId(base, taken) {
+  if (!taken.has(base)) return base;
+  let i = 2;
+  while (taken.has(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
+}
+
+// Kênh YouTube đã thêm (DB) theo dạng Channel chung của app.
+export const ytChannelList = (store) => store.ytChannels().map((r) => ({ id: r.id, name: r.title || r.id, platform: 'youtube', videos_dir: null }));
 
 // Mở URL trong hồ sơ Chrome đã chọn (cùng script với đăng nhập Claude); không chờ, không đọc output.
 export function openInChromeProfile(url, profileDir, { script = BROWSER_SCRIPT } = {}) {
@@ -17,7 +44,7 @@ export function openInChromeProfile(url, profileDir, { script = BROWSER_SCRIPT }
   child.unref();
 }
 
-// Tạo dịch vụ YouTube. deps: store (db.js), secrets (keychain.js), channels() → [{id,name,platform}], fetch?, googleBase?,
+// Tạo dịch vụ YouTube. deps: store (db.js), secrets (keychain.js), channels() → mọi kênh của app (để tránh trùng mã), fetch?, googleBase?,
 // openUrl?(url, profileDir), profiles?(), onChange?(), now?().
 export function createYouTube({
   store,
@@ -48,16 +75,9 @@ export function createYouTube({
     }
   };
 
-  const ytChannels = () => (channels() || []).filter((c) => c.platform === 'youtube');
   const needChannel = (id) => {
-    const c = ytChannels().find((x) => x.id === id);
-    if (!c) throw new HttpError(404, 'not_found', `Không có kênh YouTube "${id}" trong channels.yaml.`);
-    return c;
-  };
-  const needConnected = (id) => {
-    needChannel(id);
-    const row = store.ytChannel(id);
-    if (!row) throw new HttpError(409, 'yt_not_connected', 'Kênh này chưa kết nối YouTube.');
+    const row = typeof id === 'string' ? store.ytChannel(id) : null;
+    if (!row) throw new HttpError(404, 'not_found', 'Không có kênh này — có thể đã bị xóa.');
     return row;
   };
 
@@ -72,22 +92,19 @@ export function createYouTube({
       client: client ? clientHint(client.clientId) : null,
       storage: secrets.kind,
       quota: { day, used: store.ytQuota(day), limit: DAILY_QUOTA },
-      channels: ytChannels().map((c) => {
-        const r = rows.get(c.id);
-        return {
-          id: c.id,
-          name: c.name,
-          videosDir: c.videos_dir ?? null,
-          connected: !!r,
-          ytChannelId: r?.yt_channel_id ?? null,
-          title: r?.title ?? null,
-          status: r?.status ?? null,
-          canUpload: !!r?.can_upload,
-          connectedAt: r?.connected_at ?? null,
-          pending: pending.has(c.id),
-          lastError: lastError.get(c.id) ?? null,
-        };
-      }),
+      adding: pending.has(NEW_CHANNEL),
+      addError: lastError.get(NEW_CHANNEL) ?? null,
+      channels: [...rows.values()].map((r) => ({
+        id: r.id,
+        name: r.title || r.id,
+        ytChannelId: r.yt_channel_id,
+        title: r.title,
+        status: r.status,
+        canUpload: !!r.can_upload,
+        connectedAt: r.connected_at,
+        pending: pending.has(r.id),
+        lastError: lastError.get(r.id) ?? null,
+      })),
     };
   }
 
@@ -99,15 +116,16 @@ export function createYouTube({
 
   // Xóa client Google; còn kênh kết nối thì chặn (token phụ thuộc client).
   async function clearSetup() {
-    if (store.ytChannels().length) throw new HttpError(409, 'yt_has_channels', 'Ngắt kết nối mọi kênh trước khi xóa thiết lập Google.');
+    if (store.ytChannels().length) throw new HttpError(409, 'yt_has_channels', 'Xóa mọi kênh trước khi xóa thiết lập Google.');
     await oauth.clearClient();
     emit();
     return status();
   }
 
-  // Bắt đầu kết nối kênh: tạo URL đăng nhập Google; có hồ sơ Chrome → mở luôn trong hồ sơ đó.
-  async function connect({ channelId, redirectUri, profileDir = null, upload = false }) {
-    needChannel(channelId);
+  // Bắt đầu đăng nhập Google: channelId = NEW_CHANNEL → thêm kênh mới, mã kênh có sẵn → kết nối lại kênh đó.
+  // Tạo URL đăng nhập; có hồ sơ Chrome → mở luôn trong hồ sơ đó.
+  async function connect({ channelId = NEW_CHANNEL, redirectUri, profileDir = null, upload = false }) {
+    if (channelId !== NEW_CHANNEL) needChannel(channelId);
     let profile = null;
     if (profileDir) {
       profile = (profiles()?.profiles || []).find((p) => p.dir === profileDir) || null;
@@ -129,8 +147,8 @@ export function createYouTube({
     return { authUrl, opened };
   }
 
-  function cancelConnect(channelId) {
-    needChannel(channelId);
+  function cancelConnect(channelId = NEW_CHANNEL) {
+    if (channelId !== NEW_CHANNEL) needChannel(channelId);
     const ok = oauth.cancel(channelId);
     emit();
     return { ok };
@@ -142,7 +160,8 @@ export function createYouTube({
     return e;
   };
 
-  // Google chuyển về: đổi code → token, đọc kênh, lưu. Trả {ok, channelId, title} hoặc ném HttpError (đã ghi lastError).
+  // Google chuyển về: đổi code → token, đọc kênh, lưu (thêm mới hoặc kết nối lại đúng kênh cũ).
+  // Trả {ok, channelId, title, added} hoặc ném HttpError (đã ghi lastError).
   async function callback({ state, code, error }) {
     if (error) {
       const id = oauth.discard(state);
@@ -154,28 +173,41 @@ export function createYouTube({
     } catch (e) {
       throw fail(e?.channelId ?? null, toHttpError(e));
     }
-    const id = tokens.channelId;
+    const flowId = tokens.channelId;
     try {
       const token = async () => tokens.accessToken;
       const ch = await api.myChannel(token);
       if (!ch) throw new HttpError(400, 'yt_no_channel', 'Tài khoản Google này chưa có kênh YouTube — chọn đúng tài khoản / kênh thương hiệu ở màn hình Google.');
-      const dup = store.ytChannels().find((r) => r.yt_channel_id === ch.id && r.id !== id);
-      if (dup) throw new HttpError(409, 'yt_dup', `Kênh "${ch.title}" đã gắn với mục "${dup.id}". Chọn kênh khác ở màn hình Google.`);
+      const rows = store.ytChannels();
+      const added = flowId === NEW_CHANNEL;
+      let id = flowId;
+      if (added) {
+        const dup = rows.find((r) => r.yt_channel_id === ch.id);
+        if (dup) throw new HttpError(409, 'yt_dup', `Kênh "${ch.title}" đã được thêm rồi.`);
+        const taken = new Set([...rows.map((r) => r.id), ...(channels() || []).map((c) => c.id)]);
+        id = uniqueId(slugify(ch.title), taken);
+      } else {
+        const row = rows.find((r) => r.id === flowId);
+        if (!row) throw new HttpError(404, 'not_found', 'Kênh này đã bị xóa trong lúc đăng nhập.');
+        if (row.yt_channel_id !== ch.id) throw new HttpError(409, 'yt_wrong_channel', `Bạn vừa chọn kênh "${ch.title}" — hãy chọn đúng kênh "${row.title}" ở màn hình Google.`);
+      }
       await oauth.saveTokens(id, tokens);
       const canUpload = UPLOAD_SCOPES.every((s) => tokens.scopes.includes(s));
       store.ytSaveChannel({ id, yt_channel_id: ch.id, title: ch.title, status: 'ok', can_upload: canUpload });
       store.ytClearCache(id);
-      lastError.delete(id);
+      lastError.delete(flowId);
       emit();
-      return { ok: true, channelId: id, title: ch.title };
+      return { ok: true, channelId: id, title: ch.title, added };
     } catch (e) {
-      throw fail(id, toHttpError(e));
+      throw fail(flowId, toHttpError(e));
     }
   }
 
-  // Ngắt kết nối: thu hồi token ở Google, xóa khỏi Keychain + DB.
+  // Xóa kênh: thu hồi token ở Google, xóa khỏi Keychain + DB.
   async function disconnect(channelId) {
-    needConnected(channelId);
+    needChannel(channelId);
+    lastError.delete(channelId);
+    oauth.cancel(channelId);
     const r = await oauth.revoke(channelId);
     store.ytDeleteChannel(channelId);
     inflight.forEach((_, k) => k.startsWith(`${channelId}:`) && inflight.delete(k));
@@ -185,7 +217,7 @@ export function createYouTube({
 
   // Lấy số liệu (kind 'stats' | 'videos'): cache còn hạn → trả luôn; refresh hoặc hết hạn → gọi Google (gộp lượt trùng).
   async function cached(channelId, kind, refresh) {
-    const row = needConnected(channelId);
+    const row = needChannel(channelId);
     const hit = store.ytCacheGet(channelId, kind);
     const fresh = hit && now() - Date.parse(hit.fetched_at) < cacheTtlMs;
     if (hit && fresh && !refresh) return { ...hit.data, fetchedAt: hit.fetched_at, cached: true };

@@ -52,6 +52,44 @@ function Val({ label, value, copy }) {
   );
 }
 
+// Các bước trên trang Google để Xuất bản ứng dụng (first = còn phải tạo màn hình xin quyền trước).
+function PublishTodo({ wiz, gl, first }) {
+  return (
+    <ol className="gw-todo">
+      {first ? (
+        <li>
+          Trang {gl('consent', 'Thông tin ứng dụng')} → <b>Bắt đầu</b>:
+          <ul className="gw-vals">
+            <Val label="Tên ứng dụng" value={wiz.appName} copy />
+            <Val label="Email hỗ trợ" value="chọn email của bạn" />
+            <Val label="Đối tượng" value="Bên ngoài" />
+            <Val label="Thông tin liên hệ" value="email của bạn" />
+          </ul>
+          Đánh dấu đồng ý → <b>Tạo</b>.
+        </li>
+      ) : null}
+      <li>
+        {first ? 'Vẫn trang đó' : <>Trang {gl('consent', 'Thông tin ứng dụng')}</>}, điền thêm:
+        <ul className="gw-vals">
+          <Val label="Trang chủ" value={wiz.homepage} copy />
+          <Val label="Chính sách quyền riêng tư" value={wiz.privacy} copy />
+        </ul>
+        Để trống logo (có logo là Google bắt xác minh) → <b>Lưu</b>.
+      </li>
+      <li>
+        Trang {gl('audience', 'Đối tượng')} → <b>Xuất bản ứng dụng</b> → <b>Xác nhận</b>.
+      </li>
+    </ol>
+  );
+}
+
+const GOOGLE_PAGES = [
+  ['project', 'Dự án'],
+  ['apis', 'API'],
+  ['consent', 'Màn hình xin quyền'],
+  ['clients', 'Client'],
+];
+
 export default function YouTubeSetup({ yt, onReload }) {
   const toast = useToast();
   const [wiz, setWiz] = useState(null);
@@ -129,6 +167,12 @@ export default function YouTubeSetup({ yt, onReload }) {
       {text}
     </a>
   );
+
+  // Nút "Chỉnh trên Google" ở chân trang: giống gl nhưng là nút.
+  const glOpen = (page) => {
+    if (wiz?.profile) openPage(page);
+    else if (wiz?.links?.[page]) window.open(wiz.links[page], '_blank', 'noopener');
+  };
 
   const start = () => {
     saveProfile(picked);
@@ -211,13 +255,18 @@ export default function YouTubeSetup({ yt, onReload }) {
           {wiz.projectId || wiz.step !== 'login' ? (
             <div className="gw-foot">
               {wiz.projectId ? (
-                <span className="small muted">
-                  Chỉnh trên Google: {gl('project', 'Dự án')} · {gl('apis', 'API')} · {gl('consent', 'Màn hình xin quyền')} · {gl('clients', 'Client')}
-                </span>
+                <div className="gw-links">
+                  <span className="small muted">Chỉnh trên Google:</span>
+                  {GOOGLE_PAGES.map(([page, text]) => (
+                    <button key={page} type="button" className="btn sm" onClick={() => glOpen(page)} disabled={acting}>
+                      {text}
+                    </button>
+                  ))}
+                </div>
               ) : (
                 <span />
               )}
-              <button type="button" className="btn sm ghost" onClick={reset} disabled={acting}>
+              <button type="button" className="btn sm danger" onClick={reset} disabled={acting}>
                 Làm lại từ đầu
               </button>
             </div>
@@ -327,21 +376,7 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
         <p>
           Dự án <span className="mono">{wiz.projectId}</span> đã sẵn sàng. Google bắt buộc bạn tự điền trang xin quyền — {wiz.profile ? 'app đã mở sẵn trang này' : 'mở trang rồi'} điền:
         </p>
-        <ol className="gw-todo">
-          <li>
-            Trang {gl('consent', 'Thông tin ứng dụng')} → <b>Bắt đầu</b>:
-            <ul className="gw-vals">
-              <Val label="Tên ứng dụng" value={wiz.appName} copy />
-              <Val label="Email hỗ trợ" value="chọn email của bạn" />
-              <Val label="Đối tượng" value="Bên ngoài" />
-              <Val label="Thông tin liên hệ" value="email của bạn" />
-            </ul>
-            Đánh dấu đồng ý → <b>Tạo</b>.
-          </li>
-          <li>
-            Trang {gl('audience', 'Đối tượng')} → <b>Xuất bản ứng dụng</b> → <b>Xác nhận</b>.
-          </li>
-        </ol>
+        <PublishTodo wiz={wiz} gl={gl} first />
         <p className="warn-note">Bỏ qua bước Xuất bản thì Google tự hủy quyền sau 7 ngày — phải kết nối lại mỗi tuần.</p>
         <div className="acts">
           <button type="button" className="btn" onClick={() => onOpen('consent')} disabled={dis}>
@@ -387,9 +422,13 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
 
   return (
     <div className="gw-done">
-      <p>Google đã sẵn sàng. Giờ kết nối kênh YouTube của bạn.</p>
+      <p>Google đã sẵn sàng. Giờ thêm kênh YouTube của bạn.</p>
+      <details className="gw-publish">
+        <summary>Chưa xuất bản ứng dụng? (quyền bị hủy sau 7 ngày)</summary>
+        <PublishTodo wiz={wiz} gl={gl} />
+      </details>
       <a className="btn primary" href="#/channels">
-        Kết nối kênh →
+        Thêm kênh →
       </a>
     </div>
   );

@@ -161,7 +161,7 @@ async function main() {
   // Kênh YouTube giả: không đụng Keychain thật (VS_SECRETS=file) và Google thật (fake-google).
   fs.writeFileSync(
     path.join(home, 'presets', 'channels.yaml'),
-    '- id: e2e-yt\n  name: Kênh E2E\n  platform: youtube\n- id: e2e-yt2\n  name: Kênh Phụ\n  platform: youtube\n',
+    '- id: tiktok\n  name: TikTok\n  platform: tiktok\n',
   );
   let server;
   let browser;
@@ -615,7 +615,8 @@ async function main() {
       await page.locator('header.top a', { hasText: 'Kênh' }).click();
       await page.locator('.page-h h1', { hasText: 'Kênh YouTube' }).waitFor();
       await page.locator('.card.empty', { hasText: 'Chưa kết nối Google Cloud' }).waitFor();
-      assert(await ytCard('Kênh E2E').getByRole('button', { name: 'Kết nối' }).isDisabled(), 'Kết nối bật khi chưa thiết lập');
+      assert((await page.getByRole('button', { name: '+ Thêm kênh' }).count()) === 0, 'Thêm kênh hiện khi chưa thiết lập');
+      assert((await page.locator('section.yt-card').count()) === 0, 'có sẵn kênh dù chưa thêm');
       await page.locator('.card.empty a', { hasText: 'Bắt đầu' }).click();
       await page.locator('.page-h h1', { hasText: 'Thiết lập Google' }).waitFor();
       await page.getByRole('button', { name: 'Bắt đầu' }).waitFor();
@@ -637,18 +638,30 @@ async function main() {
       await shot('yt-setup');
       return `dán sai: "${bad}"`;
     });
-    await check('Kênh: Kết nối (trình duyệt mặc định) → Google giả cho phép → thẻ "Đã kết nối"', async () => {
-      await page.locator('.page-h a', { hasText: 'Kênh' }).click();
-      await ytCard('Kênh E2E').getByRole('button', { name: 'Kết nối' }).click();
-      const modal = page.locator('.modal');
+    // Thêm kênh qua modal (trình duyệt mặc định); Google giả tự cho phép và quay về callback trong tab mới.
+    const addChannel = async () => {
+      await page.locator('.page-h').getByRole('button', { name: '+ Thêm kênh' }).click();
+      const modal = page.locator('.modal', { hasText: 'Thêm kênh YouTube' });
       await choose(modal, '__default__');
       const popupP = context.waitForEvent('page');
       await modal.getByRole('button', { name: /Mở trang Google/ }).click();
       const popup = await popupP;
       await popup.waitForLoadState().catch(() => {});
-      await page.locator('.toast', { hasText: /Đã kết nối/ }).waitFor();
+      return popup;
+    };
+    await check('Kênh: trống → + Thêm kênh → Google giả cho phép → thẻ kênh mới; thêm trùng → báo lỗi', async () => {
+      await page.locator('.page-h a', { hasText: 'Kênh' }).click();
+      await page.locator('.card.empty', { hasText: 'Chưa có kênh nào' }).waitFor();
+      await shot('yt-empty');
+      let popup = await addChannel();
+      await page.locator('.toast', { hasText: 'Đã thêm kênh Kênh Giả' }).waitFor();
       await ytCard('Kênh Giả').locator('.lamp.ok').waitFor();
       await popup.close().catch(() => {});
+      await page.locator('.card.empty').waitFor({ state: 'detached' });
+      popup = await addChannel();
+      await page.locator('.toast', { hasText: 'đã được thêm rồi' }).waitFor();
+      await popup.close().catch(() => {});
+      assert((await page.locator('section.yt-card').count()) === 1, 'thêm trùng tạo thẻ thứ hai');
       assert(google.calls.some((c) => c.path === '/token'), 'không đổi code lấy token');
       const auth = google.calls.find((c) => c.path === '/o/oauth2/v2/auth');
       assert(!/email|profile/.test(auth.query.scope), `scope thừa: ${auth.query.scope}`);
@@ -726,17 +739,17 @@ async function main() {
       assert(!bad.length, bad.join('; '));
       return 'channels, setup × sáng/tối';
     });
-    await check('Kênh: Ngắt kết nối cần xác nhận → thu hồi token; xóa thiết lập được', async () => {
+    await check('Kênh: Xóa kênh cần xác nhận → thu hồi token, về trang trống; xóa thiết lập được', async () => {
       await page.goto(`${base}/#/channels`);
       const card = ytCard('Kênh Giả');
-      await card.getByRole('button', { name: 'Ngắt kết nối' }).click();
-      const modal = page.locator('.modal', { hasText: 'Ngắt kết nối' });
+      await card.getByRole('button', { name: 'Xóa kênh' }).click();
+      const modal = page.locator('.modal', { hasText: 'Xóa kênh' });
       await modal.getByRole('button', { name: 'Không' }).click();
       await card.locator('.lamp.ok').waitFor();
-      await card.getByRole('button', { name: 'Ngắt kết nối' }).click();
-      await modal.locator('.modal-acts').getByRole('button', { name: 'Ngắt kết nối' }).click();
-      await page.locator('.toast', { hasText: 'Đã ngắt kết nối' }).waitFor();
-      await ytCard('Kênh E2E').getByRole('button', { name: 'Kết nối' }).waitFor();
+      await card.getByRole('button', { name: 'Xóa kênh' }).click();
+      await modal.locator('.modal-acts').getByRole('button', { name: 'Xóa kênh' }).click();
+      await page.locator('.toast', { hasText: 'Đã xóa kênh' }).waitFor();
+      await page.locator('.card.empty', { hasText: 'Chưa có kênh nào' }).waitFor();
       assert(google.state.revoked.size >= 1, 'Google giả không nhận revoke');
       const sec = JSON.parse(fs.readFileSync(path.join(home, 'secrets.json'), 'utf8'));
       assert(!JSON.stringify(sec).includes('refresh'), 'token còn trong secrets.json');
@@ -765,7 +778,7 @@ async function main() {
       fs.writeFileSync(path.join(home, 'Downloads', `client_secret_e2e.apps.googleusercontent.com.json`), fakeClientSecretFor(pid));
       await page.locator('.gw-found').waitFor({ timeout: WAIT });
       await page.locator('.yt-setup-ok', { hasText: 'Đã thiết lập' }).waitFor();
-      await gw.locator('.gw-done a', { hasText: 'Kết nối kênh' }).waitFor();
+      await gw.locator('.gw-done a', { hasText: 'Thêm kênh' }).waitFor();
       await shot('gw-done');
       await page.locator('.gw-found').getByRole('button', { name: 'Giữ lại' }).click(); // không đụng Thùng rác thật
       await page.locator('.toast', { hasText: 'Đã giữ file' }).waitFor();

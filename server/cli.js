@@ -14,10 +14,11 @@ import { runDoctor } from './doctor.js';
 import { expandHome, studioHome } from './paths.js';
 import { loadChannels, loadPresets, presetDirs } from './presets.js';
 import { createProjects } from './projects.js';
-import { createYouTube, openInChromeProfile } from './youtube/index.js';
+import { createYouTube, openInChromeProfile, ytChannelList } from './youtube/index.js';
 import { createGoogleWizard } from './youtube/wizard.js';
 import { createLogin, hasPassword, newSetupCode, resetPassword } from './login.js';
 import { persistentToken, runServiceCommand, startBackups } from './service.js';
+import { UpdateError, runUpdate } from './update.js';
 
 export const DEFAULT_PORT = 4317;
 export const PORT_TRIES = 20;
@@ -26,6 +27,7 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 export const HELP = `Video Studio — xưởng làm video chạy local
 
 Cách dùng: node server/cli.js [--port 4317] [--host 127.0.0.1] [--model haiku] [--no-open] [--dev]
+          node server/cli.js --update         (cập nhật bản mới: git pull + npm install + build)
           node server/cli.js reset-password   (quên mật khẩu: xóa mật khẩu, in mã thiết lập mới)
           node server/cli.js service install|uninstall|restart|status|open   (chạy nền trên macOS)
 
@@ -175,7 +177,17 @@ export function openInBrowser(url, platform = process.platform) {
   }
 }
 
-export async function main(argv = process.argv.slice(2), env = process.env, { openUrl = openInBrowser } = {}) {
+export async function main(argv = process.argv.slice(2), env = process.env, { openUrl = openInBrowser, update = runUpdate } = {}) {
+  if (argv[0] === '--update' || argv[0] === 'update') {
+    try {
+      update();
+      return { exitCode: 0 };
+    } catch (e) {
+      if (!(e instanceof UpdateError)) throw e;
+      console.error(e.message);
+      return { exitCode: 1 };
+    }
+  }
   if (argv[0] === 'service') {
     const code = await runServiceCommand(argv.slice(1), { home: resolveHome(env), env });
     return { exitCode: code };
@@ -203,11 +215,11 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   const claudeBin = resolveClaudeBin(env.VS_CLAUDE_BIN);
   const dirs = presetDirs(home);
   const presets = cachedPresets(dirs);
-  // Kênh: ưu tiên channels.yaml trong $VS_HOME/presets, rồi bản trong repo.
-  const channels = () => loadChannels([...dirs].reverse());
 
   const { createRunner } = await loadRunnerModule();
   const store = openStore(path.join(home, 'studio.db'));
+  // Kênh: YouTube = kênh đã thêm trong app (DB); nền tảng khác lấy từ channels.yaml ($VS_HOME/presets ưu tiên, rồi repo).
+  const channels = () => [...loadChannels([...dirs].reverse()).filter((c) => c.platform !== 'youtube'), ...ytChannelList(store)];
   let app = null;
   let runner = null;
   let wizard = null;

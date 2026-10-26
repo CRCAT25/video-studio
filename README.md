@@ -35,7 +35,7 @@ Giữ cửa sổ terminal mở trong lúc dùng app. Muốn tắt app thì bấm
 Tùy chọn: `video-studio --open` để tự mở trình duyệt, `video-studio --port 4318` để đổi cổng, `video-studio --help`
 để xem hết. Chưa chạy `npm link` thì dùng `npm start` trong thư mục repo cũng được.
 
-Cập nhật code: `git pull && npm install && npm run build`, rồi gõ lại `video-studio`.
+Cập nhật bản mới: gõ `video-studio --update` (tự `git pull`, cài lại thư viện nếu cần, build lại giao diện), rồi tắt app đang mở và gõ lại `video-studio`. Đang chạy nền thì `video-studio service restart`.
 
 ## Đăng nhập
 
@@ -48,7 +48,8 @@ Cập nhật code: `git pull && npm install && npm run build`, rồi gõ lại `
 
 ## Preset và kênh
 
-Repo có sẵn preset mẫu `presets/tiktok-short.yaml` và danh sách kênh mẫu `presets/channels.yaml`.
+Repo có sẵn preset mẫu `presets/tiktok-short.yaml` và danh sách kênh mẫu `presets/channels.yaml` (kênh không phải YouTube).
+Kênh YouTube thêm ngay trong app: trang **Kênh** → **+ Thêm kênh** → đăng nhập tài khoản Google của kênh (cần làm *Thiết lập Google* trước).
 Preset của riêng bạn đặt ở `~/.video-studio/presets/` (cùng định dạng). Preset trùng `id` sẽ ghi đè bản trong repo, và
 `channels.yaml` ở đó được ưu tiên. Như vậy cập nhật code bằng `git pull` không đụng tới cấu hình của bạn.
 
@@ -86,4 +87,4 @@ npm run dev:server          # server, kèm lệnh chạy Vite
 npm run dev:web             # giao diện (Vite)
 ```
 
-Giấy phép: [MIT](LICENSE). Tài liệu thiết kế: [docs/spec.md](docs/spec.md), hợp đồng M1: [docs/m1-contract.md](docs/m1-contract.md).
+Giấy phép: [MIT](LICENSE). Quyền riêng tư: [PRIVACY.md](PRIVACY.md). Tài liệu thiết kế: [docs/spec.md](docs/spec.md), hợp đồng M1: [docs/m1-contract.md](docs/m1-contract.md).

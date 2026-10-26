@@ -100,17 +100,17 @@ Tạo. App tạo thư mục (hoặc gắn vào thư mục có sẵn — **nhập
 - Xuất/nhập `rules.md` để đồng bộ với SKILL.md hiện có.
 
 ### 4.5b Kênh YouTube (kết nối thật)
-Tab **Kênh** (`#/channels`) đọc các kênh `platform: youtube` trong `channels.yaml` (trường `videos_dir`: thư mục video đã giao, dùng cho "Tải video lên" ở Đợt 2).
+Tab **Kênh** (`#/channels`) ban đầu trống. Người dùng bấm **+ Thêm kênh**, đăng nhập Google của kênh đó và chọn kênh trên màn hình Google; app đọc tên kênh rồi lưu vào bảng `yt_channels`. Kênh YouTube không khai trong `channels.yaml` (file này chỉ còn kênh khác, vd. TikTok). Mã kênh nội bộ = tên kênh bỏ dấu (`bep-nha-minh`), trùng thì thêm `-2`. Thêm lại kênh đã có → 409 `yt_dup`.
 
-- **Thiết lập Google** (`#/channels/setup`), làm 1 lần: người dùng tự tạo dự án Google Cloud, bật YouTube Data API v3 + YouTube Analytics API, đặt màn hình xin quyền là *Bên ngoài* và **Đang sản xuất** (để chế độ Thử nghiệm thì token hết hạn sau 7 ngày), tạo client **Desktop app**, rồi dán `client_secret.json` vào app. Client loại web bị từ chối.
-- **Kết nối**: mỗi kênh một lần OAuth, mở trong hồ sơ Chrome đã chọn (hoặc trình duyệt mặc định). Dùng loopback `http://127.0.0.1:<port>/api/youtube/oauth/callback` + PKCE S256 + `state` dùng một lần; route callback là public (hồ sơ Chrome khác có thể không có cookie của app). Scope đọc: `youtube.readonly`, `yt-analytics.readonly`; thêm `youtube.upload` + `youtube.force-ssl` khi bật tải lên. Không xin scope email/profile.
-- **Bí mật**: client secret và refresh token chỉ ở server: Keychain trên macOS (`security -i`, giá trị hex qua stdin), file quyền 600 ở nơi khác. Không bao giờ gửi xuống trình duyệt hay ghi log. Ngắt kết nối = thu hồi ở Google + xóa khỏi máy.
+- **Thiết lập Google** (`#/channels/setup`), làm 1 lần: người dùng tự tạo dự án Google Cloud, bật YouTube Data API v3 + YouTube Analytics API, đặt màn hình xin quyền là *Bên ngoài* và **Đang sản xuất** (để chế độ Thử nghiệm thì token hết hạn sau 7 ngày), điền trang chủ + chính sách quyền riêng tư (Google bắt buộc mới cho Xuất bản; app đưa sẵn link GitHub và `PRIVACY.md` của repo), tạo client **Desktop app**, rồi dán `client_secret.json` vào app. Client loại web bị từ chối.
+- **Thêm / kết nối lại**: mỗi kênh một lần OAuth (kết nối lại chỉ khi Google bắt đăng nhập lại, phải chọn đúng kênh cũ, sai → 409 `yt_wrong_channel`), mở trong hồ sơ Chrome đã chọn (hoặc trình duyệt mặc định). Dùng loopback `http://127.0.0.1:<port>/api/youtube/oauth/callback` + PKCE S256 + `state` dùng một lần; route callback là public (hồ sơ Chrome khác có thể không có cookie của app). Scope đọc: `youtube.readonly`, `yt-analytics.readonly`; thêm `youtube.upload` + `youtube.force-ssl` khi bật tải lên. Không xin scope email/profile.
+- **Bí mật**: client secret và refresh token chỉ ở server: Keychain trên macOS (`security -i`, giá trị hex qua stdin), file quyền 600 ở nơi khác. Không bao giờ gửi xuống trình duyệt hay ghi log. **Xóa kênh** = thu hồi ở Google + xóa token, dòng DB và cache.
 - **Số liệu**: người đăng ký, tổng lượt xem; 28 ngày gần nhất (lượt xem, phút xem, đăng ký ròng, biểu đồ theo ngày); bảng video sắp xếp được. Cache SQLite 6 giờ, nút **Làm mới** để gọi lại Google. Analytics thường trễ 1–2 ngày.
 - **Hạn mức**: ~10.000 đơn vị/ngày theo ngày giờ Los Angeles (đặt lại khoảng 14:00–15:00 giờ Việt Nam); app đếm và hiện số đã dùng. Tải 1 video lên ≈ 1.600 đơn vị.
 - **Giới hạn của Google**: app chưa được xác minh → cảnh báo "chưa xác minh" (Nâng cao → Đi tới…); video tải lên từ dự án chưa được duyệt luôn ở chế độ Riêng tư; đặt hình thu nhỏ cần kênh đã xác minh số điện thoại.
 - **SSE `youtube`**: phát mỗi khi trạng thái đổi, kể cả sau mỗi lần lấy số liệu → UI chỉ tải lại *trạng thái*, không tải lại số liệu (tránh vòng lặp).
 - **Test**: `VS_SECRETS=file` (không đụng Keychain thật) và `VS_GOOGLE_BASE=<server giả>` (`test/fixtures/fake-google.mjs`).
-- **Đợt 2 (chưa làm)**: tải video lên từ `videos_dir` (đọc `publish.md`), luôn Riêng tư, `madeForKids=false`, upload resumable có tiến độ, rồi hình thu nhỏ / phụ đề / danh sách phát.
+- **Đợt 2 (chưa làm)**: chọn thư mục video đã giao cho từng kênh trong app, tải video lên từ đó (đọc `publish.md`), luôn Riêng tư, `madeForKids=false`, upload resumable có tiến độ, rồi hình thu nhỏ / phụ đề / danh sách phát.
 
 ### 4.6 Preset
 Xem/sửa YAML, xem sơ đồ các bước, kiểm tra hợp lệ (schema), nhân bản preset.

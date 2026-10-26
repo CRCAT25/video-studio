@@ -122,7 +122,7 @@ Placeholder hợp lệ: `{slug} {title} {feedback} {skill} {prev.summary} {vars.
 
 ### 3.3 Kênh
 
-`presets/channels.yaml` (mẫu): `youtube`, `tiktok`; `$VS_HOME/presets/channels.yaml` được ưu tiên. Preset trỏ `channel` tới id kênh;
+`presets/channels.yaml` (mẫu): chỉ `tiktok` — kênh YouTube thêm trong app (bảng `yt_channels`, `ytChannelList(store)` gộp vào danh sách kênh); `$VS_HOME/presets/channels.yaml` được ưu tiên. Preset trỏ `channel` tới id kênh;
 kênh không tồn tại → vẫn nạp được, UI hiện id.
 
 ## 4. SQLite (`server/db.js`)
