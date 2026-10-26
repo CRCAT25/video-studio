@@ -494,6 +494,7 @@ function ChannelCard({ c }) {
           <p className="note">App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.</p>
           <form
             id="yt-del"
+            className="yt-del"
             onSubmit={(e) => {
               e.preventDefault();
               if (nameOk) disconnect();
@@ -501,7 +502,7 @@ function ChannelCard({ c }) {
           >
             <label className="fld">
               <span>
-                Gõ <b>{c.name}</b> để xác nhận
+                Gõ "<b>{c.name}</b>" để xác nhận
               </span>
               <input type="text" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} data-autofocus />
             </label>
