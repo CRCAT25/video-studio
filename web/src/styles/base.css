@@ -39,7 +39,7 @@ textarea{width:100%;min-height:96px;resize:vertical;font:var(--fs-md)/1.5 var(--
 .btn .k{font-family:var(--f-mono);font-weight:500}
 .linkbtn{background:none;border:0;padding:0;color:var(--link);cursor:pointer;font:inherit;text-decoration:underline;text-underline-offset:2px}
 
-main{max-width:1200px;margin:0 auto;padding:28px 24px 72px}
+main{max-width:var(--page-w);margin:0 auto;padding:28px 24px 72px}
 h1{font-weight:500;font-size:var(--fs-2xl);line-height:1.25;letter-spacing:-.01em;margin:0;overflow-wrap:anywhere}
 h2{font-weight:500;font-size:var(--fs-lg);line-height:1.35;margin:0 0 12px}
 h3{font-weight:500;font-size:var(--fs-md);line-height:1.4;margin:0 0 4px}

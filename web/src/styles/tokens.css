@@ -3,6 +3,8 @@
 /* Chữ số (0–9 % + , - . / :) lấy từ Figtree cho gọn, phần chữ vẫn Be Vietnam Pro. */
 @font-face{font-family:"VS Digits";font-style:normal;font-display:swap;font-weight:300 500;src:url(../../../node_modules/@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2) format("woff2-variations");unicode-range:U+0025,U+002B-003A}
 :root{
+  /* Bề rộng nội dung: 80% màn hình, không hẹp hơn 1200px */
+  --page-w:max(1200px,80vw);
   --f-ui:"VS Digits","Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   /* Thang cỡ chữ duy nhất của app — không dùng cỡ lẻ ngoài 6 bậc này. */

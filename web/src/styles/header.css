@@ -1,6 +1,6 @@
 /* ===== Đầu trang: logo, menu, trạng thái Claude, nút đổi giao diện ===== */
 header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-.top-in{max-width:1200px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:24px}
+.top-in{max-width:var(--page-w);margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:24px}
 .brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--text);min-width:0;font-weight:500;font-size:var(--fs-lg);white-space:nowrap}
 .brand .logo{width:24px;height:24px;flex:none}
 nav.tabs{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;align-self:stretch}
@@ -15,7 +15,7 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
 .theme-btn{width:32px;padding:0;font-size:var(--fs-lg)}
 
 /* ===== Báo môi trường chưa sẵn sàng (doctor) ===== */
-.doctor{max-width:1200px;margin:16px auto 0;padding:0 24px}
+.doctor{max-width:var(--page-w);margin:16px auto 0;padding:0 24px}
 .doctor .card{border-color:color-mix(in srgb,var(--err) 35%,var(--line));background:var(--err-soft)}
 .doctor-in{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;flex-wrap:wrap}
 .doctor-in .lamp{--c:var(--err);margin-top:6px}
@@ -35,7 +35,7 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
   .acc-btn{width:32px;padding:0;justify-content:center}
   .acc-btn .acc-st{display:none}
 }
-.upd{max-width:1200px;margin:16px auto 0;padding:0 24px}
+.upd{max-width:var(--page-w);margin:16px auto 0;padding:0 24px}
 .upd-in{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 16px;border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
 .upd-msg{min-width:0;flex:1;font-size:var(--fs-sm);overflow-wrap:anywhere}
 .upd-log{display:inline}
