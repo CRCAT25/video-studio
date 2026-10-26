@@ -7,7 +7,7 @@ import { ToastProvider, useToast } from './components/Toast.jsx';
 import Overview from './pages/Overview.jsx';
 import Step from './pages/Step.jsx';
 import Presets from './pages/Presets.jsx';
-import Channels from './pages/Channels.jsx';
+import Channels, { ChannelDetail } from './pages/Channels.jsx';
 import YouTubeSetup from './pages/YouTubeSetup.jsx';
 import { api } from './api.js';
 import { useHashRoute } from './lib/router.js';
@@ -103,7 +103,7 @@ function Shell() {
       setYtErr(e);
     }
   }, []);
-  const onChannels = route.name === 'channels' || route.name === 'channelsSetup';
+  const onChannels = route.name === 'channels' || route.name === 'channel' || route.name === 'channelsSetup';
   const onChannelsRef = useRef(onChannels);
   onChannelsRef.current = onChannels;
 
@@ -181,7 +181,7 @@ function Shell() {
 
   useEffect(() => {
     const TITLES = { presets: 'Preset · Video Studio', channels: 'Kênh · Video Studio', channelsSetup: 'Thiết lập Google · Video Studio' };
-    if (route.name !== 'step') document.title = TITLES[route.name] || 'Video Studio';
+    if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
   }, [route.name]);
 
   const toggleTheme = () => {
@@ -200,6 +200,8 @@ function Shell() {
     page = <Presets data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} />;
   } else if (route.name === 'channels') {
     page = <Channels yt={yt} error={ytErr} onReload={loadYoutube} />;
+  } else if (route.name === 'channel') {
+    page = <ChannelDetail key={route.params.id} id={route.params.id} yt={yt} error={ytErr} onReload={loadYoutube} />;
   } else if (route.name === 'channelsSetup') {
     page = <YouTubeSetup yt={yt} onReload={loadYoutube} />;
   } else if (route.name === 'overview') {

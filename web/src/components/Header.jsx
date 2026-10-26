@@ -13,7 +13,7 @@ function claudeStatus(doctor, doctorError) {
 export default function Header({ route, doctor, doctorError, stats, theme, onToggleTheme, onAccount, canLogout = false, onLogout }) {
   const waiting = stats?.waiting ?? 0;
   const onOverview = route.name === 'overview' || route.name === 'step';
-  const onChannels = route.name === 'channels' || route.name === 'channelsSetup';
+  const onChannels = route.name === 'channels' || route.name === 'channel' || route.name === 'channelsSetup';
   const st = claudeStatus(doctor, doctorError);
   return (
     <header className="top">

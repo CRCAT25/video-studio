@@ -1,9 +1,8 @@
 /* Kênh YouTube: thẻ kênh, ô số, biểu đồ cột theo ngày, bảng video; trang Thiết lập Google */
-.yt-list{display:flex;flex-direction:column;gap:12px}
 .yt-card{padding:16px;display:flex;flex-direction:column;gap:12px}
 .yt-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px 12px;flex-wrap:wrap}
 .yt-id{min-width:0}
-.yt-id h2{margin:0 0 2px;font-size:var(--fs-lg);overflow-wrap:anywhere}
+.yt-id h1{margin:0 0 2px;font-size:var(--fs-lg);overflow-wrap:anywhere}
 .yt-id .lamp{vertical-align:0}
 .yt-wait{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:6px;background:var(--surface-2)}
 .yt-wait .spinner{margin-top:3px;flex:none}
@@ -113,3 +112,13 @@
 .quota-bar{width:260px;max-width:100%;height:6px;margin-top:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
 .quota-bar > span{display:block;height:100%;min-width:3px;border-radius:999px;background:var(--c);transition:width .3s}
 .quota-bar.q-ok{--c:var(--ok)}.quota-bar.q-run{--c:var(--accent)}.quota-bar.q-wait{--c:var(--wait)}.quota-bar.q-err{--c:var(--err)}
+/* Danh sách kênh */
+.yt-chlist{margin-top:0}
+.yt-chlist .yt-tbl{min-width:560px}
+.yt-chlist td{vertical-align:middle}
+.yt-chname{display:block;color:var(--text);font-weight:500;text-decoration:none;overflow-wrap:anywhere}
+.yt-chname:hover{text-decoration:underline}
+.yt-chst{display:block;margin-top:2px}
+.yt-chst .lamp{vertical-align:0}
+.yt-chact{text-align:right;width:1%;white-space:nowrap}
+@media (max-width:560px){.yt-chlist .yt-tbl{min-width:0}.yt-chlist .hide-sm{display:none}}

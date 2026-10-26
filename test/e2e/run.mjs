@@ -610,6 +610,8 @@ async function main() {
 
     // ---- Kênh YouTube (Google giả, bí mật lưu file trong VS_HOME)
     const ytCard = (name) => page.locator('section.yt-card', { hasText: name });
+    const ytRow = (name) => page.locator('.yt-chlist tbody tr', { hasText: name });
+    let ytHash = null; // #/channels/<id> của kênh giả
     await check('Kênh: chưa thiết lập → trang hướng dẫn, dán client_secret → đã thiết lập', async () => {
       await page.goto(`${base}/#/`);
       await page.locator('header.top a', { hasText: 'Kênh' }).click();
@@ -655,18 +657,30 @@ async function main() {
       await shot('yt-empty');
       let popup = await addChannel();
       await page.locator('.toast', { hasText: 'Đã thêm kênh Kênh Giả' }).waitFor();
-      await ytCard('Kênh Giả').locator('.lamp.ok').waitFor();
+      await ytRow('Kênh Giả').locator('.lamp.ok').waitFor();
       await popup.close().catch(() => {});
       await page.locator('.card.empty').waitFor({ state: 'detached' });
       popup = await addChannel();
       await page.locator('.toast', { hasText: 'đã được thêm rồi' }).waitFor();
       await popup.close().catch(() => {});
-      assert((await page.locator('section.yt-card').count()) === 1, 'thêm trùng tạo thẻ thứ hai');
+      assert((await page.locator('.yt-chlist tbody tr').count()) === 1, 'thêm trùng tạo hàng thứ hai');
       assert(google.calls.some((c) => c.path === '/token'), 'không đổi code lấy token');
       const auth = google.calls.find((c) => c.path === '/o/oauth2/v2/auth');
       assert(!/email|profile/.test(auth.query.scope), `scope thừa: ${auth.query.scope}`);
       assert(auth.query.code_challenge_method === 'S256', 'thiếu PKCE');
       return auth.query.scope.split(' ').map((s) => s.split('/').pop()).join(', ');
+    });
+    await check('Kênh: danh sách hiện thông tin chung → Chi tiết › mở trang kênh', async () => {
+      const row = ytRow('Kênh Giả');
+      await row.locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      assert((await page.locator('section.yt-card, .yt-tiles').count()) === 0, 'danh sách hiện số liệu chi tiết');
+      await shot('yt-list');
+      await row.getByRole('link', { name: /Xem chi tiết/ }).click();
+      await page.locator('section.yt-card h1', { hasText: 'Kênh Giả' }).waitFor();
+      ytHash = new URL(page.url()).hash;
+      assert(/^#\/channels\/[^/]+$/.test(ytHash), `hash sai: ${ytHash}`);
+      await page.locator('.crumb a', { hasText: 'Kênh' }).waitFor();
+      return (await row.innerText().catch(() => '')).replace(/\s+/g, ' ') || ytHash;
     });
     await check('Kênh: số liệu 28 ngày, biểu đồ có tooltip, bảng video sắp xếp được', async () => {
       const card = ytCard('Kênh Giả');
@@ -704,6 +718,8 @@ async function main() {
       assert(n1 > n0, 'Làm mới không gọi Analytics');
       await page.goto(`${base}/#/`);
       await page.goto(`${base}/#/channels`);
+      await ytRow('Kênh Giả').locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      await page.goto(`${base}/${ytHash}`);
       await card.locator('.yt-tiles .yt-tile').first().waitFor();
       await page.waitForTimeout(500);
       const n2 = google.calls.filter((c) => c.path.includes('/reports')).length;
@@ -718,7 +734,8 @@ async function main() {
         const m = await ctx.newPage();
         m.on('pageerror', (e) => consoleIssues.push(`pageerror (390 ${scheme}): ${e.message}`));
         for (const [name, hash, sel] of [
-          ['channels', '#/channels', '.yt-tiles .yt-tile'],
+          ['channels', '#/channels', '.yt-chlist tbody tr'],
+          ['channel', ytHash, '.yt-tiles .yt-tile'],
           ['setup', '#/channels/setup', '.yt-limits'],
         ]) {
           await m.goto(`${base}/${hash}`);
@@ -737,10 +754,10 @@ async function main() {
         await ctx.close();
       }
       assert(!bad.length, bad.join('; '));
-      return 'channels, setup × sáng/tối';
+      return 'channels, channel, setup × sáng/tối';
     });
     await check('Kênh: Xóa kênh cần xác nhận → thu hồi token, về trang trống; xóa thiết lập được', async () => {
-      await page.goto(`${base}/#/channels`);
+      await page.goto(`${base}/${ytHash}`);
       const card = ytCard('Kênh Giả');
       await card.getByRole('button', { name: 'Xóa kênh' }).click();
       const modal = page.locator('.modal', { hasText: 'Xóa kênh' });

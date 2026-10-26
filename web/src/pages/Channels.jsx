@@ -1,4 +1,5 @@
-// Trang Kênh: thêm kênh YouTube bằng đăng nhập Google (chọn hồ sơ Chrome); mỗi kênh một thẻ — số liệu 28 ngày, bảng video.
+// Trang Kênh: danh sách kênh YouTube (thông tin chung) + thêm kênh bằng đăng nhập Google (chọn hồ sơ Chrome).
+// Trang chi tiết kênh (#/channels/:id): số liệu 28 ngày, biểu đồ, bảng video, kết nối lại / xóa kênh.
 // Token Google nằm ở server (Keychain); trang chỉ thấy trạng thái và số liệu.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../components/Modal.jsx';
@@ -6,6 +7,7 @@ import YtChart from '../components/YtChart.jsx';
 import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } from '../components/Select.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
+import { navigate } from '../lib/router.js';
 import { fmtDate, fmtNum, fmtRelative, two } from '../lib/format.js';
 
 // Giây → "11:30" / "1:02:03".
@@ -180,11 +182,7 @@ export default function Channels({ yt, error, onReload }) {
           </div>
         ) : null
       ) : (
-        <div className="yt-list">
-          {yt.channels.map((c) => (
-            <ChannelCard key={c.id} c={c} />
-          ))}
-        </div>
+        <ChannelList channels={yt.channels} />
       )}
 
       {addOpen ? (
@@ -198,6 +196,139 @@ export default function Channels({ yt, error, onReload }) {
           }}
         />
       ) : null}
+    </>
+  );
+}
+
+const chHref = (id) => `#/channels/${encodeURIComponent(id)}`;
+
+// Trạng thái kênh → đèn + chữ.
+function chState(c) {
+  if (c.pending) return { lamp: 'idle blink', text: 'Đang chờ cho phép trên Google' };
+  if (c.status === 'reauth') return { lamp: 'err', text: 'Cần kết nối lại' };
+  return { lamp: 'ok', text: 'Đã kết nối' };
+}
+
+// Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có nút vào chi tiết.
+function ChannelList({ channels }) {
+  return (
+    <div className="tbl-wrap yt-chlist">
+      <table className="yt-tbl">
+        <thead>
+          <tr>
+            <th>Kênh</th>
+            <th className="num">Người đăng ký</th>
+            <th className="num hide-sm">Video</th>
+            <th className="num hide-sm">Lượt xem · 28 ngày</th>
+            <th>
+              <span className="sr-only">Thao tác</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {channels.map((c) => (
+            <ChannelRow key={c.id} c={c} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Một hàng kênh; số liệu lấy từ cache server (không gọi lại Google nếu còn mới).
+function ChannelRow({ c }) {
+  const [s, setS] = useState(null);
+  const ok = c.status !== 'reauth' && !c.pending;
+  useEffect(() => {
+    if (!ok) return undefined;
+    let live = true;
+    api
+      .ytStats(c.id)
+      .then((r) => live && setS(r))
+      .catch(() => live && setS(false));
+    return () => {
+      live = false;
+    };
+  }, [c.id, c.connectedAt, ok]);
+  const st = chState(c);
+  const ch = s?.channel;
+  const cell = (v) => (s == null ? <span className="muted">…</span> : s === false ? '—' : v);
+  return (
+    <tr>
+      <td>
+        <a className="yt-chname" href={chHref(c.id)}>
+          {c.name}
+        </a>
+        <span className="muted small yt-chst">
+          <i className={`lamp ${st.lamp}`} /> {st.text}
+        </span>
+      </td>
+      <td className="num">{ok ? cell(ch?.subscribers == null ? 'Ẩn' : fmtNum(ch.subscribers)) : '—'}</td>
+      <td className="num hide-sm">{ok ? cell(fmtNum(ch?.videos)) : '—'}</td>
+      <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
+      <td className="yt-chact">
+        <a className="btn sm" href={chHref(c.id)} aria-label={`Xem chi tiết ${c.name}`}>
+          Chi tiết ›
+        </a>
+      </td>
+    </tr>
+  );
+}
+
+// Trang chi tiết một kênh.
+export function ChannelDetail({ id, yt, error, onReload }) {
+  const c = yt?.channels.find((x) => x.id === id);
+  // Kênh vừa bị xóa (trạng thái mới không còn) → về danh sách.
+  const seen = useRef(false);
+  useEffect(() => {
+    if (c) seen.current = true;
+    else if (seen.current && yt) navigate('#/channels');
+  }, [c, yt]);
+  useEffect(() => {
+    document.title = `${c?.name || 'Kênh'} · Video Studio`;
+  }, [c?.name]);
+  const crumb = (
+    <nav className="crumb" aria-label="Đường dẫn">
+      <a href="#/channels">Kênh</a>
+      <span className="sep">›</span>
+      {c?.name || id}
+    </nav>
+  );
+  if (error && !yt) {
+    return (
+      <div className="card pad empty">
+        <b>Không tải được trạng thái YouTube.</b>
+        <p className="note">{error.message}</p>
+        <button type="button" className="btn" onClick={onReload}>
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+  if (!yt) {
+    return (
+      <div className="card pad empty">
+        <span className="spinner" aria-hidden="true" /> Đang tải…
+      </div>
+    );
+  }
+  if (!c) {
+    return (
+      <>
+        {crumb}
+        <div className="card pad empty">
+          <b>Không có kênh này.</b>
+          <p className="note">
+            <a href="#/channels">Về danh sách kênh</a>
+          </p>
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      {crumb}
+      <ChannelCard c={c} />
     </>
   );
 }
@@ -233,14 +364,13 @@ function ChannelCard({ c }) {
     });
 
   const reauth = c.status === 'reauth';
-  const lamp = c.pending ? 'idle blink' : reauth ? 'err' : 'ok';
-  const stText = c.pending ? 'Đang chờ cho phép trên Google' : reauth ? 'Cần kết nối lại' : 'Đã kết nối';
+  const { lamp, text: stText } = chState(c);
 
   return (
     <section className="card yt-card" aria-label={`Kênh ${c.name}`}>
       <div className="yt-h">
         <div className="yt-id">
-          <h2>{c.name}</h2>
+          <h1>{c.name}</h1>
           <span className="muted small">
             <i className={`lamp ${lamp}`} /> {stText}
           </span>
