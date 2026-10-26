@@ -1,0 +1,30 @@
+/* ===== Sơ đồ các bước: mỗi ô là một bước, nối bằng mũi tên ===== */
+.flow{display:block;overflow-x:auto;overflow-y:hidden;position:relative;padding:4px 2px 6px;margin:0 -2px;max-width:calc(100% + 4px);
+  scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+/* mờ mép khi còn bước bị khuất, báo là cuộn ngang được */
+.flow{--fl:#000;--fr:#000;-webkit-mask-image:linear-gradient(90deg,var(--fl),#000 32px,#000 calc(100% - 32px),var(--fr));mask-image:linear-gradient(90deg,var(--fl),#000 32px,#000 calc(100% - 32px),var(--fr))}
+.flow.fl{--fl:transparent} .flow.fr{--fr:transparent}
+.belt{display:flex;align-items:stretch;width:max-content}
+.box{flex:none;width:128px;min-height:72px;border-radius:8px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:4px;padding:8px 10px;text-decoration:none;color:var(--text);
+  border:1px solid var(--line);background:var(--surface);transition:border-color .12s,background .12s}
+.flow.lg .box{width:148px;padding:10px 12px}
+a.box:hover{border-color:var(--line-2);background:var(--surface-2)}
+.box.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.box .no{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--dim);font-variant-numeric:tabular-nums}
+.box .no .lamp{margin-left:auto}
+.box .tag-cost{font-weight:500;color:var(--ask)}
+.box .nm{font-size:var(--fs-sm);font-weight:500;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.box .st{margin-top:auto;font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.box.s-done .st{color:var(--ok)} .box.s-running .st{color:var(--run)}
+.box.s-needs_input .st,.box.s-manual .st{color:var(--ask)} .box.s-failed .st{color:var(--err)}
+.box.s-needs_input,.box.s-failed{border-color:color-mix(in srgb,var(--c) 45%,var(--line))}
+.box.s-pending .nm,.box.s-stale .nm{color:var(--muted)}
+.box.s-manual,.box.is-manual,.box.s-plan.s-manual{border-style:dashed}
+.box .pg{position:absolute;left:0;bottom:0;height:2px;background:var(--run);transition:width .6s}
+.box.s-running .pg.ind{width:40%;animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{0%{left:-40%}100%{left:100%}}
+.conn{flex:none;width:28px;position:relative;align-self:center;height:12px}
+.conn:before{content:"";position:absolute;left:4px;right:6px;top:5.5px;height:1px;background:var(--line-2)}
+.conn:after{content:"";position:absolute;right:4px;top:2px;width:6px;height:6px;border-top:1px solid var(--line-2);border-right:1px solid var(--line-2);transform:rotate(45deg)}
+.conn.done:before{background:var(--ok)} .conn.done:after{border-color:var(--ok)}

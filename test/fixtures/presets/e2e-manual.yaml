@@ -1,0 +1,21 @@
+# Preset test cho e2e: một bước việc tay (manual: true) — kiểm nút/ghi chú sau khi "Đánh dấu xong".
+id: e2e-manual
+name: E2E việc tay (test)
+channel: tiktok
+format: short
+project_dir: projects/{slug}
+
+steps:
+  - id: upload
+    name: Đăng tay
+    manual: true
+
+  - id: review
+    name: Xem lại
+    prompt: |
+      Kiểm tra lại bài đăng của "{title}" vào review.md. {feedback}
+    outputs: [review.md]
+    checks:
+      - name: review
+        run: test -s review.md
+    gate: { mode: auto_after, after: 30m }

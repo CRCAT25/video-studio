@@ -1,0 +1,23 @@
+/* Bảng "Tài khoản Claude": trạng thái đăng nhập, chờ trình duyệt, xác nhận đăng xuất */
+.acc-box{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:12px 14px;margin:0 0 16px}
+.acc-box > .lamp{margin-top:6px}
+.lamp.ok{--c:var(--ok)} .lamp.err{--c:var(--err)} .lamp.idle{--c:var(--idle)}
+.acc-box b{font-weight:500}
+.acc-meta{display:flex;flex-wrap:wrap;gap:2px 16px;margin-top:2px;font-size:var(--fs-sm);color:var(--muted);overflow-wrap:anywhere}
+.acc-meta.mono{font-size:var(--fs-xs)}
+.acc-wait,.acc-confirm{display:flex;gap:12px;align-items:flex-start;border-radius:8px;padding:12px 14px;margin:0 0 16px}
+.acc-wait{border:1px solid color-mix(in srgb,var(--run) 30%,var(--line));background:var(--run-soft)}
+.acc-wait .spinner{margin-top:3px;flex:none}
+.acc-confirm{display:block;border:1px solid color-mix(in srgb,var(--err) 30%,var(--line));background:var(--err-soft)}
+.acc-wait .note,.acc-confirm .note{margin:4px 0 0}
+.prof-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:baseline;border:1px solid var(--line-2)}
+/* nút trạng thái Claude trên đầu trang */
+.acc-btn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--text);font-size:var(--fs-sm);font-weight:500;cursor:pointer;white-space:nowrap}
+.acc-btn:hover{background:var(--surface-2)}
+.acc-btn .acc-st{color:var(--muted)}
+.acc-btn.bad .acc-st{color:var(--err)}
+.doctor-acts{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width: 520px){
+  .acc-box{grid-template-columns:auto minmax(0,1fr)}
+  .acc-box > .btn{grid-column:1 / -1;justify-self:start}
+}

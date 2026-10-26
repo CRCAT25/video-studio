@@ -1,0 +1,108 @@
+// Sơ đồ các bước: mỗi ô là một bước (số, tên, trạng thái), nối bằng mũi tên; chế độ cổng nằm trong tooltip.
+import { useLayoutEffect, useRef } from 'react';
+import { BOX_LABEL, GATE_SHORT, STATE_LABEL, fmtDuration, gateLabel, two } from '../lib/format.js';
+import { stepHref } from '../lib/router.js';
+
+const DONEISH = new Set(['done', 'stale', 'needs_input', 'failed', 'manual', 'running']);
+
+// Chuẩn hóa bước (StepSummary của dự án hoặc bước của preset) về một dạng chung.
+function normalize(s, staticMode) {
+  if (staticMode) {
+    const cost = !!s.cost;
+    return {
+      key: s.key,
+      name: s.name,
+      cls: `s-plan${s.manual ? ' s-manual' : ''}`,
+      // dạng ngắn để không bị cắt trong ô ('Tự · 30 phút')
+      label: s.manual ? 'Việc tay' : s.gate?.mode === 'auto_after' && s.gate?.after_ms ? `Tự · ${fmtDuration(s.gate.after_ms)}` : GATE_SHORT[s.gate?.mode] || 'Duyệt tay',
+      title: `${s.name} — ${s.manual ? 'Việc tay của bạn' : gateLabel(s.gate)}${cost ? ` · tốn tiền (${s.cost.service})` : ''}`,
+      cost,
+      state: 'plan',
+    };
+  }
+  const st = s.state || 'pending';
+  return {
+    key: s.key,
+    name: s.name,
+    cls: `s-${st}${s.manual && st !== 'manual' ? ' is-manual' : ''}`,
+    label: BOX_LABEL[st] || STATE_LABEL[st] || st,
+    title: `${s.name} — ${STATE_LABEL[st] || st} · cổng: ${gateLabel({ mode: s.gate_mode || 'manual' })}${s.has_cost ? ' · tốn tiền' : ''}${s.manual ? ' · việc tay' : ''}`,
+    cost: !!s.has_cost,
+    state: st,
+    pct: st === 'running' ? s.run?.progress_pct : undefined,
+  };
+}
+
+function edge(f) {
+  if (!f) return;
+  f.classList.toggle('fl', f.scrollLeft > 2);
+  f.classList.toggle('fr', f.scrollLeft + f.clientWidth < f.scrollWidth - 2);
+}
+
+// Hiển thị sơ đồ; staticMode = bản xem preset (không link); large = sơ đồ ở trang bước.
+export default function Flow({ steps = [], projectId, currentKey, large = false, staticMode = false, label }) {
+  const ref = useRef(null);
+  const items = steps.map((s) => normalize(s, staticMode));
+
+  // Cuộn để bước hiện tại nằm giữa khung.
+  useLayoutEffect(() => {
+    const f = ref.current;
+    if (!f) return;
+    const c = f.querySelector('.box.cur');
+    if (c) f.scrollLeft = c.offsetLeft - (f.clientWidth - c.offsetWidth) / 2;
+    edge(f);
+  }, [currentKey, steps.length]);
+
+  useLayoutEffect(() => {
+    edge(ref.current);
+  });
+
+  useLayoutEffect(() => {
+    const f = ref.current;
+    if (!f) return undefined;
+    const onScroll = () => edge(f);
+    f.addEventListener('scroll', onScroll, { passive: true });
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(onScroll);
+      ro.observe(f);
+    }
+    return () => {
+      f.removeEventListener('scroll', onScroll);
+      if (ro) ro.disconnect();
+    };
+  }, []);
+
+  return (
+    <div ref={ref} className={`flow${large ? ' lg' : ''}${staticMode ? ' static' : ''}`} aria-label={label || 'Các bước'} tabIndex={staticMode ? -1 : undefined}>
+      <div className="belt">
+        {items.map((it, i) => {
+          const Tag = staticMode ? 'div' : 'a';
+          const linkProps = staticMode ? {} : { href: stepHref(projectId, it.key) };
+          const cur = it.key === currentKey;
+          const box = (
+            <Tag key={it.key} className={`box ${it.cls}${cur ? ' cur' : ''}`} title={it.title} aria-current={cur ? 'step' : undefined} {...linkProps}>
+              <span className="no">
+                {two(i + 1)}
+                {it.cost ? (
+                  <b className="tag-cost" title="Tốn tiền">
+                    $
+                  </b>
+                ) : null}
+                {staticMode ? null : <i className="lamp" />}
+              </span>
+              <span className="nm">{it.name}</span>
+              <span className="st">{it.label}</span>
+              {it.state === 'running' ? (
+                it.pct != null ? <i className="pg" style={{ width: `${Math.max(3, Math.min(100, Number(it.pct)))}%` }} /> : <i className="pg ind" />
+              ) : null}
+            </Tag>
+          );
+          if (i === items.length - 1) return box;
+          const done = !staticMode && (it.state === 'done' || it.state === 'stale') && DONEISH.has(items[i + 1].state);
+          return [box, <span key={`${it.key}-conn`} className={`conn${done ? ' done' : ''}`} aria-hidden="true" />];
+        })}
+      </div>
+    </div>
+  );
+}

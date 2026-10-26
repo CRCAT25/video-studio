@@ -1,0 +1,37 @@
+/* ===== Đầu trang: logo, menu, trạng thái Claude, nút đổi giao diện ===== */
+header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1200px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:24px}
+.brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--text);min-width:0;font-weight:500;font-size:var(--fs-lg);white-space:nowrap}
+.brand .logo{width:24px;height:24px;flex:none}
+nav.tabs{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;align-self:stretch}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs a{position:relative;display:flex;align-items:center;padding:0 10px;text-decoration:none;color:var(--muted);white-space:nowrap;font-weight:500}
+nav.tabs a:hover{color:var(--text)}
+nav.tabs a.on{color:var(--text)}
+nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--text)}
+.badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:999px;background:var(--ask);color:#fff;font-size:var(--fs-xs);font-weight:500;line-height:18px;text-align:center}
+:root[data-theme="dark"] .badge{color:#1a1205}
+.top-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.theme-btn{width:32px;padding:0;font-size:var(--fs-lg)}
+
+/* ===== Báo môi trường chưa sẵn sàng (doctor) ===== */
+.doctor{max-width:1200px;margin:16px auto 0;padding:0 24px}
+.doctor .card{border-color:color-mix(in srgb,var(--err) 35%,var(--line));background:var(--err-soft)}
+.doctor-in{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;flex-wrap:wrap}
+.doctor-in .lamp{--c:var(--err);margin-top:6px}
+.doctor-in ul{margin:2px 0 0;padding-left:18px;font-size:var(--fs-sm);color:var(--muted)}
+.doctor-in li{overflow-wrap:anywhere}
+.doctor-in .tt{font-weight:500;color:var(--text)}
+.doctor-in > div{flex:1;min-width:0}
+
+@media (max-width:880px){
+  .top-in{gap:12px;padding:0 16px}
+  .doctor{padding:0 16px}
+}
+@media (max-width:520px){
+  .brand span{display:none}
+  nav.tabs a{padding:0 8px}
+  /* Màn hẹp: nút tài khoản chỉ còn đèn (trạng thái nằm trong aria-label) để đủ chỗ cho các tab */
+  .acc-btn{width:32px;padding:0;justify-content:center}
+  .acc-btn .acc-st{display:none}
+}

@@ -1,0 +1,105 @@
+/* Kênh YouTube: thẻ kênh, ô số, biểu đồ cột theo ngày, bảng video; trang Thiết lập Google */
+.yt-list{display:flex;flex-direction:column;gap:12px}
+.yt-card{padding:16px;display:flex;flex-direction:column;gap:12px}
+.yt-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px 12px;flex-wrap:wrap}
+.yt-id{min-width:0}
+.yt-id h2{margin:0 0 2px;font-size:var(--fs-lg);overflow-wrap:anywhere}
+.yt-id .lamp{vertical-align:0}
+.yt-wait{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:6px;background:var(--surface-2)}
+.yt-wait .spinner{margin-top:3px;flex:none}
+.yt-wait .note{margin:0}
+.yt-body{display:flex;flex-direction:column;gap:14px;min-width:0}
+.yt-body > .note{margin:0}
+
+.yt-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.yt-tile{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.yt-tile-l{font-size:var(--fs-sm);color:var(--muted)}
+.yt-tile-v{font-size:var(--fs-2xl);font-weight:500;line-height:1.25;overflow-wrap:anywhere}
+.yt-tile-s{font-size:var(--fs-sm);color:var(--dim);font-variant-numeric:tabular-nums}
+
+.yt-chart-h{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.yt-chart-h h3{margin:0}
+.yt-chart-h .chips{margin:0}
+.ytc{margin:0;min-width:0}
+.ytc-plot{position:relative;width:100%;overflow:hidden}
+.ytc-plot svg{display:block}
+.ytc-grid{stroke:var(--line);stroke-width:1}
+.ytc-base{stroke:var(--line-2);stroke-width:1}
+.ytc-ax{fill:var(--dim);font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+.ytc-bar{fill:var(--accent);opacity:.85}
+.ytc-bar.on{opacity:1}
+.ytc-hit{fill:transparent;outline:none}
+.ytc-hit:focus-visible{fill:var(--accent-soft)}
+.ytc-tip{position:absolute;pointer-events:none;width:140px;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;box-shadow:var(--shadow-lg);padding:6px 10px;display:flex;flex-direction:column;font-size:var(--fs-xs);color:var(--muted)}
+.ytc-tip b{font-size:var(--fs-lg);color:var(--text)}
+.ytc-tbl{margin-top:6px}
+.ytc-tbl > summary,.yt-videos h3{font-size:var(--fs-sm);font-weight:500;color:var(--muted)}
+.ytc-tbl > summary:hover{color:var(--text)}
+.ytc-tbl .tbl-wrap{max-height:280px;overflow:auto;margin-top:8px}
+
+.yt-videos h3{margin:0 0 8px;color:var(--text)}
+.yt-tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.yt-videos .yt-tbl{min-width:760px}
+.yt-tbl th{font-size:var(--fs-xs);font-weight:500;color:var(--muted);text-align:left;padding:0;border-bottom:1px solid var(--line);background:var(--surface-2);white-space:nowrap;position:sticky;top:0}
+.yt-tbl th:not(:has(button)){padding:8px 12px}
+.yt-tbl td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.yt-tbl tr:last-child td{border-bottom:0}
+.yt-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.yt-tbl th.num .th-btn{justify-content:flex-end}
+.yt-tbl .nowrap{white-space:nowrap}
+.th-btn{display:flex;align-items:center;gap:4px;width:100%;padding:8px 12px;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-align:inherit}
+.th-btn:hover{color:var(--text)}
+.th-ar{font-size:var(--fs-xs);min-width:8px}
+.yt-title{min-width:220px;overflow-wrap:anywhere}
+.yt-title a{color:var(--text);text-decoration:none}
+.yt-title a:hover{text-decoration:underline}
+.yt-title .tag{margin-left:6px;vertical-align:1px}
+.yt-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+
+/* Thiết lập Google */
+.yt-setup-ok{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.yt-setup-ok > div{flex:1;min-width:0}
+.yt-setup-ok .note{margin:2px 0 0;overflow-wrap:anywhere}
+.gw{margin-bottom:12px;overflow:hidden}
+.gw-head{padding:16px 16px 12px;border-bottom:1px solid var(--line)}
+.gw-head h2{margin:0 0 12px;font-size:var(--fs-lg)}
+.gw-stages{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.gw-stages li{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:var(--fs-xs);color:var(--dim)}
+.gw-bar{height:4px;border-radius:2px;background:var(--line-2)}
+.gw-stages li.cur{color:var(--text);font-weight:500}
+.gw-stages li.cur .gw-bar{background:var(--accent)}
+.gw-stages li.done{color:var(--muted)}
+.gw-stages li.done .gw-bar{background:var(--ok)}
+.gw-lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gw-body{padding:16px;display:flex;flex-direction:column;gap:12px}
+.gw-body > p,.gw-body .acts,.gw-body .fld{margin:0}
+.gw-body .fld{max-width:420px}
+.gw-progress{width:100%;max-width:320px;height:6px;margin:8px 0 4px;accent-color:var(--accent)}
+.gw-todo{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px}
+.gw-vals{list-style:none;margin:8px 0;padding:0;border:1px solid var(--line);border-radius:6px}
+.gw-vals li{display:flex;align-items:center;gap:10px;padding:8px 12px;flex-wrap:wrap}
+.gw-vals li + li{border-top:1px solid var(--line)}
+.gw-vals li > span{width:130px;flex:none;font-size:var(--fs-sm)}
+.gw-vals li > b{flex:1;min-width:0;font-weight:500}
+.gw-done{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.gw-done p{margin:0}
+.gw-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
+.gw-found{margin-bottom:12px}
+.gw-found p{margin:0 0 10px;overflow-wrap:anywhere}
+.gw-manual{margin-bottom:12px}
+.gw-manual > summary{padding:12px 16px;cursor:pointer;font-weight:500}
+.gw-manual-b{padding:0 16px 16px}
+.gw-manual-b .note{margin:0 0 10px}
+.gw-manual textarea{min-height:120px;font-size:var(--fs-xs)}
+.gw-manual .fld{margin-bottom:10px}
+.yt-paste-acts{margin-bottom:8px}
+.yt-paste-acts label.btn{position:relative}
+.yt-limits h2{font-size:var(--fs-lg);margin-bottom:8px}
+.yt-limits ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+
+@media (max-width:880px){
+  .yt-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .yt-tile-v{font-size:var(--fs-xl)}
+  .gw-stages{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}
+  .gw-vals li > span{width:100%}
+}
