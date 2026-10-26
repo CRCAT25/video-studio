@@ -8,6 +8,7 @@ import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } fr
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
 import { navigate } from '../lib/router.js';
+import { useNow } from '../hooks/useNow.js';
 import { fmtDate, fmtNum, fmtRelative, two } from '../lib/format.js';
 
 // Giây → "11:30" / "1:02:03".
@@ -95,6 +96,13 @@ export default function Channels({ yt, error, onReload }) {
     loadStats();
   }, [loadStats]);
 
+  // Mốc cập nhật cũ nhất trong các kênh = lần gần nhất mọi kênh đều có số mới.
+  const now = useNow(30_000);
+  const fetched = Object.values(stats)
+    .map((x) => x?.fetchedAt)
+    .filter(Boolean)
+    .sort()[0];
+
   const reloadAll = async () => {
     setReloading(true);
     try {
@@ -173,6 +181,11 @@ export default function Channels({ yt, error, onReload }) {
           <QuotaBar used={q.used} limit={q.limit} />
         </div>
         <div className="acts">
+          {fetched && !reloading ? (
+            <span className="muted small" title={new Date(fetched).toLocaleString('vi-VN')}>
+              Cập nhật {fmtRelative(fetched, now)}
+            </span>
+          ) : null}
           {live.length ? (
             <button type="button" className="btn" onClick={reloadAll} disabled={reloading} title="Tải lại số liệu mới nhất từ YouTube cho tất cả kênh">
               {reloading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới tất cả

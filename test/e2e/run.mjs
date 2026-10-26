@@ -749,6 +749,7 @@ async function main() {
       const r1 = count('/reports'), v1 = count('/videos');
       assert(r1 > r0 && v1 > v0, `không gọi lại Google (reports ${r0}→${r1}, videos ${v0}→${v1})`);
       await ytRow('Kênh Giả').locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
+      await page.locator('.page-h .acts', { hasText: 'Cập nhật vừa xong' }).waitFor();
       await shot('yt-reload-all');
       return `reports ${r0}→${r1} · videos ${v0}→${v1}`;
     });
