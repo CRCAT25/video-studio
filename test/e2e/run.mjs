@@ -278,7 +278,7 @@ async function main() {
       return page.url();
     });
 
-    await check('Bản mới: thanh báo v9.9.9 → Cập nhật → đã tải, nhắc chạy lại', async () => {
+    await check('Bản mới: thanh báo v9.9.9 → Cập nhật → Khởi động lại → app mở lại cùng cổng, trang tự tải lại', async () => {
       const bar = page.locator('.upd');
       await bar.getByText('Có bản mới').waitFor();
       assert((await bar.textContent()).includes('v9.9.9'), 'thiếu số bản mới');
@@ -288,8 +288,15 @@ async function main() {
       await bar.getByRole('button', { name: 'Cập nhật' }).click();
       await bar.getByText('Đang cập nhật').waitFor();
       await bar.getByText('Đã tải bản v9.9.9').waitFor({ timeout: 10_000 });
-      assert((await bar.textContent()).includes('Ctrl+C'), 'thiếu hướng dẫn chạy lại');
       await shot('update-done');
+      const boot0 = (await (await fetch(`${base}/api/health`)).json()).boot;
+      await page.evaluate(() => (window.__beforeRestart = true));
+      await bar.getByRole('button', { name: 'Khởi động lại' }).click();
+      await page.waitForFunction(() => !window.__beforeRestart, null, { timeout: 30_000 });
+      const boot1 = (await (await fetch(`${base}/api/health`)).json()).boot;
+      assert(boot1 && boot1 !== boot0, 'server chưa khởi động lại');
+      assert(server.child.exitCode == null, 'tiến trình cha đã thoát');
+      await bar.getByText('Có bản mới').waitFor();
     });
 
     await check('Modal: Tab/Shift+Tab không thoát khỏi hộp, nền inert, Esc trả lại trang', async () => {

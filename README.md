@@ -39,13 +39,15 @@ Next time, just run `video-studio` and open `http://127.0.0.1:4317/`.
 
 ## Update
 
-The app shows a banner when a new release is out. Click **Cập nhật** there, or run:
+The app shows a banner when a new release is out. Click **Cập nhật**, then **Khởi động lại**. That's it.
+
+From the terminal instead:
 
 ```sh
 video-studio --update
 ```
 
-Then restart the app: press `Ctrl+C` and run `video-studio` again.
+Then press `Ctrl+C` and run `video-studio` again.
 
 ## Run in the background (macOS)
 

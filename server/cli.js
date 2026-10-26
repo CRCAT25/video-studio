@@ -20,6 +20,7 @@ import { createLogin, hasPassword, newSetupCode, resetPassword } from './login.j
 import { persistentToken, runServiceCommand, startBackups } from './service.js';
 import { UpdateError, runUpdate } from './update.js';
 import { createUpdater } from './updater.js';
+import { RESTART_CODE, SUPERVISED_ENV, exitWithParent, reportListening, shouldSupervise, supervise } from './supervisor.js';
 
 export const DEFAULT_PORT = 4317;
 export const PORT_TRIES = 20;
@@ -250,12 +251,12 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       downloadsDir: env.VS_DOWNLOADS ? path.resolve(expandHome(env.VS_DOWNLOADS)) : undefined,
       env: authEnv,
     });
-    // Báo bản mới từ Release GitHub (VS_UPDATE_CHECK=0 để tắt). Chạy nền: thoát mã 75 để launchd mở lại bản mới.
+    // Báo bản mới từ Release GitHub (VS_UPDATE_CHECK=0 để tắt). Chạy nền / chạy dưới tiến trình cha: thoát mã 75 để được mở lại bản mới.
     const updater = createUpdater({
       enabled: env.VS_UPDATE_CHECK !== '0',
       apiBase: env.VS_UPDATE_API || undefined,
       updateBin: env.VS_UPDATE_BIN ? path.resolve(env.VS_UPDATE_BIN) : null,
-      restart: opts.service ? () => closeRef?.().finally(() => process.exit(75)) : null,
+      restart: opts.service || env[SUPERVISED_ENV] === '1' ? () => closeRef?.().finally(() => process.exit(RESTART_CODE)) : null,
     });
     app = await buildApp({
       store,
@@ -280,6 +281,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     });
     // Dịch vụ nền: cổng cố định (bookmark/cookie gắn cổng) — bận thì báo lỗi, launchd thử lại sau.
     const port = await listenWithFallback(app, { host: opts.host, port: opts.port, tries: opts.service ? 0 : PORT_TRIES });
+    reportListening(port);
     stopBackups = startBackups(store.db, path.join(home, 'backups'), { onError: (e) => console.error('Sao lưu DB lỗi:', e?.message || e) });
     const shownHost = opts.host === '::1' ? '[::1]' : opts.host;
     const url = `http://${shownHost}:${port}/`;
@@ -321,6 +323,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       store.close();
     };
     closeRef = close;
+    exitWithParent(close);
     return { app, port, url, token, home, close };
   } catch (e) {
     account.dispose();
@@ -349,7 +352,9 @@ function isEntry() {
   }
 }
 
-if (isEntry()) {
+if (isEntry() && shouldSupervise(process.argv.slice(2))) {
+  supervise({ script: fileURLToPath(import.meta.url), argv: process.argv.slice(2) }).then((code) => process.exit(code));
+} else if (isEntry()) {
   let server = null;
   let stopping = false;
   const onSignal = async (sig) => {
