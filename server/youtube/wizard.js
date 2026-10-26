@@ -14,6 +14,9 @@ import { parseClientSecret } from './oauth.js';
 
 export const STEPS = ['login', 'project', 'consent', 'client', 'done'];
 export const APP_NAME = 'Video Studio';
+// Google bắt buộc có trang chủ + chính sách quyền riêng tư mới cho Xuất bản ứng dụng.
+export const APP_HOMEPAGE = 'https://github.com/CRCAT25/video-studio';
+export const APP_PRIVACY = `${APP_HOMEPAGE}/blob/main/PRIVACY.md`;
 export const APIS = ['youtube.googleapis.com', 'youtubeanalytics.googleapis.com'];
 export const WATCH_MS = 1500;
 const STATE_FILE = 'google-setup.json';
@@ -135,6 +138,8 @@ export function createGoogleWizard({
       found: st.found ? { name: st.found.name } : null,
       watchError: watchErr,
       appName: APP_NAME,
+      homepage: APP_HOMEPAGE,
+      privacy: APP_PRIVACY,
       links: consoleLinks(endpoints.console, st.projectId),
     };
   }

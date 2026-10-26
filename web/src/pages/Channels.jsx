@@ -1,4 +1,4 @@
-// Trang Kênh: mỗi kênh YouTube trong channels.yaml một thẻ — kết nối (chọn hồ sơ Chrome), số liệu 28 ngày, bảng video.
+// Trang Kênh: thêm kênh YouTube bằng đăng nhập Google (chọn hồ sơ Chrome); mỗi kênh một thẻ — số liệu 28 ngày, bảng video.
 // Token Google nằm ở server (Keychain); trang chỉ thấy trạng thái và số liệu.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../components/Modal.jsx';
@@ -44,20 +44,39 @@ const COLS = [
 export default function Channels({ yt, error, onReload }) {
   const toast = useToast();
   const prev = useRef(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addUrl, setAddUrl] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  // Báo khi kênh vừa kết nối xong / vừa lỗi (so với lần tải trước).
+  // Báo khi vừa thêm / kết nối lại kênh hoặc vừa lỗi (so với lần tải trước).
   useEffect(() => {
     if (!yt) return;
     const before = prev.current;
-    prev.current = new Map(yt.channels.map((c) => [c.id, c]));
+    prev.current = { map: new Map(yt.channels.map((c) => [c.id, c])), addError: yt.addError };
     if (!before) return;
     for (const c of yt.channels) {
-      const b = before.get(c.id);
-      if (!b) continue;
-      if (!b.connected && c.connected) toast(`Đã kết nối kênh ${c.title || c.name}.`, 'ok');
+      const b = before.map.get(c.id);
+      if (!b) toast(`Đã thêm kênh ${c.name}.`, 'ok');
+      else if (b.status === 'reauth' && c.status === 'ok') toast(`Đã kết nối lại ${c.name}.`, 'ok');
       else if (c.lastError && c.lastError.at !== b.lastError?.at) toast(c.lastError.message, 'err');
     }
+    if (yt.addError && yt.addError.at !== before.addError?.at) toast(yt.addError.message, 'err');
   }, [yt, toast]);
+
+  useEffect(() => {
+    if (!yt?.adding) setAddUrl(null);
+  }, [yt?.adding]);
+
+  const cancelAdd = async () => {
+    setBusy(true);
+    try {
+      await api.ytAddCancel();
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (error && !yt) {
     return (
@@ -88,9 +107,16 @@ export default function Channels({ yt, error, onReload }) {
             Hạn mức API hôm nay: <b>{fmtNum(q.used)}</b> / {fmtNum(q.limit)} đơn vị
           </p>
         </div>
-        <a className="btn" href="#/channels/setup">
-          {yt.configured ? 'Thiết lập Google' : 'Bắt đầu thiết lập'}
-        </a>
+        <div className="acts">
+          <a className="btn" href="#/channels/setup">
+            Thiết lập Google
+          </a>
+          {yt.configured ? (
+            <button type="button" className="btn primary" onClick={() => setAddOpen(true)} disabled={yt.adding}>
+              + Thêm kênh
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {!yt.configured ? (
@@ -103,26 +129,60 @@ export default function Channels({ yt, error, onReload }) {
         </div>
       ) : null}
 
-      {!yt.channels.length ? (
-        <div className="card pad empty">
-          <b>Chưa có kênh YouTube nào trong channels.yaml.</b>
+      {yt.adding ? (
+        <div className="card pad yt-wait" role="status" style={{ marginBottom: 12 }}>
+          <span className="spinner" aria-hidden="true" />
           <p className="note">
-            Thêm kênh có <span className="mono">platform: youtube</span> vào <span className="mono">presets/channels.yaml</span>.
+            Chọn kênh muốn thêm ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → <b>Nâng cao</b> → <b>Đi tới… (không an toàn)</b>.
           </p>
+          <div className="acts">
+            {addUrl ? (
+              <a className="btn sm" href={addUrl} target="_blank" rel="noopener noreferrer">
+                Mở lại trang Google
+              </a>
+            ) : null}
+            <button type="button" className="btn sm" onClick={cancelAdd} disabled={busy}>
+              Hủy
+            </button>
+          </div>
         </div>
+      ) : null}
+
+      {!yt.channels.length ? (
+        yt.configured && !yt.adding ? (
+          <div className="card pad empty">
+            <b>Chưa có kênh nào.</b>
+            <p className="note">Đăng nhập tài khoản Google sở hữu kênh để thêm.</p>
+            <button type="button" className="btn primary" onClick={() => setAddOpen(true)}>
+              + Thêm kênh
+            </button>
+          </div>
+        ) : null
       ) : (
         <div className="yt-list">
           {yt.channels.map((c) => (
-            <ChannelCard key={c.id} c={c} configured={yt.configured} />
+            <ChannelCard key={c.id} c={c} />
           ))}
         </div>
       )}
+
+      {addOpen ? (
+        <ConnectModal
+          title="Thêm kênh YouTube"
+          start={(profileDir) => api.ytAdd({ profileDir })}
+          onClose={() => setAddOpen(false)}
+          onStarted={(url) => {
+            setAddUrl(url);
+            setAddOpen(false);
+          }}
+        />
+      ) : null}
     </>
   );
 }
 
-// Thẻ một kênh: trạng thái kết nối + nút; đã kết nối thì hiện số liệu.
-function ChannelCard({ c, configured }) {
+// Thẻ một kênh đã thêm: trạng thái + nút (kết nối lại khi Google bắt đăng nhập lại, xóa kênh) + số liệu.
+function ChannelCard({ c }) {
   const toast = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
@@ -148,21 +208,20 @@ function ChannelCard({ c, configured }) {
     act(async () => {
       const r = await api.ytDisconnect(c.id);
       setConfirmOff(false);
-      toast(r.revoked ? `Đã ngắt kết nối ${c.title || c.name}.` : 'Đã xóa kết nối trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.', r.revoked ? 'ok' : 'info');
+      toast(r.revoked ? `Đã xóa kênh ${c.name}.` : 'Đã xóa kênh trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.', r.revoked ? 'ok' : 'info');
     });
 
-  const reauth = c.connected && c.status === 'reauth';
-  const lamp = c.pending ? 'idle blink' : !c.connected ? 'idle' : reauth ? 'err' : 'ok';
-  const stText = c.pending ? 'Đang chờ cho phép trên Google' : !c.connected ? 'Chưa kết nối' : reauth ? 'Cần kết nối lại' : 'Đã kết nối';
+  const reauth = c.status === 'reauth';
+  const lamp = c.pending ? 'idle blink' : reauth ? 'err' : 'ok';
+  const stText = c.pending ? 'Đang chờ cho phép trên Google' : reauth ? 'Cần kết nối lại' : 'Đã kết nối';
 
   return (
     <section className="card yt-card" aria-label={`Kênh ${c.name}`}>
       <div className="yt-h">
         <div className="yt-id">
-          <h2>{c.title || c.name}</h2>
+          <h2>{c.name}</h2>
           <span className="muted small">
             <i className={`lamp ${lamp}`} /> {stText}
-            {c.connected && c.title && c.title !== c.name ? <> · mục <span className="mono">{c.id}</span></> : null}
           </span>
         </div>
         <div className="acts">
@@ -170,16 +229,14 @@ function ChannelCard({ c, configured }) {
             <button type="button" className="btn sm" onClick={cancel} disabled={busy}>
               Hủy
             </button>
-          ) : !c.connected || reauth ? (
-            <button type="button" className="btn sm primary" onClick={() => setConnectOpen(true)} disabled={busy || !configured}>
-              {reauth ? 'Kết nối lại' : 'Kết nối'}
+          ) : reauth ? (
+            <button type="button" className="btn sm primary" onClick={() => setConnectOpen(true)} disabled={busy}>
+              Kết nối lại
             </button>
           ) : null}
-          {c.connected ? (
-            <button type="button" className="btn sm ghost" onClick={() => setConfirmOff(true)} disabled={busy}>
-              Ngắt kết nối
-            </button>
-          ) : null}
+          <button type="button" className="btn sm" onClick={() => setConfirmOff(true)} disabled={busy}>
+            Xóa kênh
+          </button>
         </div>
       </div>
 
@@ -187,7 +244,7 @@ function ChannelCard({ c, configured }) {
         <div className="yt-wait" role="status">
           <span className="spinner" aria-hidden="true" />
           <p className="note">
-            Chọn đúng tài khoản / kênh ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → <b>Nâng cao</b> → <b>Đi tới… (không an toàn)</b>.
+            Chọn đúng kênh {c.name} ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → <b>Nâng cao</b> → <b>Đi tới… (không an toàn)</b>.
             {authUrl ? (
               <>
                 {' '}
@@ -200,13 +257,13 @@ function ChannelCard({ c, configured }) {
         </div>
       ) : null}
       {!c.pending && c.lastError ? <p className="err-note">{c.lastError.message}</p> : null}
-      {!c.pending && !c.connected && !configured ? <p className="note">Thiết lập Google trước rồi mới kết nối được kênh.</p> : null}
 
-      {c.connected ? <ChannelStats key={`${c.id}:${c.connectedAt}`} c={c} /> : null}
+      <ChannelStats key={`${c.id}:${c.connectedAt}`} c={c} />
 
       {connectOpen ? (
         <ConnectModal
-          c={c}
+          title={`Kết nối lại ${c.name}`}
+          start={(profileDir) => api.ytConnect(c.id, { profileDir })}
           onClose={() => setConnectOpen(false)}
           onStarted={(url) => {
             setAuthUrl(url);
@@ -215,14 +272,14 @@ function ChannelCard({ c, configured }) {
         />
       ) : null}
       {confirmOff ? (
-        <Modal title={`Ngắt kết nối ${c.title || c.name}?`} onClose={() => setConfirmOff(false)} busy={busy}>
-          <p className="note">App thu hồi quyền ở Google và xóa token khỏi máy. Video và kênh không bị ảnh hưởng.</p>
+        <Modal title={`Xóa kênh ${c.name} khỏi app?`} onClose={() => setConfirmOff(false)} busy={busy}>
+          <p className="note">App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.</p>
           <div className="modal-acts">
             <button type="button" className="btn" onClick={() => setConfirmOff(false)} disabled={busy} data-autofocus>
               Không
             </button>
             <button type="button" className="btn danger" onClick={disconnect} disabled={busy}>
-              {busy ? <span className="spinner" aria-hidden="true" /> : null} Ngắt kết nối
+              {busy ? <span className="spinner" aria-hidden="true" /> : null} Xóa kênh
             </button>
           </div>
         </Modal>
@@ -231,8 +288,8 @@ function ChannelCard({ c, configured }) {
   );
 }
 
-// Hộp chọn hồ sơ Chrome để mở trang đăng nhập Google.
-function ConnectModal({ c, onClose, onStarted }) {
+// Hộp chọn hồ sơ Chrome để mở trang đăng nhập Google; start(profileDir) gọi API thêm / kết nối lại.
+function ConnectModal({ title, start: begin, onClose, onStarted }) {
   const toast = useToast();
   const [chrome, setChrome] = useState(null);
   const [profile, setProfile] = useState(() => savedProfile());
@@ -252,7 +309,7 @@ function ConnectModal({ c, onClose, onStarted }) {
     setBusy(true);
     try {
       saveProfile(picked);
-      const r = await api.ytConnect(c.id, { profileDir: picked === DEFAULT_BROWSER ? null : picked });
+      const r = await begin(picked === DEFAULT_BROWSER ? null : picked);
       if (!r.opened) window.open(r.authUrl, '_blank', 'noopener');
       onStarted(r.authUrl);
     } catch (e) {
@@ -263,7 +320,7 @@ function ConnectModal({ c, onClose, onStarted }) {
   };
 
   return (
-    <Modal title={`Kết nối ${c.name}`} onClose={onClose} busy={busy} lead="App chỉ xin quyền xem số liệu kênh. Mật khẩu Google không đi qua app.">
+    <Modal title={title} onClose={onClose} busy={busy} lead="App chỉ xin quyền xem số liệu kênh. Mật khẩu Google không đi qua app.">
       <label className="fld">
         <span>Mở trang Google trong</span>
         <Select value={picked} options={profileOptions(profiles, DEFAULT_BROWSER, chrome?.defaultBrowser)} onChange={setProfile} disabled={busy || !chrome} />

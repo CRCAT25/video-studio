@@ -83,6 +83,7 @@
 .gw-vals li > b{flex:1;min-width:0;font-weight:500}
 .gw-done{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .gw-done p{margin:0}
+.gw-links{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .gw-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
 .gw-found{margin-bottom:12px}
 .gw-found p{margin:0 0 10px;overflow-wrap:anywhere}
@@ -103,3 +104,6 @@
   .gw-stages{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}
   .gw-vals li > span{width:100%}
 }
+.gw-publish{margin-top:12px}
+.gw-publish summary{cursor:pointer;font-size:var(--fs-sm);color:var(--muted)}
+.gw-publish .gw-todo{margin-top:10px}

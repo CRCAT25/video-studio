@@ -1,10 +1,6 @@
-# Danh sách kênh — preset trỏ tới kênh qua trường `channel`.
+# Danh sách kênh không phải YouTube — preset trỏ tới kênh qua trường `channel`.
+# Kênh YouTube không khai ở đây: thêm trong app (trang Kênh → + Thêm kênh, đăng nhập Google của kênh).
 # Kênh riêng của bạn: chép file này vào ~/.video-studio/presets/channels.yaml rồi sửa (bản đó được ưu tiên).
-# videos_dir: thư mục chứa các video đã giao (mỗi video một thư mục con có publish.md) — dùng cho "Tải video lên".
-- id: youtube
-  name: Kênh YouTube
-  platform: youtube
-  videos_dir: ~/Videos/youtube
 - id: tiktok
   name: TikTok
   platform: tiktok

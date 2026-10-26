@@ -340,12 +340,12 @@ export function openStore(file) {
 
     // ---- YouTube (v2)
     ytChannels() {
-      return st('SELECT * FROM yt_channels ORDER BY id').all();
+      return st('SELECT * FROM yt_channels ORDER BY rowid').all();
     },
     ytChannel(id) {
       return st('SELECT * FROM yt_channels WHERE id = ?').get(id) ?? null;
     },
-    // Ghi/cập nhật kênh đã kết nối (id = id kênh trong channels.yaml).
+    // Ghi/cập nhật kênh đã thêm (id = mã nội bộ tạo từ tên kênh).
     ytSaveChannel({ id, yt_channel_id, title = null, status = 'ok', can_upload = false }) {
       st(`INSERT INTO yt_channels(id, yt_channel_id, title, status, can_upload, connected_at) VALUES(?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET yt_channel_id = excluded.yt_channel_id, title = excluded.title,

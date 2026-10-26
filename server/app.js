@@ -424,6 +424,16 @@ export async function buildApp({
   app.post('/api/youtube/wizard/cancel', async () => needWizard().cancel());
   app.post('/api/youtube/wizard/reset', async () => needWizard().reset());
 
+  // Thêm kênh: đăng nhập Google, kênh được tạo khi Google trả về thành công.
+  app.post('/api/youtube/channels/add', async (req) => {
+    const yt = needYoutube();
+    const b = bodyOf(req, '{profileDir?}');
+    const profileDir = optStr(b.profileDir, 'profileDir');
+    return yt.connect({ redirectUri: redirectUri(), profileDir });
+  });
+
+  app.post('/api/youtube/channels/add/cancel', async () => needYoutube().cancelConnect());
+
   app.post('/api/youtube/channels/:id/connect', async (req) => {
     const yt = needYoutube();
     const b = bodyOf(req, '{profileDir?}');
@@ -447,7 +457,7 @@ export async function buildApp({
     reply.header('cache-control', 'no-store').type('text/html; charset=utf-8');
     try {
       const r = await yt.callback({ state: one(q.state), code: one(q.code), error: one(q.error) });
-      return htmlPage('Đã kết nối YouTube', `<p>Đã kết nối kênh <b>${escHtml(r.title)}</b>.</p><p>Đóng tab này và quay lại Video Studio.</p>`);
+      return htmlPage('Đã kết nối YouTube', `<p>${r.added ? 'Đã thêm' : 'Đã kết nối lại'} kênh <b>${escHtml(r.title)}</b>.</p><p>Đóng tab này và quay lại Video Studio.</p>`);
     } catch (e) {
       if (!isHttpError(e)) logError(e);
       const msg = isHttpError(e) ? e.message : INTERNAL_MESSAGE;

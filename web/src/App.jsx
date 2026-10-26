@@ -96,6 +96,9 @@ function Shell() {
     try {
       setYt(await api.youtube());
       setYtErr(null);
+      // Kênh YouTube thêm/xóa trong app → danh sách kênh chung (lọc Tổng quan, Preset) cũng đổi.
+      const c = await api.channels().catch(() => null);
+      if (Array.isArray(c)) setChannels(c);
     } catch (e) {
       setYtErr(e);
     }
