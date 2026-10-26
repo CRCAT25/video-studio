@@ -1,90 +1,90 @@
 # Video Studio
 
-Xưởng làm video chạy trên máy của bạn: chia việc làm video thành từng bước, giao từng bước cho
-Claude Code (`claude -p`), bạn xem tiến độ và duyệt ngay trên trình duyệt.
+A video workshop that runs on your own machine: it splits video production into steps, hands each step to
+Claude Code (`claude -p`), and lets you watch progress and approve results in the browser.
 
-Mọi dữ liệu ở trên máy bạn: file của mỗi video nằm trong thư mục dự án, còn DB và cài đặt nằm ở `~/.video-studio`.
-App chỉ nghe ở `127.0.0.1`, máy khác không vào được.
+All data stays on your machine: each video's files live in its project folder, while the DB and settings live in `~/.video-studio`.
+The app only listens on `127.0.0.1`, so other machines cannot reach it.
 
-## Cần có
+## Requirements
 
-- Node.js 20 trở lên (khuyên dùng 24)
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) đã cài. Đăng nhập Claude làm được ngay trong app.
-- macOS là tốt nhất: chạy nền, Keychain, mở đúng hồ sơ Chrome. Linux/Windows chạy được phần chính.
+- Node.js 20 or newer (24 recommended)
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) installed. You can sign in to Claude from inside the app.
+- macOS works best (background service, Keychain, opening the right Chrome profile). Linux/Windows run the core features.
 
-## Cài (một lần)
+## Install (once)
 
 ```sh
-git clone <repo> video-studio && cd video-studio
+git clone https://github.com/CRCAT25/video-studio.git && cd video-studio
 npm install
 npm run build
-npm link        # tạo lệnh `video-studio` dùng được ở mọi thư mục
+npm link        # adds a `video-studio` command you can run from any folder
 ```
 
-## Mở app
+## Open the app
 
-Mở terminal và gõ:
+Open a terminal and run:
 
 ```sh
 video-studio
 ```
 
-Terminal in ra link `http://127.0.0.1:4317/`. Bấm vào link đó (Cmd+click) để mở app.
-Giữ cửa sổ terminal mở trong lúc dùng app. Muốn tắt app thì bấm Ctrl+C.
+The terminal prints `http://127.0.0.1:4317/`. Cmd+click it to open the app.
+Keep the terminal window open while you use the app. Press Ctrl+C to stop it.
 
-Tùy chọn: `video-studio --open` để tự mở trình duyệt, `video-studio --port 4318` để đổi cổng, `video-studio --help`
-để xem hết. Chưa chạy `npm link` thì dùng `npm start` trong thư mục repo cũng được.
+Options: `video-studio --open` opens the browser for you, `video-studio --port 4318` changes the port, `video-studio --help`
+lists everything. Without `npm link`, run `npm start` inside the repo instead.
 
-Cập nhật bản mới: gõ `video-studio --update` (tự `git pull`, cài lại thư viện nếu cần, build lại giao diện), rồi tắt app đang mở và gõ lại `video-studio`. Đang chạy nền thì `video-studio service restart`.
+Updating: run `video-studio --update` (it runs `git pull`, reinstalls dependencies when needed and rebuilds the UI), then stop the running app and start `video-studio` again. If it runs as a background service, use `video-studio service restart`.
 
-## Đăng nhập
+## Sign-in
 
-- **Mật khẩu** (mặc định): lần đầu mở app, bạn tạo mật khẩu. Để chắc chắn đúng là bạn, màn này hỏi thêm **mã thiết lập
-  6 số** đang in ở terminal. Từ lần sau chỉ cần nhập mật khẩu; trình duyệt nhớ đăng nhập 30 ngày.
-- **Quên mật khẩu:** chạy `video-studio reset-password` (chưa `npm link` thì `npm start -- reset-password`), rồi mở
-  app và tạo mật khẩu mới bằng mã thiết lập nó in ra.
-- **Google** (tùy chọn): làm xong *Thiết lập Google* trong app, rồi bấm **Bật đăng nhập Google** để đặt bạn làm chủ.
-  Từ đó nút Google ở trang đăng nhập chỉ nhận đúng tài khoản này (mật khẩu vẫn dùng được). App chỉ xin quyền `openid`, không đọc email.
+- **Password** (default): the first time you open the app you create a password. To prove it is really you, that screen also
+  asks for the **6-digit setup code** printed in the terminal. After that you only need the password; the browser stays signed in for 30 days.
+- **Forgot your password:** run `video-studio reset-password` (without `npm link`: `npm start -- reset-password`), then open
+  the app and create a new password with the setup code it prints.
+- **Google** (optional): finish *Google setup* in the app, then click **Enable Google sign-in** to make yourself the owner.
+  From then on the Google button on the sign-in page only accepts that account (the password still works). The app only requests `openid` and never reads your email.
 
-## Preset và kênh
+## Presets and channels
 
-Repo có sẵn preset mẫu `presets/tiktok-short.yaml` và danh sách kênh mẫu `presets/channels.yaml` (kênh không phải YouTube).
-Kênh YouTube thêm ngay trong app: trang **Kênh** → **+ Thêm kênh** → đăng nhập tài khoản Google của kênh (cần làm *Thiết lập Google* trước).
-Preset của riêng bạn đặt ở `~/.video-studio/presets/` (cùng định dạng). Preset trùng `id` sẽ ghi đè bản trong repo, và
-`channels.yaml` ở đó được ưu tiên. Như vậy cập nhật code bằng `git pull` không đụng tới cấu hình của bạn.
+The repo ships a sample preset `presets/tiktok-short.yaml` and a sample channel list `presets/channels.yaml` (non-YouTube channels).
+YouTube channels are added in the app: **Channels** page → **+ Add channel** → sign in with the channel's Google account (do *Google setup* first).
+Put your own presets in `~/.video-studio/presets/` (same format). A preset with the same `id` overrides the one in the repo, and
+the `channels.yaml` there takes priority, so updating the code never touches your configuration.
 
-## Chạy nền (macOS)
+## Background service (macOS)
 
-App tự chạy khi bạn đăng nhập máy và tự bật lại nếu bị tắt, ở cổng cố định 4318:
+The app starts when you log in and restarts itself if it stops, on fixed port 4318:
 
 ```sh
-npm run service:install     # cài + bật
-npm run open                # mở app (lần đầu in mã thiết lập)
-npm run service:status      # xem có đang chạy không
-npm run service:restart     # sau khi cập nhật code (nhớ npm run build trước)
-npm run service:uninstall   # gỡ, giữ nguyên dữ liệu
+npm run service:install     # install + start
+npm run open                # open the app (prints a setup code the first time)
+npm run service:status      # check whether it is running
+npm run service:restart     # after updating the code (run npm run build first)
+npm run service:uninstall   # remove it, keeping your data
 ```
 
-Log nằm ở `~/.video-studio/logs/server.log`. DB được sao lưu mỗi ngày vào `~/.video-studio/backups`, giữ 7 bản.
-Trước khi cài, hãy tắt bản `video-studio` đang chạy ở cùng cổng.
+Logs go to `~/.video-studio/logs/server.log`. The DB is backed up daily to `~/.video-studio/backups`, keeping 7 copies.
+Stop any `video-studio` running on the same port before installing.
 
-## Biến môi trường
+## Environment variables
 
-| Biến | Ý nghĩa |
+| Variable | Meaning |
 |---|---|
-| `VS_HOME` | thư mục dữ liệu (mặc định `~/.video-studio`) |
-| `VS_PORT` | cổng (mặc định 4317) |
-| `VS_TOKEN` | token ngầm cho test/dev (mặc định `VS_HOME/token`) |
-| `VS_CLAUDE_BIN` | đường dẫn `claude` nếu không có trong PATH |
-| `VS_MODEL` | model mặc định cho các bước |
+| `VS_HOME` | data folder (default `~/.video-studio`) |
+| `VS_PORT` | port (default 4317) |
+| `VS_TOKEN` | hidden token for tests/dev (default `VS_HOME/token`) |
+| `VS_CLAUDE_BIN` | path to `claude` if it is not on PATH |
+| `VS_MODEL` | default model for steps |
 
-## Phát triển
+## Development
 
 ```sh
-npm test                    # unit test
-npm run e2e                 # chạy app thật bằng Chrome (playwright-core)
-npm run dev:server          # server, kèm lệnh chạy Vite
-npm run dev:web             # giao diện (Vite)
+npm test                    # unit tests
+npm run e2e                 # drive the real app in Chrome (playwright-core)
+npm run dev:server          # server, prints the Vite command
+npm run dev:web             # UI (Vite)
 ```
 
-Giấy phép: [MIT](LICENSE). Quyền riêng tư: [PRIVACY.md](PRIVACY.md). Tài liệu thiết kế: [docs/spec.md](docs/spec.md), hợp đồng M1: [docs/m1-contract.md](docs/m1-contract.md).
+License: [MIT](LICENSE). Privacy: [PRIVACY.md](PRIVACY.md). Design doc: [docs/spec.md](docs/spec.md), M1 contract: [docs/m1-contract.md](docs/m1-contract.md).

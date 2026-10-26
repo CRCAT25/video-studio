@@ -1,219 +1,219 @@
-# Video Studio — Tài liệu thiết kế (v0.1, 25/10/2026)
+# Video Studio — Design document (v0.1, 2026-10-25)
 
-> Tên tạm. Một app **chạy local**, **opensource**, giữ pipeline làm video theo từng bước và giao từng bước cho
-> **Claude Code đã đăng nhập sẵn trên máy người dùng**. Người dùng nhìn thấy đang ở bước nào, Claude đang làm gì,
-> và quyết định bước nào phải duyệt tay, bước nào cho tự duyệt.
+> Working name. A **local**, **open-source** app that holds a video-making pipeline step by step and hands each step to
+> **the Claude Code already signed in on the user's machine**. The user sees which step a project is on, what Claude is doing,
+> and decides which steps need manual approval and which may approve themselves.
 
 ---
 
-## 1. Vấn đề cần giải quyết
+## 1. Problems to solve
 
-Rút ra từ ~3 tuần làm 3 kênh (2 kênh YouTube + TikTok) bằng Claude Code trong terminal:
+Drawn from ~3 weeks of running 3 channels (2 YouTube + TikTok) with Claude Code in the terminal:
 
-| Đau | Ví dụ thực tế |
+| Pain | Real example |
 |---|---|
-| Không nhìn được tổng thể: tập nào đang ở bước nào | Phải đọc memory / `ls exports/` mới biết Tập 02 đã render final chưa |
-| Nhiều phiên song song làm trùng việc | 08/10 suýt tốn ~612 credit ElevenLabs cho video đã xong ở phiên khác |
-| Mỗi dự án tự viết trang review riêng | `review_server.py` :8765, :8766, :8767… mỗi dự án một bản |
-| Cổng duyệt chỉ nằm trong lời dặn | "review localhost trước khi render", "hỏi trước khi tốn credit" — Claude phải nhớ |
-| Góp ý của người dùng thành quy tắc rải rác | memory feedback + SKILL.md + Google Sheet "Style" |
-| Không biết đã tốn bao nhiêu | credit ElevenLabs, giờ render, token Claude |
-| Lịch đăng & giao hàng làm tay | 2 ngày 1 video 11:30, copy `videos/<Tiêu đề>/` + `cmp` |
+| No overview: which episode is on which step | Had to read memory / `ls exports/` to know whether Episode 02 had its final render |
+| Parallel sessions duplicate work | On 10/08 nearly spent ~612 ElevenLabs credits on a video already finished in another session |
+| Every project writes its own review page | `review_server.py` on :8765, :8766, :8767… one copy per project |
+| Approval gates live only in instructions | "review on localhost before rendering", "ask before spending credits" — Claude has to remember |
+| User feedback turns into scattered rules | memory feedback + SKILL.md + a "Style" Google Sheet |
+| No idea how much was spent | ElevenLabs credits, render hours, Claude tokens |
+| Publishing schedule & delivery done by hand | one video every 2 days at 11:30, copy to `videos/<Title>/` + `cmp` |
 
-**Mục tiêu:** một màn hình duy nhất cho toàn bộ dây chuyền; cổng duyệt và chi phí là **luật của hệ thống**,
-không phải lời dặn trong prompt; mọi pipeline mô tả bằng **preset** để người khác dùng lại được.
+**Goal:** one screen for the whole production line; approval gates and costs are **rules of the system**,
+not instructions in a prompt; every pipeline is described by a **preset** so others can reuse it.
 
-**Không phải mục tiêu (V1):** không tự render video (Claude + script của preset làm), không lưu trữ cloud,
-không phục vụ nhiều người dùng trên một server, không tự upload YouTube.
-
----
-
-## 2. Nguyên tắc thiết kế
-
-1. **Bring your own Claude.** App không bao giờ hỏi/lưu thông tin đăng nhập claude.ai. Nó gọi `claude` CLI mà người
-   dùng đã tự `claude /login` (gói Pro/Max) hoặc đã đặt `ANTHROPIC_API_KEY`. Xem mục 11.
-2. **Đĩa là nguồn sự thật.** File dự án nằm nguyên chỗ cũ (`~/Documents/Youtube/ai-video-projects/<slug>`); app chỉ
-   thêm thư mục `.studio/` trong dự án. Xóa app thì dự án vẫn dùng được với Claude trong terminal.
-3. **Mỗi bước = một lượt Claude có hợp đồng rõ:** đầu vào, đầu ra, kiểm tra, cổng duyệt.
-4. **Tiền luôn hỏi.** Bước/tool tốn tiền ngoài (ElevenLabs, generate ảnh/video, upload) không bao giờ tự duyệt,
-   kể cả ở chế độ tự động hoàn toàn — trừ khi người dùng đặt ngân sách tự duyệt có trần.
-5. **Nhanh có bản chạy được.** Nháp low-res có tiếng trước, chỉnh sau (bài học "test short speed first").
-6. **Chỉ localhost.** Server bind `127.0.0.1`, token ngẫu nhiên trong URL lần đầu mở.
+**Non-goals (V1):** no rendering by the app itself (Claude + the preset's scripts do it), no cloud storage,
+no serving multiple users from one server, no automatic YouTube upload.
 
 ---
 
-## 3. Khái niệm
+## 2. Design principles
 
-| Khái niệm | Nghĩa |
+1. **Bring your own Claude.** The app never asks for or stores claude.ai credentials. It calls the `claude` CLI the
+   user has already signed in to (`claude /login`, Pro/Max plan) or configured with `ANTHROPIC_API_KEY`. See section 11.
+2. **Disk is the source of truth.** Project files stay where they are (`<projects root>/<slug>`); the app only
+   adds a `.studio/` folder inside the project. Remove the app and the project still works with Claude in the terminal.
+3. **Each step = one Claude turn with a clear contract:** inputs, outputs, checks, approval gate.
+4. **Money always asks.** Steps/tools that spend money outside (ElevenLabs, image/video generation, uploads) never approve themselves,
+   even in fully automatic mode — unless the user sets a capped auto-approve budget.
+5. **Something playable fast.** A low-res draft with voice first, polish later (lesson "test short speed first").
+6. **Localhost only.** The server binds `127.0.0.1`, with a random token in the URL on first open.
+
+---
+
+## 3. Concepts
+
+| Concept | Meaning |
 |---|---|
-| **Kênh (Channel)** | Một kênh đăng (YouTube/TikTok), có thư mục gốc, style bible, lịch đăng |
-| **Preset** | File YAML mô tả pipeline: các bước, prompt, cổng duyệt, kiểm tra, chi phí. Một kênh có thể có nhiều preset (video dài, Short) |
-| **Dự án (Project)** | Một video cụ thể, tạo từ preset, có slug + thư mục |
-| **Bước (Step)** | Một mắt xích trong pipeline của dự án (Kịch bản, Giọng, Nháp, Review, Final, Giao hàng…) |
-| **Lượt chạy (Run)** | Một lần Claude thực hiện bước. Bị từ chối → lượt mới kèm góp ý. Mọi lượt đều được giữ |
-| **Đầu ra (Artifact)** | File bước tạo ra: video, audio từng câu, ảnh, markdown, json. Có phiên bản theo lượt |
-| **Cổng (Gate)** | Điều kiện để bước được coi là xong: tay / tự duyệt nếu kiểm tra đạt / tự duyệt sau X phút / tự động |
-| **Yêu cầu duyệt (Approval)** | Một việc đang chờ người dùng: duyệt bước, trả lời câu hỏi, cho phép tool, duyệt chi phí |
-| **Quy tắc (Rule)** | Một dòng trong style bible của kênh, thường sinh ra từ góp ý khi từ chối |
-| **Chi phí (CostEntry)** | Token Claude, credit dịch vụ ngoài, phút render — gắn với lượt chạy |
+| **Channel** | A publishing channel (YouTube/TikTok) with a root folder, style bible and publishing schedule |
+| **Preset** | A YAML file describing a pipeline: steps, prompts, approval gates, checks, costs. A channel can have several presets (long video, Short) |
+| **Project** | One specific video, created from a preset, with a slug + folder |
+| **Step** | One link in a project's pipeline (Script, Voice, Draft, Review, Final, Delivery…) |
+| **Run** | One time Claude performs a step. Rejected → a new run with feedback. Every run is kept |
+| **Artifact** | A file a step produces: video, per-line audio, images, markdown, json. Versioned per run |
+| **Gate** | The condition for a step to count as done: manual / auto if checks pass / auto after X minutes / automatic |
+| **Approval** | Something waiting on the user: approve a step, answer a question, allow a tool, approve a cost |
+| **Rule** | A line in the channel's style bible, usually born from feedback on a rejection |
+| **CostEntry** | Claude tokens, external service credits, render minutes — attached to a run |
 
 ---
 
-## 4. Các màn hình
+## 4. Screens
 
-### 4.1 Tổng quan (Overview)
-- Thanh trên: số việc **đang chờ bạn**, số runner đang chạy, chi phí tháng này, nút **Dự án mới**.
-- Lọc theo kênh. Mỗi dự án một hàng: tên, kênh, preset, **dải bước** (mỗi bước một ô màu theo trạng thái), bước
-  hiện tại + mô tả 1 dòng ("Đang render chunk 3/4 — còn ~6 phút"), chi phí, cập nhật lần cuối.
-- Bấm vào ô bước → Chi tiết bước.
-- Cột phải (desktop) / tab (điện thoại): **Hộp duyệt** rút gọn.
+### 4.1 Overview
+- Top bar: number of items **waiting on you**, number of running runners, this month's cost, **New project** button.
+- Filter by channel. One row per project: name, channel, preset, **step strip** (one cell per step, colored by state),
+  current step + a one-line description ("Rendering chunk 3/4 — ~6 minutes left"), cost, last update.
+- Click a step cell → Step detail.
+- Right column (desktop) / tab (phone): a compact **Inbox**.
 
-### 4.2 Hộp duyệt (Inbox)
-Gom mọi Approval đang mở, sắp theo độ khẩn:
-1. **Cho phép tool** (Claude đang đứng chờ — ví dụ "Generate ElevenLabs 18 câu, ~1.230 credit").
-2. **Câu hỏi của Claude** (form trả lời: chọn đáp án / gõ tự do).
-3. **Duyệt bước** (xem nhanh đầu ra, Duyệt / Từ chối + góp ý).
-4. **Duyệt chi phí trước bước** (bước có `cost.always_ask`).
+### 4.2 Inbox
+Collects every open Approval, sorted by urgency:
+1. **Allow tool** (Claude is blocked waiting — e.g. "Generate ElevenLabs 18 lines, ~1,230 credits").
+2. **Claude's questions** (answer form: pick an option / free text).
+3. **Approve step** (quick look at outputs, Approve / Reject + feedback).
+4. **Approve cost before a step** (steps with `cost.always_ask`).
 
-Mỗi mục: dự án, bước, đã chờ bao lâu, hạn tự duyệt (nếu cổng `auto_after`).
+Each item: project, step, how long it has waited, auto-approve deadline (if the gate is `auto_after`).
 
-### 4.3 Chi tiết bước
-- **Đầu trang:** tên bước, trạng thái, lượt N, thời gian chạy, chi phí lượt này, nút Chạy lại / Dừng / Bỏ qua.
-- **Tab Đầu ra:** player video (tua được, ghi chú theo mốc thời gian → góp ý tự kèm timecode + still), danh sách câu
-  thoại có nút nghe từng câu, lưới ảnh tĩnh, xem markdown/json. **So sánh A/B** giữa 2 lượt (video cạnh nhau, audio
-  bản 1/bản 2).
-- **Tab Nhật ký:** stream thời gian thực từ Claude (`stream-json`): suy nghĩ ngắn, tool gọi (Bash/Edit/Write), file đổi,
-  tiến độ do Claude báo qua `studio_progress`.
-- **Tab Kiểm tra:** kết quả các lệnh check (`qa_export.py`, `cammotion.py`, `validate_project.py`…): PASS/FAIL + log.
-- **Tab Cổng duyệt:** đổi chế độ cổng cho bước này (ghi đè preset cho riêng dự án).
-- **Khung góp ý:** Duyệt / Từ chối. Khi từ chối: ô lý do + mốc thời gian → hỏi **"Lưu thành quy tắc của kênh?"**
-  (xem 4.5). Góp ý trở thành prompt cho lượt chạy kế tiếp, cùng session Claude (`--resume`).
+### 4.3 Step detail
+- **Header:** step name, state, run N, run time, this run's cost, Re-run / Stop / Skip buttons.
+- **Outputs tab:** video player (seekable, notes at timestamps → feedback carries timecode + still automatically), list of dialogue
+  lines with a play button per line, grid of stills, markdown/json viewer. **A/B compare** between 2 runs (videos side by side, audio
+  take 1/take 2).
+- **Log tab:** real-time stream from Claude (`stream-json`): short thoughts, tool calls (Bash/Edit/Write), changed files,
+  progress Claude reports through `studio_progress`.
+- **Checks tab:** results of check commands (`qa_export.py`, `cammotion.py`, `validate_project.py`…): PASS/FAIL + log.
+- **Gate tab:** change the gate mode for this step (overrides the preset for this project only).
+- **Feedback box:** Approve / Reject. On reject: a reason field + timestamp → asks **"Save as a channel rule?"**
+  (see 4.5). The feedback becomes the prompt for the next run, in the same Claude session (`--resume`).
 
-### 4.4 Dự án mới
-Chọn kênh → preset → nhập ý tưởng / chọn từ **Kho ý tưởng** → slug + tiêu đề tạm → xem trước các bước và cổng →
-Tạo. App tạo thư mục (hoặc gắn vào thư mục có sẵn — **nhập dự án cũ**), ghi `.studio/project.json`.
+### 4.4 New project
+Pick channel → preset → enter an idea / pick from the **Idea bank** → slug + working title → preview the steps and gates →
+Create. The app creates the folder (or attaches to an existing one — **import an old project**) and writes `.studio/project.json`.
 
-### 4.5 Kênh & Quy tắc
-- Thông tin kênh, thư mục gốc, skill đi kèm, lịch đăng.
-- **Style bible**: danh sách quy tắc (nhóm, nội dung, lý do, nguồn: "từ góp ý Tập 02 lượt 8"). Bật/tắt từng quy tắc.
-  Quy tắc đang bật được ghép vào system prompt của mọi lượt chạy của kênh.
-- Xuất/nhập `rules.md` để đồng bộ với SKILL.md hiện có.
+### 4.5 Channels & Rules
+- Channel info, root folder, bundled skills, publishing schedule.
+- **Style bible**: a list of rules (group, text, reason, source: "from feedback on Episode 02 run 8"). Each rule can be toggled.
+  Enabled rules are appended to the system prompt of every run on the channel.
+- Export/import `rules.md` to sync with existing SKILL.md files.
 
-### 4.5b Kênh YouTube (kết nối thật)
-Tab **Kênh** (`#/channels`) ban đầu trống. Người dùng bấm **+ Thêm kênh**, đăng nhập Google của kênh đó và chọn kênh trên màn hình Google; app đọc tên kênh rồi lưu vào bảng `yt_channels`. Kênh YouTube không khai trong `channels.yaml` (file này chỉ còn kênh khác, vd. TikTok). Mã kênh nội bộ = tên kênh bỏ dấu (`bep-nha-minh`), trùng thì thêm `-2`. Thêm lại kênh đã có → 409 `yt_dup`.
+### 4.5b YouTube channels (real connection)
+The **Channels** tab (`#/channels`) starts empty. The user clicks **+ Thêm kênh** (Add channel), signs in to that channel's Google account and picks the channel on Google's screen; the app reads the channel name and saves it to the `yt_channels` table. YouTube channels are not declared in `channels.yaml` (that file only holds other channels, e.g. TikTok). The internal channel id = the channel name without diacritics (`bep-nha-minh`), with `-2` appended on collision. Adding an existing channel again → 409 `yt_dup`.
 
-- **Thiết lập Google** (`#/channels/setup`), làm 1 lần: người dùng tự tạo dự án Google Cloud, bật YouTube Data API v3 + YouTube Analytics API, đặt màn hình xin quyền là *Bên ngoài* và **Đang sản xuất** (để chế độ Thử nghiệm thì token hết hạn sau 7 ngày), điền trang chủ + chính sách quyền riêng tư (Google bắt buộc mới cho Xuất bản; app đưa sẵn link GitHub và `PRIVACY.md` của repo, kèm miền được phép `github.com`), tạo client **Desktop app**, rồi dán `client_secret.json` vào app. Client loại web bị từ chối.
-- **Thêm / kết nối lại**: mỗi kênh một lần OAuth (kết nối lại chỉ khi Google bắt đăng nhập lại, phải chọn đúng kênh cũ, sai → 409 `yt_wrong_channel`), mở trong hồ sơ Chrome đã chọn (hoặc trình duyệt mặc định). Dùng loopback `http://127.0.0.1:<port>/api/youtube/oauth/callback` + PKCE S256 + `state` dùng một lần; route callback là public (hồ sơ Chrome khác có thể không có cookie của app). Scope đọc: `youtube.readonly`, `yt-analytics.readonly`; thêm `youtube.upload` + `youtube.force-ssl` khi bật tải lên. Không xin scope email/profile.
-- **Bí mật**: client secret và refresh token chỉ ở server: Keychain trên macOS (`security -i`, giá trị hex qua stdin), file quyền 600 ở nơi khác. Không bao giờ gửi xuống trình duyệt hay ghi log. **Xóa kênh** = thu hồi ở Google + xóa token, dòng DB và cache.
-- **Số liệu**: người đăng ký, tổng lượt xem; 28 ngày gần nhất (lượt xem, phút xem, đăng ký ròng, biểu đồ theo ngày); bảng video sắp xếp được. Cache SQLite 6 giờ, nút **Làm mới** để gọi lại Google. Analytics thường trễ 1–2 ngày.
-- **Hạn mức**: ~10.000 điểm/ngày theo ngày giờ Los Angeles (đặt lại khoảng 14:00–15:00 giờ Việt Nam); app đếm và hiện số đã dùng. Tải 1 video lên ≈ 1.600 điểm.
-- **Giới hạn của Google**: app chưa được xác minh → cảnh báo "chưa xác minh" (Nâng cao → Đi tới…); video tải lên từ dự án chưa được duyệt luôn ở chế độ Riêng tư; đặt hình thu nhỏ cần kênh đã xác minh số điện thoại.
-- **SSE `youtube`**: phát mỗi khi trạng thái đổi, kể cả sau mỗi lần lấy số liệu → UI chỉ tải lại *trạng thái*, không tải lại số liệu (tránh vòng lặp).
-- **Test**: `VS_SECRETS=file` (không đụng Keychain thật) và `VS_GOOGLE_BASE=<server giả>` (`test/fixtures/fake-google.mjs`).
-- **Đợt 2 (chưa làm)**: chọn thư mục video đã giao cho từng kênh trong app, tải video lên từ đó (đọc `publish.md`), luôn Riêng tư, `madeForKids=false`, upload resumable có tiến độ, rồi hình thu nhỏ / phụ đề / danh sách phát.
+- **Google setup** (`#/channels/setup`), done once: the user creates their own Google Cloud project, enables YouTube Data API v3 + YouTube Analytics API, sets the consent screen to *External* and **In production** (in Testing mode tokens expire after 7 days), fills in a homepage + privacy policy (Google requires them before Publish; the app pre-fills the GitHub link and the repo's `PRIVACY.md`, plus the authorized domain `github.com`), creates a **Desktop app** client, then pastes `client_secret.json` into the app. Web-type clients are rejected.
+- **Add / reconnect**: one OAuth per channel (reconnect only when Google forces a new sign-in; the same channel must be picked, otherwise → 409 `yt_wrong_channel`), opened in the chosen Chrome profile (or the default browser). Uses loopback `http://127.0.0.1:<port>/api/youtube/oauth/callback` + PKCE S256 + a single-use `state`; the callback route is public (another Chrome profile may not have the app's cookie). Read scopes: `youtube.readonly`, `yt-analytics.readonly`; `youtube.upload` + `youtube.force-ssl` are added when uploads are enabled. No email/profile scope is requested.
+- **Secrets**: the client secret and refresh tokens live only on the server: Keychain on macOS (`security -i`, hex value via stdin), a mode-600 file elsewhere. Never sent to the browser or logged. **Xóa kênh** (Remove channel) = revoke at Google + delete the token, DB row and cache.
+- **Statistics**: subscribers, total views; last 28 days (views, watch minutes, net subscribers, daily chart); sortable video table. SQLite cache for 6 hours, a **Làm mới** (Refresh) button calls Google again. Analytics usually lags 1–2 days.
+- **Quota**: ~10,000 points/day by the Los Angeles calendar day (resets around 14:00–15:00 Vietnam time); the app counts and shows how many are used. Uploading one video ≈ 1,600 points.
+- **Google's limits**: the app is not verified → an "unverified app" warning (Advanced → Go to…); videos uploaded from an unaudited project are always Private; setting thumbnails needs a phone-verified channel.
+- **SSE `youtube`**: emitted whenever the state changes, including after every statistics fetch → the UI reloads only the *state*, not the statistics (avoids a loop).
+- **Tests**: `VS_SECRETS=file` (never touches the real Keychain) and `VS_GOOGLE_BASE=<fake server>` (`test/fixtures/fake-google.mjs`).
+- **Phase 2 (not done)**: pick each channel's delivered-videos folder in the app, upload videos from it (reading `publish.md`), always Private, `madeForKids=false`, resumable upload with progress, then thumbnails / captions / playlists.
 
-### 4.6 Preset
-Xem/sửa YAML, xem sơ đồ các bước, kiểm tra hợp lệ (schema), nhân bản preset.
+### 4.6 Presets
+View/edit YAML, view the step diagram, validate (schema), duplicate a preset.
 
-### 4.7 Lịch & Kho ý tưởng (V2)
-- Lịch tháng: slot theo luật kênh (vd: video dài cách 2 ngày; ngày xen giữa 2 Short).
-  Dự án kéo vào slot; cảnh báo slot trống trong 7 ngày tới mà chưa có dự án ở bước Final.
-- Kho ý tưởng: 💡 Ý tưởng → ✍️ Đang viết → ✅ Kịch bản xong → 🎬 Đang dựng → 📺 Đã đăng. Nhập từ Google Sheet/markdown.
+### 4.7 Calendar & Idea bank (V2)
+- Monthly calendar: slots per channel rules (e.g. a long video every 2 days; 2 Shorts on the days in between).
+  Drag projects into slots; warn about slots in the next 7 days with no project at the Final step.
+- Idea bank: 💡 Idea → ✍️ Writing → ✅ Script done → 🎬 Editing → 📺 Published. Import from Google Sheets/markdown.
 
-### 4.8 Chi phí
-Theo tháng / kênh / dự án / loại: token Claude (subscription: chỉ hiện token & số lượt; API key: USD), credit
-ElevenLabs, phút render. Trần ngân sách theo kênh/tháng.
+### 4.8 Costs
+By month / channel / project / type: Claude tokens (subscription: tokens & run count only; API key: USD), ElevenLabs
+credits, render minutes. Budget cap per channel/month.
 
 ---
 
-## 5. Máy trạng thái của bước
+## 5. Step state machine
 
 ```
-pending ──(bước trước xong)──▶ ready ──(runner nhận)──▶ running
-running ──studio_ask──────────▶ needs_input ──(trả lời)──▶ running
-running ──tool nhạy cảm───────▶ needs_permission ──(cho/không)──▶ running
-running ──xong, check chạy────▶ checking ──▶ awaiting_review (cổng tay)
-                                         └─▶ approved (cổng tự, check đạt)
-awaiting_review ──Duyệt──▶ approved
-awaiting_review ──Từ chối + góp ý──▶ ready (lượt N+1)
-running ──lỗi/hết giờ──▶ failed ──Chạy lại──▶ ready
-* ──Bỏ qua──▶ skipped
-approved ──(bước trước bị chạy lại & đầu ra đổi)──▶ stale  (báo người dùng, không tự chạy lại)
+pending ──(previous step done)──▶ ready ──(runner picks up)──▶ running
+running ──studio_ask──────────▶ needs_input ──(answer)──▶ running
+running ──sensitive tool──────▶ needs_permission ──(allow/deny)──▶ running
+running ──done, checks run────▶ checking ──▶ awaiting_review (manual gate)
+                                         └─▶ approved (auto gate, checks pass)
+awaiting_review ──Approve──▶ approved
+awaiting_review ──Reject + feedback──▶ ready (run N+1)
+running ──error/timeout──▶ failed ──Re-run──▶ ready
+* ──Skip──▶ skipped
+approved ──(previous step re-run & its outputs changed)──▶ stale  (tell the user, do not re-run automatically)
 ```
 
-- Một dự án chỉ có **một runner** tại một thời điểm (khóa `.studio/lock` có pid + host). Phiên terminal khác muốn
-  làm cùng dự án sẽ thấy khóa (thêm 1 hook `SessionStart` tùy chọn để Claude trong terminal cũng biết).
-- Bước khác dự án chạy song song, nhưng tài nguyên nặng đi qua **semaphore**: `render` (mặc định 4 job trên máy 16 GB),
-  `gpu`, `network-heavy`. Preset khai báo `resources: [render]`.
+- A project has **one runner** at a time (lock `.studio/lock` with pid + host). Another terminal session that wants
+  to work on the same project sees the lock (an optional `SessionStart` hook lets Claude in the terminal know too).
+- Steps of different projects run in parallel, but heavy resources go through a **semaphore**: `render` (4 jobs by default on a 16 GB machine),
+  `gpu`, `network-heavy`. A preset declares `resources: [render]`.
 
-### Cổng duyệt (gate)
+### Gates
 
-| Chế độ | Hành vi |
+| Mode | Behavior |
 |---|---|
-| `manual` | Luôn chờ người dùng |
-| `auto_if_checks` | Tự duyệt nếu mọi `checks` PASS, ngược lại chờ người dùng |
-| `auto_after` | Chờ người dùng tối đa `after` (vd 30m), hết giờ thì tự duyệt (chỉ khi check PASS) |
-| `auto` | Tự duyệt ngay |
+| `manual` | Always waits for the user |
+| `auto_if_checks` | Approves itself if every `checks` entry PASSes, otherwise waits for the user |
+| `auto_after` | Waits for the user up to `after` (e.g. 30m), then approves itself (only if checks PASS) |
+| `auto` | Approves immediately |
 
-Ghi đè theo thứ tự: preset → kênh → dự án → "chế độ lái tự động" toàn cục (Tắt / Thận trọng / Mạnh tay —
-nâng mọi `manual` không phải bước tiền lên `auto_if_checks`). **Bước có `cost` hoặc tool nằm trong
-`always_ask` không bao giờ bị nâng.**
+Override order: preset → channel → project → global "autopilot mode" (Off / Cautious / Aggressive —
+raises every non-money `manual` to `auto_if_checks`). **Steps with a `cost`, or tools in
+`always_ask`, are never raised.**
 
 ---
 
-## 6. Tích hợp Claude Code
+## 6. Claude Code integration
 
-### 6.1 Một lượt chạy
+### 6.1 One run
 
 ```bash
-claude -p "<prompt bước + góp ý>" \
+claude -p "<step prompt + feedback>" \
   --output-format stream-json --verbose \
-  --session-id <uuid>            # lượt đầu của dự án; các lượt sau: --resume <uuid>
-  --append-system-prompt-file .studio/run/<run>/system.md \  # giao thức studio + quy tắc kênh
-  --add-dir <thư mục skill> \
-  --mcp-config .studio/run/<run>/mcp.json \                    # MCP server "studio" của app
+  --session-id <uuid>            # first run of the project; later runs: --resume <uuid>
+  --append-system-prompt-file .studio/run/<run>/system.md \  # studio protocol + channel rules
+  --add-dir <skill folder> \
+  --mcp-config .studio/run/<run>/mcp.json \                    # the app's "studio" MCP server
   --permission-mode acceptEdits \
   --permission-prompt-tool mcp__studio__permission \
-  --json-schema '<schema StepResult>'
+  --json-schema '<StepResult schema>'
 ```
 
-- `cwd` = thư mục dự án. App đọc stream từng dòng JSON → lưu vào `runs.log` + đẩy SSE/WebSocket lên UI.
-- Message `result` cuối cùng cho: `session_id`, `usage`, `total_cost_usd` (API key), `duration_ms`, và
-  `structured_output` theo schema StepResult.
-- **Một session Claude cho cả dự án** (resume giữa các bước) để Claude nhớ ngữ cảnh; khi session quá dài, app tạo
-  session mới kèm bản tóm tắt `.studio/summary.md` (Claude tự viết ở cuối mỗi bước).
-- Chế độ API key: thêm `--max-budget-usd` theo trần của bước.
+- `cwd` = the project folder. The app reads the stream line by line as JSON → stores it in `runs.log` + pushes SSE/WebSocket to the UI.
+- The final `result` message provides: `session_id`, `usage`, `total_cost_usd` (API key), `duration_ms`, and
+  `structured_output` matching the StepResult schema.
+- **One Claude session per project** (resumed across steps) so Claude remembers context; when the session grows too long, the app starts
+  a new session with the summary `.studio/summary.md` (Claude writes it at the end of each step).
+- API key mode: add `--max-budget-usd` per the step's cap.
 
-### 6.2 Giao thức studio (system prompt ghép thêm)
+### 6.2 Studio protocol (appended system prompt)
 
-Claude được dặn:
-1. Chỉ làm đúng bước `{step.name}`; đầu ra phải nằm trong `{step.outputs}`.
-2. Báo tiến độ bằng tool `studio_progress(pct, message)` mỗi khi đổi giai đoạn.
-3. Cần người dùng quyết → `studio_ask(questions[])` (tool chặn tới khi có trả lời). Không đoán.
-4. Tốn tiền ngoài → `studio_cost_request(service, units, estimate, detail)` trước khi làm.
-5. Kết thúc bằng StepResult:
+Claude is told to:
+1. Do only step `{step.name}`; outputs must be within `{step.outputs}`.
+2. Report progress with the tool `studio_progress(pct, message)` whenever it changes phase.
+3. Needs a user decision → `studio_ask(questions[])` (the tool blocks until answered). Never guess.
+4. Spends money outside → `studio_cost_request(service, units, estimate, detail)` before doing it.
+5. Finish with a StepResult:
 
 ```json
 {
   "status": "done | needs_input | failed",
-  "summary": "1–3 câu tiếng Việt",
+  "summary": "1–3 sentences in Vietnamese",
   "artifacts": [{"path": "review/preview.mp4", "kind": "video", "label": "Nháp 960×540"}],
   "questions": [],
   "notes_for_next_step": "…"
 }
 ```
 
-### 6.3 MCP server "studio" (do app cung cấp, chạy trong process của app)
+### 6.3 "studio" MCP server (provided by the app, runs in the app's process)
 
-| Tool | Tác dụng |
+| Tool | Effect |
 |---|---|
-| `studio_progress` | Cập nhật thanh tiến độ + dòng trạng thái |
-| `studio_ask` | Tạo Approval loại câu hỏi, **chờ** câu trả lời (timeout cấu hình; hết giờ → trả "người dùng chưa trả lời", Claude kết thúc với `needs_input`) |
-| `studio_cost_request` | Tạo Approval chi phí, chờ Có/Không |
-| `studio_artifact` | Đăng ký đầu ra giữa chừng (để người dùng xem nháp sớm) |
-| `permission` | Được gọi bởi `--permission-prompt-tool` khi Claude dùng tool chưa được phép → khớp luật `permissions` của preset: cho luôn / từ chối / hỏi người dùng |
+| `studio_progress` | Updates the progress bar + status line |
+| `studio_ask` | Creates a question Approval and **waits** for the answer (configurable timeout; on timeout → returns "the user has not answered", Claude ends with `needs_input`) |
+| `studio_cost_request` | Creates a cost Approval, waits for Yes/No |
+| `studio_artifact` | Registers an output mid-run (so the user can see drafts early) |
+| `permission` | Called by `--permission-prompt-tool` when Claude uses a tool not yet allowed → matched against the preset's `permissions` rules: allow / deny / ask the user |
 
-Luật quyền mẫu (preset):
+Sample permission rules (preset):
 ```yaml
 permissions:
   allow: ["Bash(python3 *)", "Bash(ffmpeg *)", "Bash(node *)", "Edit", "Write"]
@@ -221,8 +221,8 @@ permissions:
   deny:  ["Bash(git push*)", "Bash(sudo *)"]
 ```
 
-### 6.4 Kiểm tra (checks)
-App tự chạy sau khi Claude xong, **không để Claude tự chấm**:
+### 6.4 Checks
+The app runs them itself after Claude finishes; **Claude never grades its own work**:
 ```yaml
 checks:
   - name: QA export
@@ -230,27 +230,27 @@ checks:
   - name: Camera không gây chóng mặt
     run: python3 tmp/cammotion.py review/preview.mp4
 ```
-Exit 0 = PASS. Log lưu theo lượt.
+Exit 0 = PASS. Logs are kept per run.
 
-Check dựng sẵn của app (`studio-check <tên>`), dùng được trong mọi preset:
+The app's built-in checks (`studio-check <name>`), usable in any preset:
 
-| Lệnh | Kiểm |
+| Command | Checks |
 |---|---|
-| `studio-check outputs` | Mọi glob trong `outputs` của bước khớp ≥1 file, file không rỗng, mới hơn lúc bắt đầu lượt |
-| `studio-check deliver-cmp` | Mỗi file trong thư mục giao trùng byte (`cmp`) với bản gốc trong `exports/` |
-| `studio-check loudness --target -14 --tp -1.5` | Đo bằng ffmpeg `ebur128`, lệch ≤ 1 LU và true peak ≤ ngưỡng |
-| `studio-check no-credit-section exports/publish.md` | Mô tả không có mục "Ghi công"/"Credits" |
+| `studio-check outputs` | Every glob in the step's `outputs` matches ≥1 file, files are non-empty and newer than the run start |
+| `studio-check deliver-cmp` | Every file in the delivery folder is byte-identical (`cmp`) to the original in `exports/` |
+| `studio-check loudness --target -14 --tp -1.5` | Measured with ffmpeg `ebur128`, within ≤ 1 LU and true peak ≤ threshold |
+| `studio-check no-credit-section exports/publish.md` | The description has no "Ghi công"/"Credits" section |
 
-Bước dùng `auto_if_checks`/`auto_after` mà **không có check nào** → loader báo lỗi preset (tránh cổng tự duyệt
-"đạt" vì không kiểm gì).
+A step using `auto_if_checks`/`auto_after` with **no checks at all** → the loader reports a preset error (prevents an auto gate
+"passing" because nothing was checked).
 
-### 6.5 Phiên terminal song song
-Người dùng vẫn có thể mở `claude --resume <session>` trong terminal để làm tay; app thấy khóa bị chiếm bởi pid khác
-thì chuyển dự án sang "đang làm tay", và chỉ theo dõi file thay đổi. Khi xong, người dùng bấm "Đánh dấu bước xong".
+### 6.5 Parallel terminal sessions
+The user can still open `claude --resume <session>` in a terminal to work by hand; when the app sees the lock held by another pid
+it switches the project to "working by hand" and only watches file changes. When done, the user clicks "Mark step done".
 
 ---
 
-## 7. Mô hình dữ liệu (SQLite `~/.video-studio/studio.db`)
+## 7. Data model (SQLite `~/.video-studio/studio.db`)
 
 ```sql
 channels(id, name, platform, root_dir, rules_md, schedule_json, budget_json)
@@ -258,7 +258,7 @@ presets(id, channel_id, file_path, version_hash)
 projects(id, channel_id, preset_id, slug, title, dir, claude_session_id, status, autopilot, created_at, updated_at)
 steps(id, project_id, key, name, ord, state, gate_json, current_run_id, approved_run_id, updated_at)
 runs(id, step_id, n, state, prompt, feedback, started_at, ended_at, session_id, result_json, exit_code)
-run_events(id, run_id, ts, type, payload_json)          -- stream-json + progress, cắt bớt khi lớn
+run_events(id, run_id, ts, type, payload_json)          -- stream-json + progress, trimmed when large
 artifacts(id, run_id, path, kind, label, sha256, bytes, meta_json)
 checks(id, run_id, name, cmd, passed, log_path, duration_ms)
 approvals(id, project_id, step_id, run_id, kind, payload_json, state, created_at, decided_at, decision_json, auto_at)
@@ -267,125 +267,125 @@ costs(id, run_id, kind, units, unit_name, usd, note)    -- claude_tokens, eleven
 ideas(id, channel_id, title, pitch, status, project_id, sort)
 ```
 
-Trong mỗi dự án:
+Inside each project:
 ```
-<dự án>/.studio/
-  project.json          # bản sao trạng thái (để dự án tự mô tả được nếu mất DB)
+<project>/.studio/
+  project.json          # copy of the state (so the project describes itself if the DB is lost)
   lock                  # pid, host, since
-  summary.md            # Claude tóm tắt sau mỗi bước
+  summary.md            # Claude's summary after each step
   runs/<step>/<n>/      # prompt.md, system.md, stream.jsonl, result.json, checks/*.log, feedback.md
 ```
 
-Đầu ra theo phiên bản: file vẫn ở chỗ preset quy định (vd `review/preview.mp4`); khi lượt mới ghi đè, app chép bản
-cũ sang `.studio/runs/<step>/<n>/artifacts/` (hard-link nếu được) để so sánh A/B. File > ngưỡng (vd 2 GB) chỉ lưu hash.
+Versioned outputs: files stay where the preset says (e.g. `review/preview.mp4`); when a new run overwrites them, the app copies the old
+version to `.studio/runs/<step>/<n>/artifacts/` (hard-link when possible) for A/B comparison. Files above a threshold (e.g. 2 GB) keep only a hash.
 
 ---
 
-## 8. Preset YAML (schema rút gọn)
+## 8. Preset YAML (condensed schema)
 
 ```yaml
-id: string                 # duy nhất
+id: string                 # unique
 name: string
-channel: string            # id kênh
+channel: string            # channel id
 format: long | short
-project_dir: string        # mẫu, vd ~/Documents/Youtube/ai-video-projects/{slug}
-skills: [path]             # thêm vào --add-dir + nhắc Claude đọc SKILL.md
-rules: path?               # style bible khởi tạo
+project_dir: string        # template, e.g. ~/Videos/projects/{slug}
+skills: [path]             # added to --add-dir + Claude is told to read SKILL.md
+rules: path?               # initial style bible
 permissions: {allow, ask, deny}
 defaults: {gate: {mode: manual}, timeout: 2h}
-vars: {key: value}         # dùng trong prompt bằng {key}
+vars: {key: value}         # used in prompts as {key}
 steps:
   - id: string
     name: string
-    needs: [step_id]?      # mặc định: bước liền trước
-    prompt: string         # template, có {slug} {title} {vars.*} {feedback} {prev.summary}
+    needs: [step_id]?      # default: the previous step
+    prompt: string         # template with {slug} {title} {vars.*} {feedback} {prev.summary}
     outputs: [glob]
     checks: [{name, run}]?
     gate: {mode, after?}?
     cost: {service, estimate, always_ask: true}?
     resources: [render]?
-    foreach: string?       # vd "shorts" → nhân bản bước theo danh sách bước trước trả ra
-    manual: bool?          # bước người dùng tự làm (vd bấm Lên lịch trên YouTube Studio) — chỉ có checklist
+    foreach: string?       # e.g. "shorts" → duplicate the step per list returned by the previous step
+    manual: bool?          # a step the user does by hand (e.g. clicking Schedule in YouTube Studio) — checklist only
 ```
 
-Preset mẫu trong repo: `presets/tiktok-short.yaml`; preset riêng đặt ở `~/.video-studio/presets/`.
+Sample preset in the repo: `presets/tiktok-short.yaml`; personal presets go in `~/.video-studio/presets/`.
 
 ---
 
-## 9. Kiến trúc
+## 9. Architecture
 
 ```
-┌──────────── Trình duyệt (127.0.0.1:4317) ────────────┐
+┌──────────────── Browser (127.0.0.1:4317) ────────────┐
 │ React + Vite: Overview, Inbox, Step, Channel, Preset │
 └───────────────▲──────────────────────┬───────────────┘
         SSE/WS  │                REST  │
 ┌───────────────┴──────────────────────▼───────────────┐
 │ Node (Fastify) — app server                          │
-│  • Scheduler: chọn bước ready, khóa dự án, semaphore │
-│  • Runner: spawn `claude -p … stream-json`, parse     │
-│  • MCP "studio" (HTTP local) + permission tool       │
-│  • Checker: chạy checks                              │
-│  • Watcher: chokidar theo dõi thư mục dự án          │
-│  • Media: phục vụ file có HTTP 206 (tua video)       │
+│  • Scheduler: picks ready steps, project lock, sem.  │
+│  • Runner: spawns `claude -p … stream-json`, parses  │
+│  • "studio" MCP (local HTTP) + permission tool       │
+│  • Checker: runs checks                              │
+│  • Watcher: chokidar watches project folders         │
+│  • Media: serves files with HTTP 206 (video seeking) │
 │  • Notifier: macOS notification / Telegram (V2)      │
 │  • SQLite (better-sqlite3)                           │
 └───────────────┬──────────────────────────────────────┘
-                │ spawn, cwd = thư mục dự án
-         ┌──────▼──────┐   ┌───────────────────────────┐
-         │ claude CLI  │──▶│ script của preset/skill    │
-         │ (login của  │   │ python, ffmpeg, node, swift│
-         │ người dùng) │   └───────────────────────────┘
+                │ spawn, cwd = project folder
+         ┌──────▼──────┐   ┌────────────────────────────┐
+         │ claude CLI  │──▶│ preset/skill scripts       │
+         │ (the user's │   │ python, ffmpeg, node, swift│
+         │  sign-in)   │   └────────────────────────────┘
          └─────────────┘
 ```
 
-- Một lệnh cài: `npx video-studio` (hoặc `brew`). Yêu cầu: Node ≥ 20, `claude` trong PATH, ffmpeg (preset tự khai).
-- Khởi động kiểm tra: `claude --version`, chạy thử `claude -p "ping" --output-format json` để biết đã đăng nhập chưa —
-  chưa thì hướng dẫn chạy `claude` và `/login` trong terminal. App **không** tự mở luồng đăng nhập.
-- Không cần Docker. Mọi thứ của người dùng ở `~/.video-studio/`.
+- One install command: `npx video-studio` (or `brew`). Requirements: Node ≥ 20, `claude` on PATH, ffmpeg (declared by presets).
+- Startup check: `claude --version`, a trial `claude -p "ping" --output-format json` to know whether the user is signed in —
+  if not, explain how to run `claude` and `/login` in a terminal. The app does **not** start a sign-in flow itself.
+- No Docker needed. All of the user's data lives in `~/.video-studio/`.
 
 ---
 
-## 10. Thông báo & duyệt từ xa (V2)
-- macOS notification khi có Approval mới.
-- Telegram bot (token do người dùng tạo) gửi tin có nút Duyệt/Từ chối cho Approval đơn giản (cho phép tool, chi phí,
-  câu hỏi trắc nghiệm). Duyệt bước có video → gửi link; mở được từ điện thoại khi dùng Tailscale (tùy chọn,
-  người dùng tự cài) — app vẫn chỉ bind localhost/tailnet, không mở ra Internet.
+## 10. Notifications & remote approval (V2)
+- macOS notification on a new Approval.
+- Telegram bot (token created by the user) sends messages with Approve/Reject buttons for simple Approvals (allow tool, cost,
+  multiple-choice question). Approving a step with video → sends a link; reachable from a phone when using Tailscale (optional,
+  installed by the user) — the app still binds only localhost/tailnet, never the Internet.
 
 ---
 
-## 11. Pháp lý & an toàn
+## 11. Legal & safety
 
-- **Đăng nhập Claude:** điều khoản của Anthropic không cho sản phẩm bên thứ ba *cung cấp* đăng nhập claude.ai hoặc dùng
-  quota gói Pro/Max thay người khác. Thiết kế tránh điều này: mỗi người tự cài & tự đăng nhập Claude Code của mình;
-  app chỉ là trình điều khiển local gọi CLI trên máy họ, giống chạy script `claude -p` trong terminal. README phải ghi
-  rõ: "Bring your own Claude Code" và khuyến khích API key cho dùng tự động khối lượng lớn. Cần đọc lại điều khoản
-  hiện hành trước khi phát hành opensource.
-- Không lưu, không đọc file credential của Claude. Không gửi dữ liệu ra ngoài ngoài những gì Claude/preset tự làm.
-- Server bind `127.0.0.1`, token phiên trong cookie, chặn CORS.
-- Preset là code (chạy lệnh shell) → khi nhập preset của người khác, hiển thị toàn bộ lệnh `checks` + `permissions`
-  và yêu cầu xác nhận.
-- Cổng giấy phép tài sản (V2): sổ `assets` (path, nguồn, license); check `license-gate` chặn CC BY / ElevenLabs Free
-  cho dự án có `publish: true` (luật "không ghi công").
+- **Claude sign-in:** Anthropic's terms do not allow third-party products to *offer* claude.ai sign-in or use
+  Pro/Max plan quota on behalf of others. The design avoids this: everyone installs and signs in to their own Claude Code;
+  the app is only a local driver calling the CLI on their machine, just like running a `claude -p` script in a terminal. The README must state
+  clearly: "Bring your own Claude Code", and recommend an API key for high-volume automated use. Re-read the current terms
+  before publishing as open source.
+- Never store or read Claude's credential files. Send no data outside beyond what Claude/presets do themselves.
+- The server binds `127.0.0.1`, session token in a cookie, CORS blocked.
+- Presets are code (they run shell commands) → when importing someone else's preset, show every `checks` command + `permissions`
+  and require confirmation.
+- Asset license gate (V2): an `assets` ledger (path, source, license); a `license-gate` check blocks CC BY / ElevenLabs Free
+  for projects with `publish: true` (the "no attribution" rule).
 
 ---
 
-## 12. Lộ trình
+## 12. Roadmap
 
-| Mốc | Nội dung | Xong khi |
+| Milestone | Content | Done when |
 |---|---|---|
-| **M0** | Spec + prototype UI (tài liệu này) | Người dùng duyệt luồng màn hình |
-| **M1** | Server + SQLite + runner `claude -p` + stream log + Overview/Step đọc-only; 1 preset (TikTok short) | Chạy trọn 1 short từ app, xem log trực tiếp |
-| **M2** | Gate + Inbox + MCP studio (`ask`, `progress`, `permission`, `cost_request`) + checks + player/A-B | Duyệt/từ chối có góp ý → lượt mới; tool ElevenLabs bị chặn chờ duyệt |
-| **M3** | Quy tắc từ góp ý, preset kênh YouTube dài, nhập dự án cũ, khóa + semaphore render, chi phí | Làm 1 tập video dài thật hoàn toàn qua app |
-| **M4** | Lịch đăng, Kho ý tưởng, giao hàng `videos/`, thông báo macOS/Telegram | Lịch 2 tuần tự đề xuất slot |
-| **M5** | Opensource: README, `npx`, docs viết preset, preset mẫu trung tính (không đường dẫn cá nhân), CI | Người khác cài & chạy preset mẫu trong 10 phút |
-| Sau | YouTube Analytics → gợi ý chủ đề; upload qua YouTube API (luôn hỏi); xuất Shorts tự động từ video dài |  |
+| **M0** | Spec + UI prototype (this document) | The user approves the screen flow |
+| **M1** | Server + SQLite + `claude -p` runner + log stream + read-only Overview/Step; 1 preset (TikTok short) | One short runs end to end from the app, with a live log |
+| **M2** | Gates + Inbox + studio MCP (`ask`, `progress`, `permission`, `cost_request`) + checks + player/A-B | Approve/reject with feedback → new run; the ElevenLabs tool is blocked pending approval |
+| **M3** | Rules from feedback, long-form YouTube preset, import old projects, lock + render semaphore, costs | One real long-form episode made entirely through the app |
+| **M4** | Publishing calendar, Idea bank, `videos/` delivery, macOS/Telegram notifications | A 2-week calendar with suggested slots |
+| **M5** | Open source: README, `npx`, preset-writing docs, neutral sample presets (no personal paths), CI | Someone else installs and runs a sample preset within 10 minutes |
+| Later | YouTube Analytics → topic suggestions; upload via the YouTube API (always asks); automatic Shorts from long videos |  |
 
 ---
 
-## 13. Câu hỏi còn mở
-1. Tên dự án opensource & license (đề xuất MIT).
-2. Một session Claude cho cả dự án hay mỗi bước một session (đề xuất: chung + tóm tắt khi dài).
-3. Có cần chế độ "Claude tự đề xuất bước tiếp theo" ngoài preset (pipeline động) không — đề xuất để sau M3.
-4. Đồng bộ style bible hai chiều với SKILL.md hiện có hay chỉ xuất một chiều.
-5. Google Sheet kế hoạch Truyện ma: nhập một lần vào Kho ý tưởng hay đồng bộ thường xuyên.
+## 13. Open questions
+1. Open-source project name & license (MIT suggested).
+2. One Claude session per project or one per step (suggested: shared + summary when long).
+3. Is a "Claude proposes the next step" mode beyond presets (dynamic pipeline) needed — suggested after M3.
+4. Sync the style bible both ways with existing SKILL.md files, or export one way only.
+5. Horror-channel planning Google Sheet: import once into the Idea bank or sync regularly.
