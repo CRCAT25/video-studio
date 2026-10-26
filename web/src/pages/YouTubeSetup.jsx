@@ -73,8 +73,9 @@ function PublishTodo({ wiz, gl, first }) {
         <ul className="gw-vals">
           <Val label="Trang chủ" value={wiz.homepage} copy />
           <Val label="Chính sách quyền riêng tư" value={wiz.privacy} copy />
+          <Val label="Miền được phép" value="github.com" copy />
         </ul>
-        Để trống logo (có logo là Google bắt xác minh) → <b>Lưu</b>.
+        Miền được phép: bấm <b>Thêm miền</b>. Để trống logo (có logo là Google bắt xác minh) → <b>Lưu</b>.
       </li>
       <li>
         Trang {gl('audience', 'Đối tượng')} → <b>Xuất bản ứng dụng</b> → <b>Xác nhận</b>.
