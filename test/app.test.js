@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { createUpdater } from '../server/updater.js';
 import { buildApp, monthStartIso } from '../server/app.js';
 import { CSP, UNAUTHORIZED_MESSAGE } from '../server/auth.js';
 import { openStore } from '../server/db.js';
@@ -929,7 +930,7 @@ if (a[0] === 'auth') { console.log(JSON.stringify({ loggedIn: true, authMethod: 
 process.exit(64);
 `,
   );
-  const { value: s, logs } = await quietly(() => main(['--port', '0', '--no-open', '--dev'], { VS_HOME: vsHome, VS_TOKEN: TOKEN, VS_CLAUDE_BIN: bin }));
+  const { value: s, logs } = await quietly(() => main(['--port', '0', '--no-open', '--dev'], { VS_HOME: vsHome, VS_TOKEN: TOKEN, VS_CLAUDE_BIN: bin, VS_UPDATE_CHECK: '0' }));
   try {
     assert.equal(s.home, vsHome);
     assert.equal(s.token, TOKEN);
@@ -993,4 +994,37 @@ test('cli reset-password: xóa mật khẩu, in mã thiết lập mới', async 
   assert.equal(st2.getSetting('login.password'), null);
   assert.ok(st2.getSetting('login.setup'));
   st2.close();
+});
+
+test('update: không có updater → không báo bản mới; POST 503', async () => {
+  await makeApp();
+  const r = await req({ url: '/api/update' });
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.json().newer, false);
+  assert.equal((await req({ method: 'POST', url: '/api/update', payload: {} })).statusCode, 503);
+});
+
+test('update: có bản mới → POST chạy cập nhật; đã mới nhất → 409; restart chỉ khi chạy nền; cần token', async () => {
+  let started = 0;
+  const mk = (tag, restart = null) =>
+    createUpdater({
+      current: '0.1.0',
+      repo: 'o/r',
+      fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ tag_name: tag }) }),
+      spawnUpdate: () => started++,
+      restart,
+    });
+  await makeApp({ updater: mk('v0.1.0') });
+  assert.equal((await req({ method: 'POST', url: '/api/update', payload: {} })).statusCode, 409);
+  await app.close();
+  await makeApp({ updater: mk('v0.2.0') });
+  assert.equal((await anon({ url: '/api/update' })).statusCode, 401);
+  const s = (await req({ url: '/api/update' })).json();
+  assert.equal(s.newer, true);
+  assert.equal(s.latest, '0.2.0');
+  const p = await req({ method: 'POST', url: '/api/update', payload: {} });
+  assert.equal(p.statusCode, 200);
+  assert.equal(p.json().state, 'running');
+  assert.equal(started, 1);
+  assert.equal((await req({ method: 'POST', url: '/api/update/restart', payload: {} })).statusCode, 409);
 });

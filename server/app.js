@@ -87,7 +87,7 @@ function guidePage(distDir) {
 }
 
 // Tạo Fastify app với mọi endpoint §9.2. deps: {store, projects, runner, presets, channels, token, webDist, doctor,
-// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
+// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
 export async function buildApp({
   store,
   projects,
@@ -101,6 +101,7 @@ export async function buildApp({
   youtube = null,
   googleWizard = null,
   login = null,
+  updater = null,
   home = null,
   hub = null,
   logger = false,
@@ -267,6 +268,7 @@ export async function buildApp({
     offAccount();
     offYoutube();
     offWizard();
+    offUpdater();
   });
 
   // ---- doctor (cache 60 s; ?refresh=1 bỏ cache; lỗi không cache)
@@ -305,6 +307,22 @@ export async function buildApp({
   // ---- YouTube: đổi trạng thái → SSE 'youtube' (UI tự tải lại)
   const offYoutube = youtube && typeof youtube.on === 'function' ? youtube.on(() => sse.broadcast('youtube', {})) : () => {};
   const offWizard = googleWizard ? googleWizard.on(() => sse.broadcast('google-setup', {})) : () => {};
+  const offUpdater = updater ? updater.on(() => sse.broadcast('update', updater.status())) : () => {};
+
+  // ---- Bản mới (Release GitHub). Không có updater → coi như không có bản mới.
+  app.get('/api/update', async () => (updater ? updater.check() : { current: version, latest: null, newer: false, state: 'idle', canRestart: false }));
+  app.post('/api/update', async () => {
+    if (!updater) throw new HttpError(503, 'update_unavailable', 'Chức năng cập nhật chưa bật trên server này.');
+    const st = await updater.check();
+    if (!st.newer) throw new HttpError(409, 'update_none', 'Đang là bản mới nhất.');
+    return updater.start();
+  });
+  // Khởi động lại (chỉ khi chạy nền — launchd tự mở lại); trả lời trước rồi mới thoát.
+  app.post('/api/update/restart', async (req, reply) => {
+    if (!updater?.status().canRestart) throw new HttpError(409, 'restart_unavailable', 'Chỉ khởi động lại được khi app chạy nền — hãy tắt rồi mở lại video-studio.');
+    reply.raw.on('finish', () => setTimeout(() => updater.restart(), 100));
+    return { ok: true };
+  });
   const needWizard = () => {
     if (!googleWizard) throw new HttpError(503, 'youtube_unavailable', 'Chức năng thiết lập Google chưa bật trên server này.');
     return googleWizard;

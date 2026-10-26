@@ -12,6 +12,7 @@ export function defaultState() {
   return {
     channel: { id: 'UCfake000000000000000001', title: 'Kênh Giả', customUrl: '@kenhgia', publishedAt: '2024-01-15T00:00:00Z', subscribers: '1234', views: '56789', videos: '3', hidden: false },
     noChannel: false,
+    release: null, // Release GitHub mới nhất (/repos/:o/:r/releases/latest)
     videos: [
       { id: 'vid1', title: 'Video một', publishedAt: '2026-10-01T04:30:00Z', duration: 'PT11M30S', privacy: 'public', views: '1000', likes: '50', comments: '7' },
       { id: 'vid2', title: 'Video hai', publishedAt: '2026-10-10T04:30:00Z', duration: 'PT58S', privacy: 'public', views: '300', likes: '20', comments: '1' },
@@ -237,6 +238,11 @@ export function startFakeGoogle({ port = 0, state = defaultState() } = {}) {
             statistics: { viewCount: v.views, likeCount: v.likes, commentCount: v.comments },
           })),
       });
+    }
+    // Release mới nhất trên GitHub (state.release = null → chưa có Release).
+    if (/^\/repos\/[\w.-]+\/[\w.-]+\/releases\/latest$/.test(p)) {
+      if (!state.release) return send(res, 404, { message: 'Not Found' });
+      return send(res, 200, state.release);
     }
     if (p === '/v2/reports') {
       const q = u.searchParams;

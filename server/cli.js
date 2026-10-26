@@ -19,6 +19,7 @@ import { createGoogleWizard } from './youtube/wizard.js';
 import { createLogin, hasPassword, newSetupCode, resetPassword } from './login.js';
 import { persistentToken, runServiceCommand, startBackups } from './service.js';
 import { UpdateError, runUpdate } from './update.js';
+import { createUpdater } from './updater.js';
 
 export const DEFAULT_PORT = 4317;
 export const PORT_TRIES = 20;
@@ -224,6 +225,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   let runner = null;
   let wizard = null;
   let stopBackups = () => {};
+  let closeRef = null;
   // Lệnh `claude auth` không cần (và không được thấy) biến VS_* như token của app.
   const authEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('VS_')));
   const account = createClaudeAccount({ claudeBin, env: authEnv });
@@ -248,8 +250,16 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       downloadsDir: env.VS_DOWNLOADS ? path.resolve(expandHome(env.VS_DOWNLOADS)) : undefined,
       env: authEnv,
     });
+    // Báo bản mới từ Release GitHub (VS_UPDATE_CHECK=0 để tắt). Chạy nền: thoát mã 75 để launchd mở lại bản mới.
+    const updater = createUpdater({
+      enabled: env.VS_UPDATE_CHECK !== '0',
+      apiBase: env.VS_UPDATE_API || undefined,
+      updateBin: env.VS_UPDATE_BIN ? path.resolve(env.VS_UPDATE_BIN) : null,
+      restart: opts.service ? () => closeRef?.().finally(() => process.exit(75)) : null,
+    });
     app = await buildApp({
       store,
+      updater,
       projects,
       runner,
       presets,
@@ -290,6 +300,10 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       console.log('Vite chuyển /api, /media sang server này (CORS không mở).');
     }
 
+    updater.check().then((u) => {
+      if (u.newer) console.log(`Có bản mới v${u.latest} (đang dùng v${u.current}) — chạy: video-studio --update`);
+    });
+
     const close = async () => {
       stopBackups();
       account.dispose();
@@ -306,6 +320,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       }
       store.close();
     };
+    closeRef = close;
     return { app, port, url, token, home, close };
   } catch (e) {
     account.dispose();

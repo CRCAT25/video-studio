@@ -386,8 +386,11 @@ function ChannelCard({ c }) {
   const toast = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
+  const [typed, setTyped] = useState('');
   const [authUrl, setAuthUrl] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!c.pending) setAuthUrl(null);
@@ -411,6 +414,8 @@ function ChannelCard({ c }) {
       toast(r.revoked ? `Đã xóa kênh ${c.name}.` : 'Đã xóa kênh trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.', r.revoked ? 'ok' : 'info');
     });
 
+  // Phải gõ đúng y tên kênh (dấu, hoa/thường); chỉ chuẩn hóa NFC để bộ gõ tiếng Việt không làm lệch.
+  const nameOk = typed.normalize('NFC') === String(c.name).normalize('NFC');
   const reauth = c.status === 'reauth';
   const { lamp, text: stText } = chState(c);
 
@@ -433,7 +438,21 @@ function ChannelCard({ c }) {
               Kết nối lại
             </button>
           ) : null}
-          <button type="button" className="btn sm" onClick={() => setConfirmOff(true)} disabled={busy}>
+          <button type="button" className="btn sm" onClick={() => {
+              setLoading(true);
+              setTick((n) => n + 1);
+            }} disabled={loading} title="Lấy số liệu mới từ Google (tốn hạn mức API)">
+            {loading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới
+          </button>
+          <button
+            type="button"
+            className="btn sm danger"
+            onClick={() => {
+              setTyped('');
+              setConfirmOff(true);
+            }}
+            disabled={busy}
+          >
             Xóa kênh
           </button>
         </div>
@@ -457,7 +476,7 @@ function ChannelCard({ c }) {
       ) : null}
       {!c.pending && c.lastError ? <p className="err-note">{c.lastError.message}</p> : null}
 
-      <ChannelStats key={`${c.id}:${c.connectedAt}`} c={c} />
+      <ChannelStats key={`${c.id}:${c.connectedAt}`} c={c} tick={tick} onLoading={setLoading} />
 
       {connectOpen ? (
         <ConnectModal
@@ -473,11 +492,25 @@ function ChannelCard({ c }) {
       {confirmOff ? (
         <Modal title={`Xóa kênh ${c.name} khỏi app?`} onClose={() => setConfirmOff(false)} busy={busy}>
           <p className="note">App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.</p>
+          <form
+            id="yt-del"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (nameOk) disconnect();
+            }}
+          >
+            <label className="fld">
+              <span>
+                Gõ <b>{c.name}</b> để xác nhận
+              </span>
+              <input type="text" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} data-autofocus />
+            </label>
+          </form>
           <div className="modal-acts">
-            <button type="button" className="btn" onClick={() => setConfirmOff(false)} disabled={busy} data-autofocus>
+            <button type="button" className="btn" onClick={() => setConfirmOff(false)} disabled={busy}>
               Không
             </button>
-            <button type="button" className="btn danger" onClick={disconnect} disabled={busy}>
+            <button type="submit" form="yt-del" className="btn danger" disabled={busy || !nameOk}>
               {busy ? <span className="spinner" aria-hidden="true" /> : null} Xóa kênh
             </button>
           </div>
@@ -537,8 +570,8 @@ function ConnectModal({ title, start: begin, onClose, onStarted }) {
   );
 }
 
-// Số liệu kênh đã kết nối: ô số, biểu đồ 28 ngày, bảng video. Tự tải khi hiện; "Làm mới" gọi lại Google.
-function ChannelStats({ c }) {
+// Số liệu kênh đã kết nối: ô số, biểu đồ 28 ngày, bảng video. Tự tải khi hiện; tick tăng (nút Làm mới ở đầu thẻ) → gọi lại Google.
+function ChannelStats({ c, tick, onLoading }) {
   const [stats, setStats] = useState(null);
   const [videos, setVideos] = useState(null);
   const [err, setErr] = useState(null);
@@ -564,6 +597,12 @@ function ChannelStats({ c }) {
   useEffect(() => {
     load(false);
   }, [load]);
+  useEffect(() => {
+    if (tick) load(true);
+  }, [tick, load]);
+  useEffect(() => {
+    onLoading?.(loading);
+  }, [loading, onLoading]);
 
   const m = METRICS.find((x) => x.id === metric);
   const t = stats?.totals;
@@ -604,14 +643,13 @@ function ChannelStats({ c }) {
 
       {videos ? <VideoTable videos={videos.videos} truncated={videos.truncated} /> : null}
 
-      <div className="yt-foot">
-        <span className="muted small">
-          {stats ? <>Cập nhật {fmtRelative(stats.fetchedAt)} · Analytics thường trễ 1–2 ngày</> : null}
-        </span>
-        <button type="button" className="btn sm" onClick={() => load(true)} disabled={loading} title="Lấy số liệu mới từ Google (tốn hạn mức API)">
-          {loading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới
-        </button>
-      </div>
+      {stats ? (
+        <div className="yt-foot">
+          <span className="muted small">
+            Cập nhật {fmtRelative(stats.fetchedAt)} · Analytics thường trễ 1–2 ngày
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

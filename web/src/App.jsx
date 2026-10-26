@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import DoctorBanner from './components/DoctorBanner.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
 import ClaudeAccount, { accountResultMessage } from './components/ClaudeAccount.jsx';
 import { ToastProvider, useToast } from './components/Toast.jsx';
 import Overview from './pages/Overview.jsx';
@@ -143,6 +144,11 @@ function Shell() {
 
   // Server gửi 'change' mỗi khi state đổi → gom lại 150 ms rồi tải lại số liệu tổng.
   useSSE((msg) => {
+    if (msg.type === 'update') {
+      setUpdate(msg.data);
+      return;
+    }
+    if (msg.type === 'reconnect') api.update().then(setUpdate, () => {});
     if (msg.type === 'account') {
       setAccount(msg.data);
       return;
@@ -173,6 +179,12 @@ function Shell() {
   useEffect(() => {
     if (route.name === 'presets') loadPresets();
   }, [route.name, loadPresets]);
+
+  // Bản mới: hỏi server khi mở app (server tự cache 6 giờ).
+  const [update, setUpdate] = useState(null);
+  useEffect(() => {
+    api.update().then(setUpdate, () => {});
+  }, []);
 
   const running = overview?.stats?.running ?? 0;
   useEffect(() => {
@@ -231,6 +243,7 @@ function Shell() {
     <>
       <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} />
       <DoctorBanner doctor={doctor} error={banner} onRefresh={() => Promise.all([loadDoctor(true), loadOverview()])} onAccount={() => setAccountOpen(true)} />
+      <UpdateBanner u={update} running={running} />
       <main>{page}</main>
       {accountOpen ? (
         <ClaudeAccount doctor={doctor} account={account} running={running} onClose={() => setAccountOpen(false)} onRefresh={() => Promise.all([loadDoctor(true), loadAccount()])} />

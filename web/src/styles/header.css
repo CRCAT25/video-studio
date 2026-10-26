@@ -26,7 +26,7 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
 
 @media (max-width:880px){
   .top-in{gap:12px;padding:0 16px}
-  .doctor{padding:0 16px}
+  .doctor,.upd{padding:0 16px}
 }
 @media (max-width:520px){
   .brand span{display:none}
@@ -35,3 +35,8 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
   .acc-btn{width:32px;padding:0;justify-content:center}
   .acc-btn .acc-st{display:none}
 }
+.upd{max-width:1200px;margin:16px auto 0;padding:0 24px}
+.upd-in{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 16px;border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.upd-msg{min-width:0;flex:1;font-size:var(--fs-sm);overflow-wrap:anywhere}
+.upd-log{display:inline}
+.upd-log pre{margin:8px 0 0;max-height:200px;overflow:auto;font-size:12px;white-space:pre-wrap}

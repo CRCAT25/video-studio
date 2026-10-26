@@ -35,7 +35,8 @@ Keep the terminal window open while you use the app. Press Ctrl+C to stop it.
 Options: `video-studio --open` opens the browser for you, `video-studio --port 4318` changes the port, `video-studio --help`
 lists everything. Without `npm link`, run `npm start` inside the repo instead.
 
-Updating: run `video-studio --update` (it runs `git pull`, reinstalls dependencies when needed and rebuilds the UI), then stop the running app and start `video-studio` again. If it runs as a background service, use `video-studio service restart`.
+When a new release is published on GitHub, the app shows a banner with an **Update** button (checked every 6 hours; the terminal also prints a reminder at startup).
+Manual updating: run `video-studio --update` (it runs `git pull`, reinstalls dependencies when needed and rebuilds the UI), then stop the running app and start `video-studio` again. If it runs as a background service, use `video-studio service restart`.
 
 ## Sign-in
 
@@ -77,6 +78,7 @@ Stop any `video-studio` running on the same port before installing.
 | `VS_TOKEN` | hidden token for tests/dev (default `VS_HOME/token`) |
 | `VS_CLAUDE_BIN` | path to `claude` if it is not on PATH |
 | `VS_MODEL` | default model for steps |
+| `VS_UPDATE_CHECK` | `0` turns off the new-release check |
 
 ## Development
 
@@ -85,6 +87,16 @@ npm test                    # unit tests
 npm run e2e                 # drive the real app in Chrome (playwright-core)
 npm run dev:server          # server, prints the Vite command
 npm run dev:web             # UI (Vite)
+```
+
+### Releasing
+
+Only GitHub Releases count as new versions (users on older versions see the update banner):
+
+```sh
+npm version minor            # bumps package.json and creates tag vX.Y.Z
+git push --follow-tags
+gh release create vX.Y.Z --generate-notes
 ```
 
 License: [MIT](LICENSE). Privacy: [PRIVACY.md](PRIVACY.md). Design doc: [docs/spec.md](docs/spec.md), M1 contract: [docs/m1-contract.md](docs/m1-contract.md).

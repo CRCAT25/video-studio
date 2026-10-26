@@ -81,6 +81,8 @@ function startServer(port, home, googleBase) {
     ...process.env,
     VS_SECRETS: 'file',
     VS_GOOGLE_BASE: googleBase,
+    VS_UPDATE_API: googleBase,
+    VS_UPDATE_BIN: path.join(ROOT, 'test', 'fixtures', 'fake-update.mjs'),
     VS_HOME: home,
     VS_TOKEN: TOKEN,
     VS_CLAUDE_BIN: FAKE_BIN,
@@ -172,6 +174,7 @@ async function main() {
   let google;
   try {
     google = await startFakeGoogle();
+    google.state.release = { tag_name: 'v9.9.9', name: 'v9.9.9', html_url: 'https://github.com/CRCAT25/video-studio/releases/tag/v9.9.9' };
     const port = await freePort();
     server = startServer(port, home, google.base);
     const base = await server.ready;
@@ -273,6 +276,20 @@ async function main() {
       assert((await page.locator('.doctor[role="alert"]').count()) === 0, 'đang hiện banner doctor');
       await shot('overview-empty');
       return page.url();
+    });
+
+    await check('Bản mới: thanh báo v9.9.9 → Cập nhật → đã tải, nhắc chạy lại', async () => {
+      const bar = page.locator('.upd');
+      await bar.getByText('Có bản mới').waitFor();
+      assert((await bar.textContent()).includes('v9.9.9'), 'thiếu số bản mới');
+      const link = await bar.getByRole('link', { name: 'Xem thay đổi' }).getAttribute('href');
+      assert(link?.startsWith('https://github.com/'), `link thay đổi sai: ${link}`);
+      await shot('update-banner');
+      await bar.getByRole('button', { name: 'Cập nhật' }).click();
+      await bar.getByText('Đang cập nhật').waitFor();
+      await bar.getByText('Đã tải bản v9.9.9').waitFor({ timeout: 10_000 });
+      assert((await bar.textContent()).includes('Ctrl+C'), 'thiếu hướng dẫn chạy lại');
+      await shot('update-done');
     });
 
     await check('Modal: Tab/Shift+Tab không thoát khỏi hộp, nền inert, Esc trả lại trang', async () => {
@@ -792,7 +809,14 @@ async function main() {
       await modal.getByRole('button', { name: 'Không' }).click();
       await card.locator('.lamp.ok').waitFor();
       await card.getByRole('button', { name: 'Xóa kênh' }).click();
-      await modal.locator('.modal-acts').getByRole('button', { name: 'Xóa kênh' }).click();
+      const del = modal.locator('.modal-acts').getByRole('button', { name: 'Xóa kênh' });
+      const input = modal.getByLabel(/để xác nhận/);
+      for (const wrong of ['', 'kênh giả', 'Kenh Gia', 'Kênh Giả ']) {
+        await input.fill(wrong);
+        assert(await del.isDisabled(), `gõ "${wrong}" vẫn cho xóa`);
+      }
+      await input.fill('Kênh Giả');
+      await del.click();
       await page.locator('.toast', { hasText: 'Đã xóa kênh' }).waitFor();
       await page.locator('.card.empty', { hasText: 'Chưa có kênh nào' }).waitFor();
       assert(google.state.revoked.size >= 1, 'Google giả không nhận revoke');

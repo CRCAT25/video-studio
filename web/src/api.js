@@ -27,6 +27,7 @@ const DEFAULT_MSG = {
   invalid_client_secret: 'File client_secret.json không hợp lệ — cần client loại "Ứng dụng máy tính".',
   yt_not_configured: 'Chưa thiết lập Google Cloud.',
   yt_not_connected: 'Kênh này chưa kết nối YouTube.',
+  update_none: 'Đang là bản mới nhất.',
   yt_has_channels: 'Xóa mọi kênh trước khi xóa thiết lập Google.',
   yt_reauth: 'Google không còn chấp nhận quyền của app — bấm Kết nối lại.',
   yt_quota: 'Hết hạn mức YouTube API hôm nay — thử lại sau 14:00–15:00 giờ Việt Nam.',
@@ -90,6 +91,9 @@ const stepPath = (id, key) => `/api/projects/${enc(id)}/steps/${enc(key)}`;
 // Các hàm gọi endpoint theo hợp đồng §9.2.
 export const api = {
   health: () => request('GET', '/api/health'),
+  update: () => request('GET', '/api/update'),
+  updateStart: () => request('POST', '/api/update', {}),
+  updateRestart: () => request('POST', '/api/update/restart', {}),
   doctor: (refresh = false) => request('GET', `/api/doctor${refresh ? '?refresh=1' : ''}`),
   channels: () => request('GET', '/api/channels'),
   presets: () => request('GET', '/api/presets'),
