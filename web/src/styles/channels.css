@@ -55,7 +55,7 @@
 .yt-vtext a:hover{text-decoration:underline}
 .yt-desc{margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:var(--fs-xs);line-height:1.45;white-space:pre-line}
 .yt-mdate{display:none}
-.yt-priv{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.yt-priv{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .yt-vtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
 .yt-vtab{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 12px;font:inherit;font-weight:500;color:var(--muted);cursor:pointer}
 .yt-vtab:hover{color:var(--text)}
