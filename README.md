@@ -1,102 +1,115 @@
 # Video Studio
 
-A video workshop that runs on your own machine: it splits video production into steps, hands each step to
-Claude Code (`claude -p`), and lets you watch progress and approve results in the browser.
+A local video workshop: it splits video production into steps, runs each step with
+[Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude -p`), and lets you follow progress and approve results in your browser.
 
-All data stays on your machine: each video's files live in its project folder, while the DB and settings live in `~/.video-studio`.
-The app only listens on `127.0.0.1`, so other machines cannot reach it.
+Everything stays on your machine. The app listens on `127.0.0.1` only.
 
 ## Requirements
 
-- Node.js 20 or newer (24 recommended)
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) installed. You can sign in to Claude from inside the app.
-- macOS works best (background service, Keychain, opening the right Chrome profile). Linux/Windows run the core features.
+- [Node.js](https://nodejs.org) 20 or newer
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) (you can sign in to Claude from inside the app)
+- macOS recommended. Linux and Windows run the core features, but not the background service or Keychain.
 
-## Install (once)
+## Quick start
 
 ```sh
-git clone https://github.com/CRCAT25/video-studio.git && cd video-studio
+git clone https://github.com/CRCAT25/video-studio.git
+cd video-studio
 npm install
 npm run build
-npm link        # adds a `video-studio` command you can run from any folder
+npm link
+video-studio --open
 ```
 
-## Open the app
+The first time you open the app:
 
-Open a terminal and run:
+1. Create a password.
+2. Enter the **6-digit setup code** that the terminal prints.
+
+Keep the terminal open while you use the app. Press `Ctrl+C` to stop it.
+Next time, just run `video-studio` and open `http://127.0.0.1:4317/`.
+
+> Without `npm link`, run `npm start` inside the repo folder instead of `video-studio`.
+
+## Add a YouTube channel
+
+1. In the app, open **Kênh** and click **Thiết lập Google**. Follow the steps (this is needed only once).
+2. Click **+ Thêm kênh** and sign in with the channel's Google account.
+
+## Update
+
+The app shows a banner when a new release is out. Click **Cập nhật** there, or run:
 
 ```sh
-video-studio
+video-studio --update
 ```
 
-The terminal prints `http://127.0.0.1:4317/`. Cmd+click it to open the app.
-Keep the terminal window open while you use the app. Press Ctrl+C to stop it.
+Then restart the app: press `Ctrl+C` and run `video-studio` again.
 
-Options: `video-studio --open` opens the browser for you, `video-studio --port 4318` changes the port, `video-studio --help`
-lists everything. Without `npm link`, run `npm start` inside the repo instead.
+## Run in the background (macOS)
 
-When a new release is published on GitHub, the app shows a banner with an **Update** button (checked every 6 hours; the terminal also prints a reminder at startup).
-Manual updating: run `video-studio --update` (it runs `git pull`, reinstalls dependencies when needed and rebuilds the UI), then stop the running app and start `video-studio` again. If it runs as a background service, use `video-studio service restart`.
-
-## Sign-in
-
-- **Password** (default): the first time you open the app you create a password. To prove it is really you, that screen also
-  asks for the **6-digit setup code** printed in the terminal. After that you only need the password; the browser stays signed in for 30 days.
-- **Forgot your password:** run `video-studio reset-password` (without `npm link`: `npm start -- reset-password`), then open
-  the app and create a new password with the setup code it prints.
-- **Google** (optional): finish *Google setup* in the app, then click **Enable Google sign-in** to make yourself the owner.
-  From then on the Google button on the sign-in page only accepts that account (the password still works). The app only requests `openid` and never reads your email.
-
-## Presets and channels
-
-The repo ships a sample preset `presets/tiktok-short.yaml` and a sample channel list `presets/channels.yaml` (non-YouTube channels).
-YouTube channels are added in the app: **Channels** page → **+ Add channel** → sign in with the channel's Google account (do *Google setup* first).
-Put your own presets in `~/.video-studio/presets/` (same format). A preset with the same `id` overrides the one in the repo, and
-the `channels.yaml` there takes priority, so updating the code never touches your configuration.
-
-## Background service (macOS)
-
-The app starts when you log in and restarts itself if it stops, on fixed port 4318:
+The app starts at login, restarts if it crashes, and uses port **4318**.
 
 ```sh
-npm run service:install     # install + start
-npm run open                # open the app (prints a setup code the first time)
-npm run service:status      # check whether it is running
-npm run service:restart     # after updating the code (run npm run build first)
-npm run service:uninstall   # remove it, keeping your data
+video-studio service install     # install and start
+video-studio service open        # open in the browser
+video-studio service status      # is it running?
+video-studio service restart     # after an update
+video-studio service uninstall   # remove it (your data is kept)
 ```
 
-Logs go to `~/.video-studio/logs/server.log`. The DB is backed up daily to `~/.video-studio/backups`, keeping 7 copies.
-Stop any `video-studio` running on the same port before installing.
+- Logs: `~/.video-studio/logs/server.log`
+- Daily DB backups (7 kept): `~/.video-studio/backups`
 
-## Environment variables
+## Troubleshooting
 
-| Variable | Meaning |
+| Problem | Fix |
 |---|---|
-| `VS_HOME` | data folder (default `~/.video-studio`) |
-| `VS_PORT` | port (default 4317) |
-| `VS_TOKEN` | hidden token for tests/dev (default `VS_HOME/token`) |
-| `VS_CLAUDE_BIN` | path to `claude` if it is not on PATH |
-| `VS_MODEL` | default model for steps |
-| `VS_UPDATE_CHECK` | `0` turns off the new-release check |
+| Forgot password | `video-studio reset-password`, then open the app and use the new setup code |
+| `video-studio: command not found` | Run `npm link` inside the repo, or use `npm start` |
+| Port 4317 is busy | The app picks the next free port automatically; use the URL it prints, or `video-studio --port 5000` |
+| Service won't start | Stop any `video-studio` already running in a terminal, then `video-studio service restart` |
+| `claude` not found | `export VS_CLAUDE_BIN=/path/to/claude` |
+
+## Configuration
+
+Optional settings:
+
+| Option | Default | Description |
+|---|---|---|
+| `--port <n>` / `VS_PORT` | `4317` | Port |
+| `--open` | off | Open the browser at startup |
+| `--model <name>` / `VS_MODEL` | — | Default model for steps |
+| `VS_HOME` | `~/.video-studio` | Data folder (DB, settings, presets) |
+| `VS_CLAUDE_BIN` | `claude` on PATH | Path to Claude Code |
+| `VS_UPDATE_CHECK=0` | on | Turn off the new-release check |
+
+Run `video-studio --help` to see all options.
+
+**Your own presets:** put YAML files in `~/.video-studio/presets/`, using the same format as [`presets/`](presets).
+A preset with the same `id` overrides the built-in one, so updates never touch your config.
+
+**Google sign-in (optional):** after Google setup, click **Bật đăng nhập Google** to make your account the only one allowed.
+The password keeps working.
 
 ## Development
 
 ```sh
-npm test                    # unit tests
-npm run e2e                 # drive the real app in Chrome (playwright-core)
-npm run dev:server          # server, prints the Vite command
-npm run dev:web             # UI (Vite)
+npm test                 # unit tests
+npm run e2e              # end-to-end tests in Chrome
+npm run dev:server       # API server
+npm run dev:web          # UI with hot reload (Vite)
 ```
 
-### Releasing
-
-Only GitHub Releases count as new versions (users on older versions see the update banner):
+Release (users see the update banner):
 
 ```sh
-npm version minor            # bumps package.json and creates tag vX.Y.Z
+npm version minor
 git push --follow-tags
 gh release create vX.Y.Z --generate-notes
 ```
 
-License: [MIT](LICENSE). Privacy: [PRIVACY.md](PRIVACY.md). Design doc: [docs/spec.md](docs/spec.md), M1 contract: [docs/m1-contract.md](docs/m1-contract.md).
+## License
+
+[MIT](LICENSE) · [Privacy](PRIVACY.md) · [Design doc](docs/spec.md)
