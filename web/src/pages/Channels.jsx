@@ -24,6 +24,19 @@ const signed = (n) => (n == null ? '—' : `${n > 0 ? '+' : n < 0 ? '−' : ''}$
 const dm = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—');
 
 const QUOTA_TIP = 'Google tính điểm theo mỗi lệnh gọi, đặt lại lúc 14–15h giờ Việt Nam';
+// Mốc màu theo % đã dùng: ≤25 xanh lá, >25 xanh dương, >50 cam, >75 đỏ.
+const quotaLevel = (pct) => (pct > 75 ? 'err' : pct > 50 ? 'wait' : pct > 25 ? 'run' : 'ok');
+
+// Thanh hạn mức YouTube hôm nay.
+function QuotaBar({ used, limit }) {
+  const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+  return (
+    <div className={`quota-bar q-${quotaLevel(pct)}`} role="progressbar" aria-label="Hạn mức YouTube hôm nay" aria-valuemin={0} aria-valuemax={limit} aria-valuenow={used}>
+      <span style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 const PRIVACY = { public: 'Công khai', unlisted: 'Không công khai', private: 'Riêng tư' };
 const METRICS = [
   { id: 'views', label: 'Lượt xem', fmt: fmtNum },
@@ -106,10 +119,14 @@ export default function Channels({ yt, error, onReload }) {
           <h1>Kênh YouTube</h1>
           <p className="muted small">
             Hạn mức YouTube hôm nay: <b>{fmtNum(q.used)}</b> / {fmtNum(q.limit)} điểm{' '}
-            <span className="info-tip" tabIndex={0} title={QUOTA_TIP} aria-label={QUOTA_TIP}>
+            <span className="info-tip" tabIndex={0} role="button" aria-describedby="quota-tip">
               ⓘ
+              <span className="info-pop" role="tooltip" id="quota-tip">
+                {QUOTA_TIP}
+              </span>
             </span>
           </p>
+          <QuotaBar used={q.used} limit={q.limit} />
         </div>
         <div className="acts">
           <a className="btn" href="#/channels/setup">
