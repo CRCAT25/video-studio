@@ -1,0 +1,12 @@
+/* Gộp toàn bộ CSS của Video Studio (phong cách "siêu cổ máy / nhà máy sản xuất phim") */
+@import "./tokens.css";
+@import "./base.css";
+@import "./header.css";
+@import "./flow.css";
+@import "./overview.css";
+@import "./step.css";
+@import "./presets.css";
+@import "./modal.css";
+@import "./account.css";
+@import "./channels.css";
+@import "./select.css";

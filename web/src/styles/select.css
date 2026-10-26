@@ -1,0 +1,34 @@
+/* ===== Ô chọn tự vẽ (components/Select.jsx) ===== */
+.sel{position:relative;min-width:0}
+.sel-btn{display:flex;align-items:center;gap:8px;width:100%;height:36px;padding:0 10px 0 12px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-3);color:var(--text);font:inherit;font-size:var(--fs-md);text-align:left;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.sel-btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--text) 28%,var(--line-2))}
+.sel-btn:focus-visible,.sel.open .sel-btn{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.sel-btn:disabled{opacity:.55;cursor:not-allowed}
+.sel-val{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.sel-ph{color:var(--dim)}
+.sel-chev{flex:none;color:var(--muted);transition:transform .15s}
+.sel.open .sel-chev{transform:rotate(180deg)}
+
+.sel-list{position:fixed;z-index:55;margin:0;padding:4px;list-style:none;overflow-y:auto;overscroll-behavior:contain;background:var(--surface-hi);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--shadow-lg);animation:sel-in .12s ease-out}
+@keyframes sel-in{from{opacity:0;transform:translateY(-4px)}}
+.sel-grp{padding:8px 10px 4px;font-size:var(--fs-xs);font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+.sel-grp:not(:first-child){margin-top:4px;border-top:1px solid var(--line);padding-top:10px}
+.sel-opt{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 10px;border-radius:6px;font-size:var(--fs-md);color:var(--text);cursor:pointer}
+.sel-opt.act{background:var(--surface-2)}
+.sel-opt[aria-selected="true"]{font-weight:500}
+.sel-tick{flex:none;margin-left:auto;color:var(--accent-tx);visibility:hidden}
+.sel-opt[aria-selected="true"] .sel-tick{visibility:visible}
+
+.sel-lb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-meta{flex:none;font-size:var(--fs-sm);font-weight:400;font-variant-numeric:tabular-nums;color:var(--dim);white-space:nowrap}
+.sel-val .sel-meta{margin-left:auto}
+.sel-badge{flex:none;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-tx);font-size:var(--fs-xs);font-weight:500;white-space:nowrap}
+.sel-badge.ok{background:var(--ok-soft);color:var(--ok)}
+.sel-dot{flex:none;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 1.5px color-mix(in srgb,var(--text) 22%,transparent)}
+.sel-ic{flex:none;display:inline-flex;width:14px;color:var(--muted)}
+.sel-opt .sel-meta{margin-left:2px}
+
+@media (max-width:520px){
+  .sel-meta{display:none}
+  .sel-opt{min-height:40px}
+}

@@ -1,0 +1,40 @@
+/* ===== Token màu, chữ, bo góc — theo OS (sáng/tối), đổi tay bằng nút ◐ =====
+   Be Vietnam Pro cho chữ, chữ số mượn Figtree (giống LTShipping); mono hệ thống chỉ cho log, id, đường dẫn. Không tải font từ CDN. */
+/* Chữ số (0–9 % + , - . / :) lấy từ Figtree cho gọn, phần chữ vẫn Be Vietnam Pro. */
+@font-face{font-family:"VS Digits";font-style:normal;font-display:swap;font-weight:300 500;src:url(../../../node_modules/@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2) format("woff2-variations");unicode-range:U+0025,U+002B-003A}
+:root{
+  --f-ui:"VS Digits","Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  /* Thang cỡ chữ duy nhất của app — không dùng cỡ lẻ ngoài 6 bậc này. */
+  --fs-xs:12px; --fs-sm:13px; --fs-md:14px; --fs-lg:16px; --fs-xl:20px; --fs-2xl:24px;
+  --bg:#0b0c0e;
+  --surface:#141518; --surface-hi:#18191d; --surface-2:#1d1f23; --surface-3:#0f1012;
+  --line:#26282d; --line-2:#363940;
+  --text:#ececef; --muted:#a3a3ad; --dim:#8b8b95;
+  --accent:#3b82f6; --accent-bg:#2563eb; --accent-tx:#7aa7ff; --accent-ink:#fff; --accent-soft:rgba(59,130,246,.14); --link:#7aa7ff;
+  --ok:#34c76f; --run:#6aa5ff; --wait:#f0a43a; --ask:#f0a43a; --err:#f87171; --idle:#5c5f68;
+  --ok-soft:rgba(52,199,111,.12); --run-soft:rgba(106,165,255,.12); --wait-soft:rgba(240,164,58,.13); --ask-soft:rgba(240,164,58,.13); --err-soft:rgba(248,113,113,.13);
+  --c:var(--idle); --lit:0;
+  --shadow:0 1px 2px rgba(0,0,0,.3); --shadow-lg:0 12px 32px rgba(0,0,0,.45); --r:8px;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#f7f7f8;
+  --surface:#fff; --surface-hi:#fff; --surface-2:#f3f4f6; --surface-3:#fff;
+  --line:#e4e4e7; --line-2:#d4d4d8;
+  --text:#18181b; --muted:#52525b; --dim:#686870;
+  --accent:#2563eb; --accent-bg:#2563eb; --accent-tx:#1d4ed8; --accent-soft:rgba(37,99,235,.08); --link:#1d4ed8;
+  --ok:#15803d; --run:#1d4ed8; --wait:#b45309; --ask:#b45309; --err:#b91c1c; --idle:#a1a1aa;
+  --ok-soft:rgba(21,128,61,.08); --run-soft:rgba(29,78,216,.07); --wait-soft:rgba(180,83,9,.08); --ask-soft:rgba(180,83,9,.08); --err-soft:rgba(220,38,38,.07);
+  --shadow:0 1px 2px rgba(16,24,40,.05); --shadow-lg:0 12px 32px rgba(16,24,40,.14);
+  color-scheme:light;
+}
+
+/* ===== Màu trạng thái: xanh lá = xong, xanh dương = đang chạy, cam = chờ bạn, đỏ = lỗi, còn lại xám ===== */
+.s-done{--c:var(--ok);--lit:1}
+.s-running{--c:var(--run);--lit:1}
+.s-needs_input,.s-manual{--c:var(--ask);--lit:1}
+.s-failed{--c:var(--err);--lit:1}
+.s-ready,.s-pending,.s-stale,.s-stopped,.s-plan{--c:var(--idle);--lit:0}
+.L-run{--c:var(--run);--lit:1} .L-ask,.L-wait{--c:var(--ask);--lit:1}
+.L-err{--c:var(--err);--lit:1} .L-ok{--c:var(--ok);--lit:1} .L-idle{--c:var(--idle);--lit:0}

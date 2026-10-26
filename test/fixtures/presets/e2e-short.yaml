@@ -1,0 +1,53 @@
+# Preset test cho e2e/runner (không gọi skill thật, không tốn tiền) — hợp đồng M1 §12.
+id: e2e-short
+name: E2E short (test)
+channel: tiktok
+format: short
+project_dir: projects/{slug}
+vars:
+  duration: 30
+
+permissions:
+  allow: ["Edit", "Write", "Read", "Bash(test *)", "Bash(ls *)"]
+  ask: ["Bash(*elevenlabs*)"]
+  deny: ["Bash(sudo *)", "Bash(git push*)"]
+
+defaults:
+  gate: { mode: manual }
+  timeout: 10m
+
+steps:
+  - id: hook
+    name: Lời hứa & hook
+    prompt: |
+      Viết lời đọc ~{vars.duration}s cho ý tưởng "{title}" vào script.md. {feedback}
+    outputs: [script.md]
+    gate: { mode: manual }
+
+  - id: bible
+    name: Visual bible & project.json
+    prompt: |
+      Viết bible.md và project.json (có mảng "scenes"). {feedback}
+    outputs: [project.json, bible.md]
+    checks:
+      - name: project_json
+        run: test -s project.json
+    gate: { mode: auto_if_checks }
+
+  - id: voice
+    name: Lồng tiếng
+    prompt: |
+      Đọc script.md thành giọng nói, lưu vào audio/. {feedback}
+    outputs: ["audio/*.wav"]
+    cost: { service: elevenlabs, estimate: "chars(script.md)", always_ask: true }
+    gate: { mode: manual }
+
+  - id: deliver
+    name: Giao bản cuối
+    prompt: |
+      Viết caption đăng TikTok vào exports/caption.md. {feedback}
+    outputs: ["exports/caption.md"]
+    checks:
+      - name: outputs
+        run: studio-check outputs
+    gate: { mode: auto_if_checks }

@@ -1,0 +1,10 @@
+# Danh sách kênh — preset trỏ tới kênh qua trường `channel`.
+# Kênh riêng của bạn: chép file này vào ~/.video-studio/presets/channels.yaml rồi sửa (bản đó được ưu tiên).
+# videos_dir: thư mục chứa các video đã giao (mỗi video một thư mục con có publish.md) — dùng cho "Tải video lên".
+- id: youtube
+  name: Kênh YouTube
+  platform: youtube
+  videos_dir: ~/Videos/youtube
+- id: tiktok
+  name: TikTok
+  platform: tiktok
