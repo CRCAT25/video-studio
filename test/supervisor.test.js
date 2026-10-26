@@ -53,11 +53,22 @@ test('supervise: con thoát 75 → mở lại cùng cổng, không --open; thoá
 test('supervise: Ctrl+C chuyển cho con (mỗi lần một tín hiệu), con thoát 75 lúc đang tắt → không mở lại', async () => {
   const calls = [];
   const signals = new EventEmitter();
-  const done = supervise({ argv: [], spawnChild: (a) => fakeChild(a, calls), log: () => {}, signals });
+  const done = supervise({ argv: [], forward: true, spawnChild: (a) => fakeChild(a, calls), log: () => {}, signals });
   signals.emit('SIGINT', 'SIGINT');
   signals.emit('SIGTERM', 'SIGTERM');
   assert.deepEqual(calls[0].signals, ['SIGINT', 'SIGTERM']);
   calls[0].exit(RESTART_CODE);
   await done;
+  assert.equal(calls.length, 1);
+});
+
+test('supervise (Windows): Ctrl+C không kill con (con tự nhận), chờ con tắt rồi không mở lại', async () => {
+  const calls = [];
+  const signals = new EventEmitter();
+  const done = supervise({ argv: [], forward: false, spawnChild: (a) => fakeChild(a, calls), log: () => {}, signals });
+  signals.emit('SIGINT', 'SIGINT');
+  assert.deepEqual(calls[0].signals, []);
+  calls[0].exit(RESTART_CODE);
+  assert.equal(await done, RESTART_CODE);
   assert.equal(calls.length, 1);
 });

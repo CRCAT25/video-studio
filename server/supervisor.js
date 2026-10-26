@@ -36,13 +36,16 @@ export function exitWithParent(close) {
   });
 }
 
-// Cha: chạy con, mở lại khi con thoát mã 75; trả về mã thoát cuối. Ctrl+C/SIGTERM chuyển cho con (con ở nhóm tiến trình riêng
-// nên terminal không gửi trùng). spawnChild(args) để test thay fork.
+// Cha: chạy con, mở lại khi con thoát mã 75; trả về mã thoát cuối. macOS/Linux: con ở nhóm tiến trình riêng, Ctrl+C/SIGTERM
+// do cha chuyển cho con. Windows: Ctrl+C tới mọi tiến trình cùng cửa sổ, kill() lại là tắt cứng → cha chỉ chờ con tự tắt.
+// spawnChild(args) để test thay fork.
 export function supervise({
   script,
   argv = [],
   env = process.env,
-  spawnChild = (args) => fork(script, args, { env: { ...env, [SUPERVISED_ENV]: '1' }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'], detached: true }),
+  forward = process.platform !== 'win32',
+  spawnChild = (args) =>
+    fork(script, args, { env: { ...env, [SUPERVISED_ENV]: '1' }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'], detached: forward, windowsHide: true }),
   log = (s) => console.log(s),
   signals = process,
 } = {}) {
@@ -52,8 +55,8 @@ export function supervise({
     let stopping = false;
     const onSignal = (sig) => {
       stopping = true;
-      if (child && child.exitCode == null && child.signalCode == null) child.kill(sig);
-      else finish(0);
+      if (!child || child.exitCode != null || child.signalCode != null) finish(0);
+      else if (forward) child.kill(sig);
     };
     const finish = (code) => {
       signals.off?.('SIGINT', onSignal);
