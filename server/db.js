@@ -72,7 +72,13 @@ CREATE TABLE IF NOT EXISTS yt_quota(day TEXT PRIMARY KEY, units INTEGER NOT NULL
 const SCHEMA_V4 = 'ALTER TABLE projects ADD COLUMN pipeline TEXT;';
 
 // v6: người dùng đã duyệt kết quả của bước (0/1); bắt đầu lượt chạy mới thì xóa dấu duyệt.
-const SCHEMA_V6 = 'ALTER TABLE steps ADD COLUMN approved INTEGER NOT NULL DEFAULT 0;';
+// Dữ liệu cũ: bước đã xong mà bước kế đã chạy/xong thì coi như đã duyệt.
+const SCHEMA_V6 = `
+ALTER TABLE steps ADD COLUMN approved INTEGER NOT NULL DEFAULT 0;
+UPDATE steps SET approved = 1 WHERE state = 'done' AND EXISTS (
+  SELECT 1 FROM steps n WHERE n.project_id = steps.project_id AND n.ord > steps.ord
+    AND n.state IN ('done','running','failed','needs_input','stale'));
+`;
 
 // v5: token của các lượt claude ngoài bước video (Trợ lý AI, Kiểm tra mức dùng) — chỉ số đếm, không nội dung.
 const SCHEMA_V5 = `

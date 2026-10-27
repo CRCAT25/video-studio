@@ -30,6 +30,7 @@ function normalize(s, staticMode) {
     title: `${tr(s.name)} — ${STATE_LABEL[st] || st} · ${tr('cổng')}: ${gateLabel({ mode: s.gate_mode || 'manual' })}${s.has_cost ? ` · ${tr('tốn tiền')}` : ''}${s.manual ? ` · ${tr('việc tay')}` : ''}`,
     cost: !!s.has_cost,
     state: st,
+    unapproved: st === 'done' && s.approved === false,
     pct: st === 'running' ? s.run?.progress_pct : undefined,
   };
 }
@@ -94,7 +95,7 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
                 {staticMode ? null : <i className="lamp" />}
               </span>
               <span className="nm">{tr(it.name)}</span>
-              <span className="st">{it.label}</span>
+              <span className="st">{it.label}{it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}</span>
               {it.state === 'running' ? (
                 it.pct != null ? <i className="pg" style={{ width: `${Math.max(3, Math.min(100, Number(it.pct)))}%` }} /> : <i className="pg ind" />
               ) : null}
