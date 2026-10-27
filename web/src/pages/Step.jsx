@@ -453,6 +453,22 @@ function StepPage({ projectId, stepKey }) {
     }
   };
 
+  const doApprove = async () => {
+    setBusy('approve');
+    setActionErr(null);
+    try {
+      const v = await api.approveStep(projectId, stepKey);
+      if (v && v.step) setView(v);
+      else await load();
+      toast(t('Đã duyệt "{n}".', { n: step.name }), 'ok');
+    } catch (e) {
+      setActionErr(e.message);
+      toast(e.message, 'err');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const doComplete = async () => {
     setBusy('complete');
     setActionErr(null);
@@ -523,12 +539,19 @@ function StepPage({ projectId, stepKey }) {
   const nextStep = idx >= 0 ? (project.steps || [])[idx + 1] : null;
   let nextBtn = null;
   if (st === 'done' && nextStep) {
-    // Bước sau đã chạy (không còn ở trạng thái chờ) → đã duyệt rồi: chỉ còn là nút chuyển bước.
-    const approved = !['ready', 'pending', 'manual'].includes(nextStep.state);
     nextBtn = (
-      <button key="next" type="button" className={`btn${approved ? '' : ' primary'} tab-next`} onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Kết quả ổn — mở bước "{n}"', { n: nextStep.name })}>
-        {approved ? t('Sang bước tiếp →') : t('Duyệt · sang bước tiếp →')}
-      </button>
+      <div key="next" className="tab-next-grp">
+        {step.approved ? (
+          <span className="approved-tag" title={t('Bạn đã duyệt kết quả bước này')}>{t('✓ Đã duyệt')}</span>
+        ) : (
+          <button type="button" className="btn primary" onClick={doApprove} disabled={!!busy} title={t('Xác nhận kết quả bước này ổn')}>
+            {busy === 'approve' ? <span className="spinner" aria-hidden="true" /> : null}{t('Duyệt')}
+          </button>
+        )}
+        <button type="button" className="btn" onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Mở bước "{n}"', { n: nextStep.name })}>
+          {t('Sang bước tiếp →')}
+        </button>
+      </div>
     );
   }
   const doneUpto = (project.steps || []).slice(0, Math.max(0, idx) + 1).filter((x) => x.state === 'done').length;

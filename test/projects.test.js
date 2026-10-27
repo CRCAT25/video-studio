@@ -93,7 +93,7 @@ test('create: slug tự sinh, dir tương đối tính từ home, steps ban đ�
   assert.equal(v.running_run_id, null);
   assert.deepEqual(v.costs, { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, usd: null, runs: 0 });
   const voice = v.steps[2];
-  assert.deepEqual(Object.keys(voice).sort(), ['gate_mode', 'has_cost', 'key', 'manual', 'model', 'name', 'ord', 'outputs', 'run', 'state'].sort());
+  assert.deepEqual(Object.keys(voice).sort(), ['approved', 'gate_mode', 'has_cost', 'key', 'manual', 'model', 'name', 'ord', 'outputs', 'run', 'state'].sort());
   assert.equal(voice.has_cost, true);
   assert.equal(voice.gate_mode, 'manual');
   assert.equal(voice.manual, false);
@@ -418,6 +418,18 @@ test('complete: các state cho phép, bước kế ready/manual, 409 khi không 
   assert.equal(projects.view(id).status, 'done');
   expectHttp(() => projects.complete('khong-co', 'hook'), 404, 'not_found');
   expectHttp(() => projects.complete(id, 'khong-co'), 404, 'not_found');
+});
+
+test('approve: chỉ bước done; chạy lại thì xóa dấu duyệt', () => {
+  const { id } = mk();
+  expectHttp(() => projects.approve(id, 'hook'), 409, 'not_runnable'); // ready
+  projects.complete(id, 'hook');
+  assert.equal(projects.view(id).steps[0].approved, false);
+  assert.equal(projects.approve(id, 'hook').step.approved, true);
+  assert.equal(projects.view(id).steps[0].state, 'done');
+  projects.beginRun(id, 'hook', {});
+  assert.equal(projects.view(id).steps[0].approved, false);
+  expectHttp(() => projects.approve('khong-co', 'hook'), 404, 'not_found');
 });
 
 test('bước manual: tới lượt → state manual, không chạy được, đánh dấu xong → bước kế', () => {

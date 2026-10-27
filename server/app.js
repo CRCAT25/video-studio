@@ -974,6 +974,12 @@ export async function buildApp({
     return view;
   });
 
+  app.post('/api/projects/:id/steps/:key/approve', async (req) => {
+    const view = projects.approve(req.params.id, req.params.key);
+    sse.broadcast('change', { projectId: req.params.id });
+    return view;
+  });
+
   app.get('/api/runs/:id/events', async (req) => {
     const run = store.getRun(req.params.id);
     if (!run) throw notFound('Không tìm thấy lượt chạy.');

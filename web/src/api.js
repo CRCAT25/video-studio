@@ -157,6 +157,7 @@ export const api = {
   saveDistill: (id, key, body) => request('POST', `${stepPath(id, key)}/distill/save`, body),
   grantPermission: (id, tool, scope = 'project') => request('POST', `/api/projects/${enc(id)}/permissions`, { tool, scope }),
   stopRun: (runId) => request('POST', `/api/runs/${enc(runId)}/stop`, {}),
+  approveStep: (id, key) => request('POST', `${stepPath(id, key)}/approve`, {}),
   completeStep: (id, key) => request('POST', `${stepPath(id, key)}/complete`, {}),
   account: () => request('GET', '/api/claude/account'),
   claudeIdentity: () => request('GET', '/api/claude/identity'),

@@ -158,6 +158,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
       name: s.name,
       ord: s.ord,
       state: s.state,
+      approved: !!s.approved,
       gate_mode: ps?.gate?.mode ?? 'manual',
       has_cost: !!ps?.cost,
       manual: !!ps?.manual,
@@ -443,7 +444,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
         feedback: typeof feedback === 'string' && feedback.trim() ? feedback : null,
         allow_paid: allowPaid === true,
       });
-      store.updateStep(s.id, { state: 'running', current_run_id: r.id });
+      store.updateStep(s.id, { state: 'running', current_run_id: r.id, approved: 0 });
       if (prev === 'done' || prev === 'stale') {
         for (const later of store.listSteps(id)) {
           if (later.ord <= s.ord) continue;
@@ -525,10 +526,22 @@ export function createProjects({ store, presets, channels, home } = {}) {
       }
       const blocker = firstBlockingEarlier(id, s);
       if (blocker) throw new HttpError(409, 'not_runnable', `Bước trước chưa xong: "${blocker.name}".`);
-      store.updateStep(s.id, { state: 'done' });
+      store.updateStep(s.id, { state: 'done', approved: 0 });
       advanceNext(p, s, presetFor(p));
       recomputeStatus(id);
     });
+    snapshotSafe(id);
+    return stepView(id, key);
+  }
+
+  // Người dùng duyệt kết quả của bước đã xong (chỉ ghi dấu duyệt, không đổi trạng thái); trả StepView.
+  function approve(id, key) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    const s = store.getStep(id, key);
+    if (!s) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${key}" trong dự án "${id}".`);
+    if (s.state !== 'done') throw new HttpError(409, 'not_runnable', 'Chỉ duyệt được bước đã xong.');
+    store.updateStep(s.id, { approved: 1 });
     snapshotSafe(id);
     return stepView(id, key);
   }
@@ -882,6 +895,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     beginRun,
     finishRun,
     complete,
+    approve,
     recoverOnStartup,
     abandonRun,
     writeSnapshot,

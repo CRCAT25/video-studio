@@ -26,7 +26,7 @@ function seed(id = 'p1', steps = ['a', 'b']) {
 
 test('tạo schema v5, WAL, foreign_keys, busy_timeout; tạo thư mục cha', () => {
   assert.ok(fs.existsSync(path.join(tmp, 'sub', 'studio.db')));
-  assert.equal(store.db.pragma('user_version', { simple: true }), 5);
+  assert.equal(store.db.pragma('user_version', { simple: true }), 6);
   assert.equal(store.db.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(store.db.pragma('foreign_keys', { simple: true }), 1);
   assert.equal(store.db.pragma('busy_timeout', { simple: true }), 5000);
@@ -255,10 +255,11 @@ test('token_usage: ghi theo nguồn, tổng từ mốc thời gian gồm cả ru
 test('nâng cấp DB v4 → v5 giữ dữ liệu, thêm bảng token_usage', () => {
   seed();
   store.db.exec('DROP TABLE token_usage');
+  store.db.exec('ALTER TABLE steps DROP COLUMN approved');
   store.db.pragma('user_version = 4');
   store.close();
   store = openStore(path.join(tmp, 'sub', 'studio.db'));
-  assert.equal(store.db.pragma('user_version', { simple: true }), 5);
+  assert.equal(store.db.pragma('user_version', { simple: true }), 6);
   assert.equal(store.listProjects().length, 1);
   store.addTokenUsage('check', { output_tokens: 2 });
   assert.equal(store.tokenTotals('2000-01-01').check.total, 2);

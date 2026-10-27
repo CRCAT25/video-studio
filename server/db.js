@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS projects(
@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS yt_quota(day TEXT PRIMARY KEY, units INTEGER NOT NULL
 // v3: đăng nhập Google — chỉ lưu băm (chủ app, phiên); không có email/tên/token.
 // V4: bản chụp quy trình (JSON) của từng dự án — sửa/xóa mẫu không ảnh hưởng dự án đã tạo.
 const SCHEMA_V4 = 'ALTER TABLE projects ADD COLUMN pipeline TEXT;';
+
+// v6: người dùng đã duyệt kết quả của bước (0/1); bắt đầu lượt chạy mới thì xóa dấu duyệt.
+const SCHEMA_V6 = 'ALTER TABLE steps ADD COLUMN approved INTEGER NOT NULL DEFAULT 0;';
 
 // v5: token của các lượt claude ngoài bước video (Trợ lý AI, Kiểm tra mức dùng) — chỉ số đếm, không nội dung.
 const SCHEMA_V5 = `
@@ -137,6 +140,7 @@ function migrate(db) {
     if (v < 3) db.exec(SCHEMA_V3);
     if (v < 4) db.exec(SCHEMA_V4);
     if (v < 5) db.exec(SCHEMA_V5);
+    if (v < 6) db.exec(SCHEMA_V6);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
 }
