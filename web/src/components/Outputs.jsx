@@ -164,7 +164,9 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
             {KIND_LABEL[kind] || kind} <span className="num dim">{arr.length}</span>
           </h2>
           {kind === 'video'
-            ? arr.map((a) => (
+            ? (
+              <div className={arr.length > 1 ? 'vids' : undefined}>
+              {arr.map((a) => (
                 <div key={a.id ?? a.path}>
                   <div className="player">
                     <video controls preload="metadata" src={srcOf(projectId, a.path)} />
@@ -181,7 +183,9 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
                     <Meta a={a} />
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
+            )
             : null}
           {kind === 'audio'
             ? arr.map((a) => (

@@ -106,6 +106,8 @@ summary.sum{font-size:var(--fs-sm);font-weight:500;color:var(--muted)}
 /* Đầu ra */
 .player{border-radius:8px;position:relative;overflow:hidden;background:#000;border:1px solid var(--line);margin:0 0 12px}
 .player video{display:block;width:100%;max-height:70vh;background:#000}
+.vids{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+@media(max-width:900px){.vids{grid-template-columns:1fr}}
 .player .cap{position:absolute;left:12px;top:12px;color:#fff;font:var(--fs-xs) var(--f-mono);background:rgba(0,0,0,.55);padding:2px 8px;border-radius:4px;max-width:calc(100% - 24px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .out-group{margin-bottom:18px}
 .out-group:last-child,.text-out:last-child{margin-bottom:0}
