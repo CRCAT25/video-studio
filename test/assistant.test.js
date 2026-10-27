@@ -83,7 +83,7 @@ test('MCP: initialize giữ protocolVersion, tools/list, ping, method lạ, noti
   assert.equal(init.result.serverInfo.name, 'studio');
   assert.equal((await handle({ id: 2, method: 'initialize' })).result.protocolVersion, '2024-11-05');
   const list = await handle({ id: 3, method: 'tools/list' });
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait', 'project_images', 'view_images', 'make_short']);
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait', 'project_images', 'view_images', 'make_short', 'approve']);
   assert.deepEqual((await handle({ id: 4, method: 'ping' })).result, {});
   assert.equal((await handle({ id: 5, method: 'bogus' })).error.code, -32601);
   assert.equal(await handle({ method: 'notifications/initialized' }), null);
@@ -126,7 +126,7 @@ test('MCP serve: đọc từng dòng, JSON lỗi → -32700, trả lời theo id
   await until(() => lines.length === 3, 2000);
   assert.deepEqual(lines.find((l) => l.id === 1).result, {});
   assert.equal(lines.find((l) => l.id === null).error.code, -32700);
-  assert.equal(lines.find((l) => l.id === 2).result.tools.length, 8);
+  assert.equal(lines.find((l) => l.id === 2).result.tools.length, 9);
 });
 
 // ---------- tham số + vòng đời lượt
@@ -157,7 +157,6 @@ test('lượt chat thật qua fake-claude → MCP (env từ file cấu hình) �
   assert.throws(() => assistant.send('   '), { status: 400 });
   const s = assistant.send('đặt thời lượng 60', { tabId: 'tab-a' });
   assert.equal(s.busy, true);
-  assert.throws(() => assistant.send('nữa'), { status: 409, code: 'assistant_busy' });
   await until(() => !assistant.state().busy);
   assert.deepEqual(calls.map((c) => [c.tool, c.tabId]), [['read_page', 'tab-a'], ['click', 'tab-a'], ['fill', 'tab-a']]);
   assert.deepEqual(calls[1].args, { ref: 1 });
@@ -293,7 +292,6 @@ test('lịch sử: Cuộc mới giữ cuộc cũ, mở lại, xóa; model/effort
   assistant.settings({ model: 'haiku', effort: 'low' });
   assistant.send('câu một', { tabId: 't' });
   assert.throws(() => assistant.settings({ model: 'opus' }), /đang làm/);
-  assert.throws(() => assistant.open('x'), /đang làm/);
   await until(() => !assistant.state().busy);
   const first = assistant.state().chatId;
   const log = readLog()[0];
@@ -389,4 +387,33 @@ test('extractFrames: lấy đủ khung hình từ video thật (cần ffmpeg)', 
   assert.equal(Buffer.from(r.frames[0].data, 'base64').subarray(0, 2).toString('hex'), 'ffd8');
   fs.writeFileSync(path.join(home, 'bad.mp4'), 'nope');
   await assert.rejects(extractFrames(path.join(home, 'bad.mp4'), 'bad.mp4'), { status: 400 });
+});
+
+test('hàng đợi: gửi khi bận thì xếp hàng rồi tự chạy; lệnh /help /cost không gọi claude; chạy song song hai cuộc', async () => {
+  const url = await startHttp();
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url, claudeHome: path.join(home, 'nohome') });
+  fakeBrowser(assistant);
+  assistant.send('một', { tabId: 't' });
+  assert.deepEqual(assistant.send('hai', { tabId: 't' }).queue, ['hai']);
+  await until(() => assistant.state().messages.filter((m) => m.role === 'user').length === 2 && !assistant.state().busy);
+  assert.equal(readLog().length, 2);
+  const n = assistant.command('cost').messages.at(-1);
+  assert.equal(n.role, 'note');
+  assert.match(assistant.send('/help').messages.at(-1).text, /\/compact/);
+  assert.equal(readLog().length, 2, 'lệnh có sẵn không chạy claude');
+  assert.equal(assistant.send('/mode plan').mode, 'plan');
+  assert.throws(() => assistant.settings({ mode: 'root' }), /không hợp lệ/);
+  const c1 = assistant.state().chatId;
+  assistant.send('lập kế hoạch', { tabId: 't' });
+  const c2 = assistant.reset().chatId;
+  assert.notEqual(c1, c2);
+  assert.equal(assistant.state().busy, false, 'cuộc mới rảnh dù cuộc cũ đang chạy');
+  assert.equal(assistant.list().find((c) => c.id === c1).busy, true);
+  await until(() => !assistant.list().find((c) => c.id === c1).busy);
+  assistant.rename(c1, 'Kế hoạch A');
+  assistant.pin(c1);
+  const l = assistant.list();
+  assert.equal(l[0].id, c1);
+  assert.equal(l[0].pinned, true);
+  assert.equal(assistant.list('kế hoạch a').length, 1);
 });

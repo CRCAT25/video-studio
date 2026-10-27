@@ -90,6 +90,17 @@ export const TOOLS = [
   },
 ];
 
+// Tool hỏi quyền cho --permission-prompt-tool: claude gọi khi cần sửa file / chạy lệnh; trả JSON allow/deny theo người dùng.
+export const PERMISSION_TOOL = {
+  name: 'approve',
+  description: 'Nội bộ: xin người dùng cho phép một thao tác (sửa file, chạy lệnh…). Không gọi trực tiếp.',
+  inputSchema: {
+    type: 'object',
+    properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
+    required: ['tool_name', 'input'],
+  },
+};
+
 const text = (t, isError = false, images = []) => ({
   content: [...images.map((i) => ({ type: 'image', data: i.data, mimeType: i.mimeType })), { type: 'text', text: String(t) }],
   ...(isError ? { isError: true } : {}),
@@ -129,10 +140,15 @@ export async function handle(msg, { url, key, fetchFn } = {}) {
     case 'ping':
       return reply({});
     case 'tools/list':
-      return reply({ tools: TOOLS });
+      return reply({ tools: [...TOOLS, PERMISSION_TOOL] });
     case 'tools/call': {
       const name = msg.params?.name;
       const args = msg.params?.arguments || {};
+      if (name === PERMISSION_TOOL.name) {
+        // phản hồi phải là JSON {behavior:'allow',updatedInput}|{behavior:'deny',message}; app lo phần hỏi người dùng
+        const r = await forward({ url, key, tool: name, args, fetchFn });
+        return reply(text(r.isError ? JSON.stringify({ behavior: 'deny', message: r.text }) : r.text));
+      }
       if (!TOOLS.some((t) => t.name === name)) return reply(text(`Không có tool ${name}.`, true));
       if (name === 'wait') {
         const ms = Math.min(WAIT_MAX_MS, Math.max(100, Number(args.ms) || 1500));

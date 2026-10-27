@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildApp } from './app.js';
 import { createAssistant } from './assistant.js';
+import { createClaudeFiles } from './claude-files.js';
 import { createShortTools } from './shorts.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
@@ -287,6 +288,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       doctor: () => runDoctor({ claudeBin }),
       account,
       assistant,
+      claudeFiles: createClaudeFiles({ claudeBin, env: authEnv }),
       usage,
       skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
       distill: createDistill({ claudeBin, env: authEnv }),

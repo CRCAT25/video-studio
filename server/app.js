@@ -123,6 +123,7 @@ export async function buildApp({
   login = null,
   updater = null,
   assistant = null,
+  claudeFiles = null,
   usage = null,
   home = null,
   skills = null,
@@ -367,13 +368,32 @@ export async function buildApp({
     }
     return a.send(b.text, { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null, lang: b.lang === 'en' ? 'en' : 'vi', images: b.images, files: b.files, videos });
   });
+  const needFiles = () => {
+    if (!claudeFiles) throw new HttpError(503, 'unavailable', 'Chưa bật trên server này.');
+    return claudeFiles;
+  };
+  app.get('/api/claude/files', async () => ({ files: needFiles().list() }));
+  app.get('/api/claude/files/content', async (req) => needFiles().read(req.query?.id));
+  app.put('/api/claude/files/content', async (req) => needFiles().write(req.body?.id, req.body?.text));
+  app.get('/api/claude/mcp', async () => ({ servers: needFiles().mcpList() }));
+  app.post('/api/claude/mcp', async (req) => ({ servers: await needFiles().mcpAdd(req.body || {}) }));
+  app.delete('/api/claude/mcp/:name', async (req) => ({ servers: await needFiles().mcpRemove(req.params.name, req.query?.scope) }));
   app.post('/api/assistant/stop', async () => needAssistant().stop());
   app.post('/api/assistant/reset', async () => needAssistant().reset());
-  app.get('/api/assistant/chats', async () => ({ chats: needAssistant().list() }));
+  app.get('/api/assistant/chats', async (req) => ({ chats: needAssistant().list(String(req.query?.q || '').slice(0, 100)) }));
+  app.get('/api/assistant/commands', async () => ({ commands: needAssistant().commands() }));
+  app.post('/api/assistant/command', async (req) => {
+    const b = req.body || {};
+    return needAssistant().command(String(b.name || ''), String(b.args || ''), { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null, lang: b.lang === 'en' ? 'en' : 'vi' });
+  });
+  app.post('/api/assistant/permission/:id', async (req) => needAssistant().answerPermission(req.params.id, req.body?.allow === true));
+  app.post('/api/assistant/plan/approve', async (req) => needAssistant().approvePlan(req.body?.mode === 'edit' ? 'edit' : 'ask', { tabId: typeof req.body?.tabId === 'string' ? req.body.tabId.slice(0, 64) : null, lang: req.body?.lang === 'en' ? 'en' : 'vi' }));
+  app.post('/api/assistant/chats/:id/rename', async (req) => needAssistant().rename(req.params.id, req.body?.title));
+  app.post('/api/assistant/chats/:id/pin', async (req) => needAssistant().pin(req.params.id, typeof req.body?.pinned === 'boolean' ? req.body.pinned : null));
   app.post('/api/assistant/chats/:id/open', async (req) => needAssistant().open(req.params.id));
   app.delete('/api/assistant/chats/:id', async (req) => needAssistant().remove(req.params.id));
   app.post('/api/assistant/settings', async (req) => needAssistant().settings(req.body || {}));
-  app.post('/api/assistant/compact', async () => needAssistant().compact());
+  app.post('/api/assistant/compact', async (req) => needAssistant().compact(String(req.body?.instructions || '')));
   app.post('/api/assistant/tool', async (req) => {
     const b = req.body || {};
     return needAssistant().callTool(b.key, b.tool, b.args);
