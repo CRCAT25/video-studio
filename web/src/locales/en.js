@@ -1065,6 +1065,7 @@ export default {
   'Đã cho phép {tools} — chạy lại bước để áp dụng.': 'Allowed {tools} — run the step again to apply.',
   '(Quy trình này chưa được lưu nên chỉ áp cho dự án.)': '(This pipeline is not saved, so it only applies to this project.)',
   'Sang bước tiếp →': 'Go to next step →',
+  'Model dùng ở bước này': 'Model used in this step',
   'Chưa duyệt': 'Not approved',
   '✓ Đã duyệt': '✓ Approved',
   'Bạn đã duyệt kết quả bước này': 'You approved this step’s result',

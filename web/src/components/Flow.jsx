@@ -1,8 +1,24 @@
 // Sơ đồ các bước: mỗi ô là một bước (số, tên, trạng thái), nối bằng mũi tên; chế độ cổng nằm trong tooltip.
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { api } from '../api.js';
 import { BOX_LABEL, GATE_SHORT, STATE_LABEL, fmtDuration, gateLabel, two } from '../lib/format.js';
 import { stepHref } from '../lib/router.js';
 import { tr, useT } from '../lib/i18n.jsx';
+
+// Model mặc định cho bước chưa chọn riêng (của app, rồi của máy) — tải một lần, dùng chung cho mọi sơ đồ.
+let defaultModelP = null;
+function useDefaultModel(enabled) {
+  const [m, setM] = useState(null);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    if (!defaultModelP) defaultModelP = api.defaultModel().then((r) => r.model || r.machine || '').catch(() => { defaultModelP = null; return ''; });
+    let alive = true;
+    defaultModelP.then((v) => alive && setM(v));
+    return () => { alive = false; };
+  }, [enabled]);
+  return m;
+}
+const cap = (v) => (v ? v[0].toUpperCase() + v.slice(1) : v);
 
 const DONEISH = new Set(['done', 'stale', 'needs_input', 'failed', 'manual', 'running']);
 
@@ -30,6 +46,7 @@ function normalize(s, staticMode) {
     title: `${tr(s.name)} — ${STATE_LABEL[st] || st} · ${tr('cổng')}: ${gateLabel({ mode: s.gate_mode || 'manual' })}${s.has_cost ? ` · ${tr('tốn tiền')}` : ''}${s.manual ? ` · ${tr('việc tay')}` : ''}`,
     cost: !!s.has_cost,
     state: st,
+    model: s.model || '',
     unapproved: st === 'done' && s.approved === false,
     pct: st === 'running' ? s.run?.progress_pct : undefined,
   };
@@ -46,6 +63,7 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
   const ref = useRef(null);
   const t = useT();
   const items = steps.map((s) => normalize(s, staticMode));
+  const defModel = useDefaultModel(!staticMode);
 
   // Cuộn để bước hiện tại nằm giữa khung.
   useLayoutEffect(() => {
@@ -95,6 +113,7 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
                 {staticMode ? null : <i className="lamp" />}
               </span>
               <span className="nm">{tr(it.name)}</span>
+              {staticMode || !(it.model || defModel) ? null : <span className="mdl" title={t('Model dùng ở bước này')}>{cap(it.model || defModel)}</span>}
               <span className="st">{it.label}{it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}</span>
               {it.state === 'running' ? (
                 it.pct != null ? <i className="pg" style={{ width: `${Math.max(3, Math.min(100, Number(it.pct)))}%` }} /> : <i className="pg ind" />
