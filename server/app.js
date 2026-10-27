@@ -2,6 +2,7 @@
 // Không import runner.js — runner (EventEmitter) được truyền vào qua deps.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { clearTokenCookie, htmlPage, isPagePath, loginPage, parseCookies, registerAuth, splitUrl } from './auth.js';
@@ -935,7 +936,19 @@ export async function buildApp({
   });
 
   // Model mặc định của app cho bước chưa chọn model.
-  app.get('/api/settings/model', async () => ({ model: readDefaultModel(home) }));
+  // machine = model mặc định của Claude Code trên máy (env ANTHROPIC_MODEL hoặc ~/.claude/settings.json "model"), chỉ để hiển thị.
+  app.get('/api/settings/model', async () => {
+    let machine = typeof process.env.ANTHROPIC_MODEL === 'string' && process.env.ANTHROPIC_MODEL ? process.env.ANTHROPIC_MODEL : null;
+    if (!machine) {
+      try {
+        const m = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8'))?.model;
+        if (typeof m === 'string' && m && m.length <= 100) machine = m;
+      } catch {
+        /* không có / không đọc được → để trống */
+      }
+    }
+    return { model: readDefaultModel(home), machine };
+  });
   app.put('/api/settings/model', async (req) => {
     const b = req.body;
     if (!isObject(b) || typeof b.model !== 'string') throw badBody('Cần gửi JSON {model}.');

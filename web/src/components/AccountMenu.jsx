@@ -23,6 +23,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
   const id = useId();
   const [model, setModel] = useState(null);
   const [who, setWho] = useState(null);
+  const [machine, setMachine] = useState(null);
 
   const close = (focus = true) => {
     setOpen(false);
@@ -33,7 +34,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
   useEffect(() => {
     if (!open) return undefined;
     api.claudeIdentity().then((r) => setWho(r)).catch(() => {});
-    api.defaultModel().then((r) => setModel(r.model || '')).catch(() => {});
+    api.defaultModel().then((r) => { setModel(r.model || ''); setMachine(r.machine || null); }).catch(() => {});
     const onDown = (e) => {
       if (!wrap.current?.contains(e.target)) close(false);
     };
@@ -115,7 +116,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
           <div className="menu-sep" role="separator" />
           <div className="menu-grp" role="presentation" title={t('Dùng cho bước chưa chọn model riêng')}>{t('Model mặc định cho các bước')}</div>
           {[
-            ['', t('Mặc định của máy')],
+            ['', machine ? `${t('Mặc định của máy')} (${machine})` : t('Mặc định của máy')],
             ['opus', 'Opus'],
             ['sonnet', 'Sonnet'],
             ['haiku', 'Haiku'],
