@@ -61,8 +61,8 @@ const S = {
   },
   visuals: {
     id: 'hinh-anh', name: 'Hình ảnh & cảnh quay', model: 'sonnet',
-    prompt: 'Dựng hình cho từng cảnh trong project.json bằng code chạy trên máy (canvas/SVG/three.js, biểu đồ, chữ, số, ffmpeg) và tài nguyên miễn phí CC0 nếu cần. Xuất PNG đúng khung {vars.resolution} vào images/, tên theo mã cảnh. Giữ màu và phông thống nhất, không logo hay người thật. Không gọi dịch vụ sinh ảnh trả phí. {feedback}',
-    outputs: ['images/*'], gate: { mode: 'manual' },
+    prompt: 'Dựng hình cho từng cảnh trong project.json bằng code chạy trên máy (canvas/SVG/three.js, biểu đồ, chữ, số, ffmpeg) và tài nguyên miễn phí CC0 nếu cần. Xuất PNG đúng khung {vars.resolution} vào images/, tên theo mã cảnh. Giữ màu và phông thống nhất, không logo hay người thật. Không gọi dịch vụ sinh ảnh trả phí. Sau khi xong ảnh, dựng luôn 3 clip xem thử dài khoảng 5–8 giây vào previews/ (preview-1.mp4…preview-3.mp4), mỗi clip ghép 2–3 ảnh liền nhau với chuyển động nhẹ (zoom/lướt) bằng ffmpeg, độ phân giải thấp (khoảng 960 ngang) để xem nhanh; chọn các cảnh tiêu biểu khác nhau (mở đầu, giữa, cao trào). {feedback}',
+    outputs: ['images/*', 'previews/*.mp4'], gate: { mode: 'manual' },
   },
   voice: {
     id: 'giong-doc', name: 'Giọng đọc', model: 'haiku',
