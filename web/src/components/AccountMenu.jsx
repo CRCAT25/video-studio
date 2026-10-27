@@ -22,6 +22,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
   const menu = useRef(null);
   const id = useId();
   const [model, setModel] = useState(null);
+  const [who, setWho] = useState(null);
 
   const close = (focus = true) => {
     setOpen(false);
@@ -31,6 +32,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
   // Bấm ra ngoài → đóng; mở menu → focus mục đầu.
   useEffect(() => {
     if (!open) return undefined;
+    api.claudeIdentity().then((r) => setWho(r)).catch(() => {});
     api.defaultModel().then((r) => setModel(r.model || '')).catch(() => {});
     const onDown = (e) => {
       if (!wrap.current?.contains(e.target)) close(false);
@@ -96,6 +98,12 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
             <span className="menu-lb">{t('Tài khoản Claude')}</span>
             <span className={`menu-meta${st.bad ? ' bad' : ''}`}>{st.text}</span>
           </button>
+          {who?.email ? (
+            <div className="menu-who" title={who.email}>
+              <span className="menu-who-em">{who.email}</span>
+              {who.subscriptionType ? <span className="menu-who-plan">{String(who.subscriptionType).toUpperCase()}</span> : null}
+            </div>
+          ) : null}
           <div className="menu-sep" role="separator" />
           <div className="menu-grp" role="presentation">{t('Ngôn ngữ')}</div>
           {LANGS.map((l) => (

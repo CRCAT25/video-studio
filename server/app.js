@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { clearTokenCookie, htmlPage, isPagePath, loginPage, parseCookies, registerAuth, splitUrl } from './auth.js';
-import { runDoctor } from './doctor.js';
+import { readIdentity, runDoctor } from './doctor.js';
 import { mediaHandler, resolveMediaPath } from './media.js';
 import { extractFrames } from './frames.js';
 import { isInside, safeJoin } from './paths.js';
@@ -436,6 +436,11 @@ export async function buildApp({
   });
 
   app.get('/api/claude/account', async () => needAccount().status());
+  // Email tài khoản đang đăng nhập — chỉ trả cho giao diện của chính người dùng, không cache/log.
+  app.get('/api/claude/identity', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    return readIdentity({ claudeBin: process.env.VS_CLAUDE_BIN || 'claude' });
+  });
 
   // ---- Mức dùng gói Claude: % phiên 5 giờ / tuần + token app đã dùng. Không có usage → 503.
   const needUsage = () => {

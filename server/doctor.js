@@ -1,5 +1,6 @@
 // Kiểm môi trường (hợp đồng M1 §9.5): chỉ `claude --version` và `claude auth status`, không gửi prompt nào.
-// Kết quả auth chỉ giữ {loggedIn, authMethod, subscriptionType} — không bao giờ giữ email/orgId/orgName.
+// Kết quả doctor chỉ giữ {loggedIn, authMethod, subscriptionType} — không giữ email/orgId/orgName.
+// Riêng readIdentity() trả email theo yêu cầu (người dùng mở menu), không cache, không log, không đi vào doctor/event.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -162,4 +163,27 @@ export async function runDoctor({ claudeBin: binIn = process.env.VS_CLAUDE_BIN |
   }
 
   return { claude, auth, node: process.version, platform: process.platform, problems };
+}
+
+// Đọc email tài khoản Claude đang đăng nhập (theo yêu cầu, không cache) → {email, subscriptionType}; không đọc được → email null.
+export async function readIdentity({ claudeBin: binIn = process.env.VS_CLAUDE_BIN || 'claude', timeoutMs = 10_000 } = {}) {
+  const claudeBin = /[\\/]/.test(String(binIn)) ? path.resolve(String(binIn)) : String(binIn || 'claude');
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-ident-'));
+  try {
+    const st = await run(claudeBin, ['auth', 'status'], timeoutMs, cwd);
+    const text = String(st.stdout || '');
+    const a = text.indexOf('{');
+    const b = text.lastIndexOf('}');
+    let obj = null;
+    try {
+      obj = JSON.parse(a >= 0 && b > a ? text.slice(a, b + 1) : text);
+    } catch {
+      obj = null;
+    }
+    const str = (v) => (typeof v === 'string' && v.length <= 200 ? v : null);
+    if (!obj || typeof obj !== 'object' || obj.loggedIn !== true) return { email: null, subscriptionType: null };
+    return { email: str(obj.email), subscriptionType: str(obj.subscriptionType) };
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
 }

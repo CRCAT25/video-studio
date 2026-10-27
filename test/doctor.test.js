@@ -11,6 +11,7 @@ import {
   filterAuth,
   parseVersion,
   resolveBin,
+  readIdentity,
   runDoctor,
 } from '../server/doctor.js';
 
@@ -220,4 +221,17 @@ test('parseVersion, commandFor, resolveBin', () => {
   assert.equal(resolveBin('claude', path.join(tmp, 'khong')), null);
   assert.equal(resolveBin(path.join(tmp, 'khong-co')), null);
   assert.equal(resolveBin(tmp), null, 'thư mục không phải bin');
+});
+
+test('readIdentity: trả email + gói từ claude auth status (bin giả)', async () => {
+  const bin = fakeMjs('ident');
+  const r = await readIdentity({ claudeBin: bin });
+  assert.deepEqual(r, { email: FAKE_EMAIL, subscriptionType: 'max' });
+});
+
+test('readIdentity: chưa đăng nhập hoặc lỗi → email null', async () => {
+  const out = await readIdentity({ claudeBin: fakeMjs('ident2', { auth: JSON.stringify({ loggedIn: false, email: FAKE_EMAIL }) }) });
+  assert.equal(out.email, null);
+  const bad = await readIdentity({ claudeBin: fakeMjs('ident3', { auth: 'không phải json' }) });
+  assert.equal(bad.email, null);
 });

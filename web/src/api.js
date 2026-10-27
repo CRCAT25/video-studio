@@ -159,6 +159,7 @@ export const api = {
   stopRun: (runId) => request('POST', `/api/runs/${enc(runId)}/stop`, {}),
   completeStep: (id, key) => request('POST', `${stepPath(id, key)}/complete`, {}),
   account: () => request('GET', '/api/claude/account'),
+  claudeIdentity: () => request('GET', '/api/claude/identity'),
   chromeProfiles: () => request('GET', '/api/chrome-profiles'),
   claudeLogin: ({ method, profileDir } = {}) => request('POST', '/api/claude/login', { method, profileDir: profileDir ?? null }),
   claudeLoginCancel: () => request('POST', '/api/claude/login/cancel', {}),
