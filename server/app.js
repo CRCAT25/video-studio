@@ -8,12 +8,15 @@ import { clearTokenCookie, htmlPage, isPagePath, loginPage, parseCookies, regist
 import { runDoctor } from './doctor.js';
 import { mediaHandler } from './media.js';
 import { isInside, safeJoin } from './paths.js';
-import { deletePipeline, formatCatalog, savePipeline, suggestPipeline } from './pipeline.js';
+import { deletePipeline, formatCatalog, savePipeline, suggestPipeline, validateGrantRule } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
+import { createSkills } from './skills.js';
 import { HttpError } from './projects.js';
 import { LOGIN_CALLBACK_PATH, SESSION_COOKIE, sessionCookie } from './login.js';
 import { createHub } from './sse.js';
 import { CALLBACK_PATH } from './youtube/index.js';
+import { createDirPicker } from './pick-dir.js';
+import { buildReferenceMd } from './reference.js';
 
 export const BODY_LIMIT = 256 * 1024;
 export const MAX_FEEDBACK = 20_000;
@@ -102,7 +105,7 @@ function guidePage(distDir) {
 }
 
 // Tạo Fastify app với mọi endpoint §9.2. deps: {store, projects, runner, presets, channels, token, webDist, doctor,
-// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), assistant? (createAssistant — Trợ lý AI), usage? (createUsage — mức dùng gói Claude), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
+// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), assistant? (createAssistant — Trợ lý AI), skillSearch? (hàm (lib, channelsFn) → createSkillSearch — tìm skill bằng AI), usage? (createUsage — mức dùng gói Claude), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
 export async function buildApp({
   store,
   projects,
@@ -120,6 +123,10 @@ export async function buildApp({
   assistant = null,
   usage = null,
   home = null,
+  skills = null,
+  skillSearch = null,
+  pickDir = createDirPicker(),
+  resetAll = null,
   hub = null,
   logger = false,
   logError = (err) => console.error('[video-studio] Lỗi máy chủ:', err),
@@ -443,6 +450,21 @@ export async function buildApp({
     return acc.logout();
   });
 
+  // Đặt lại toàn bộ như mới cài: gỡ mọi kênh YouTube + client Google, rồi (sau khi trả lời) resetAll() chuyển thư mục dữ liệu
+  // sang bản sao lưu và khởi động lại. Không đụng tài khoản Claude Code.
+  app.post('/api/reset', async (req, reply) => {
+    if (!resetAll) throw new HttpError(503, 'reset_unavailable', 'Chức năng đặt lại chưa bật trên server này.');
+    if (bodyOf(req, '{confirm}').confirm !== 'RESET') throw badBody('Gõ "RESET" để xác nhận.');
+    noRunsActive();
+    if (youtube) {
+      for (const c of store.ytChannels()) await youtube.disconnect(c.id);
+      await youtube.clearSetup();
+    }
+    const info = await resetAll.prepare();
+    reply.raw.on('finish', () => setTimeout(() => resetAll.run(), 100));
+    return { ok: true, ...info };
+  });
+
   app.get('/api/channels', async () => callList(channels) ?? []);
 
   app.get('/api/youtube', async () => needYoutube().status());
@@ -621,6 +643,53 @@ export async function buildApp({
     }
   });
 
+  // Thư viện skill của app (<home>/skills): xem, sửa, xóa, nhập từ máy / dán nội dung / GitHub.
+  const lib = skills ?? (home ? createSkills({ home, localRoot: process.env.VS_LOCAL_SKILLS || undefined, presets: () => callList(presets) ?? {}, channels: () => callList(channels) ?? [] }) : null);
+  const searcher = lib && typeof skillSearch === 'function' ? skillSearch(lib, () => callList(channels) ?? []) : null;
+  const skillCall = async (fn) => {
+    if (!lib) throw new HttpError(503, 'skills_unavailable', 'Thư viện skill chưa bật trên server này.');
+    try {
+      return await fn(lib);
+    } catch (e) {
+      throw pipelineError(e);
+    }
+  };
+  const skillBody = (req) => {
+    if (!isObject(req.body)) throw badBody('Cần gửi JSON.');
+    return req.body;
+  };
+  app.get('/api/skills', async () => ({ skills: await skillCall((l) => l.list()) }));
+  app.get('/api/skills/local', async () => ({ skills: await skillCall((l) => l.local()) }));
+  app.post('/api/skills/import', async (req, reply) => {
+    const b = skillBody(req);
+    const r = await skillCall(async (l) => {
+      if (b.source === 'local') return { imported: l.importLocal(b) };
+      if (b.source === 'text') return { imported: l.importText(b) };
+      if (b.source === 'github') return l.importGithub(b);
+      throw badBody('source phải là local, text hoặc github.');
+    });
+    return r.imported ? reply.code(201).send(r) : r;
+  });
+  // Tìm skill bằng AI (tốn token): body {query, web?}. Chỉ đọc; không tự nhập gì.
+  app.post('/api/skills/search', async (req) => {
+    const b = skillBody(req);
+    return skillCall(() => {
+      if (!searcher) throw new HttpError(503, 'skills_unavailable', 'Tìm skill bằng AI chưa bật trên server này.');
+      return searcher.search({ query: b.query, web: b.web === true });
+    });
+  });
+  app.post('/api/skills/search/clarify', async (req) => {
+    const b = skillBody(req);
+    return skillCall(() => {
+      if (!searcher) throw new HttpError(503, 'skills_unavailable', 'Tìm skill bằng AI chưa bật trên server này.');
+      return searcher.clarify({ query: b.query, answers: b.answers });
+    });
+  });
+  app.get('/api/skills/:name', async (req) => skillCall((l) => l.read(req.params.name)));
+  app.put('/api/skills/:name', async (req) => skillCall((l) => l.write(req.params.name, skillBody(req).content)));
+  app.put('/api/skills/:name/scope', async (req) => skillCall((l) => l.setScope(req.params.name, skillBody(req))));
+  app.delete('/api/skills/:name', async (req) => skillCall((l) => l.remove(req.params.name)));
+
   app.get('/api/presets', async () => {
     const res = callList(presets) ?? {};
     const list = Array.isArray(res) ? res : Array.isArray(res.presets) ? res.presets : [];
@@ -700,7 +769,25 @@ export async function buildApp({
     if (saveAs !== undefined && (!hasPipeline || !saveAs || saveAs.length > 80)) {
       throw new HttpError(400, 'invalid_name', 'Tên quy trình phải có 1–80 ký tự.');
     }
+    // Video tham khảo (tùy chọn): kiểm id có thật trong danh sách video của kênh rồi dựng reference.md.
+    let referenceMd;
+    let referenceWarn;
+    if (b.reference !== undefined && b.reference !== null) {
+      const r = b.reference;
+      if (!isObject(r) || typeof r.channelId !== 'string' || typeof r.videoId !== 'string') throw new HttpError(400, 'invalid_reference', 'Video tham khảo cần {channelId, videoId}.');
+      try {
+        const list = await needYoutube().videos(r.channelId);
+        const v = (list?.videos || []).find((x) => x.id === r.videoId);
+        if (!v) throw new HttpError(400, 'invalid_reference', 'Không thấy video này trong kênh đã chọn.');
+        const ch = (callList(channels) ?? []).find((c) => c.id === r.channelId);
+        referenceMd = buildReferenceMd(v, ch?.name || r.channelId);
+      } catch (e) {
+        if (isHttpError(e) && e.code === 'invalid_reference') throw e;
+        referenceWarn = isHttpError(e) ? e.message : 'Không lấy được video tham khảo; dự án vẫn được tạo.';
+      }
+    }
     const view = projects.create({
+      referenceMd,
       presetId: hasPipeline ? undefined : b.presetId.trim(),
       pipeline: hasPipeline ? b.pipeline : undefined,
       channelId,
@@ -720,7 +807,17 @@ export async function buildApp({
         saved = { error: pipelineError(e).message };
       }
     }
-    return reply.code(201).send(saved ? { ...view, saved } : view);
+    const extra = { ...(saved ? { saved } : {}), ...(referenceWarn ? { referenceWarning: referenceWarn } : {}) };
+    return reply.code(201).send(Object.keys(extra).length ? { ...view, ...extra } : view);
+  });
+
+  // Hộp thoại chọn thư mục của máy (macOS). Không nhận tham số; đã qua kiểm tra token như mọi /api.
+  app.post('/api/pick-dir', async () => {
+    try {
+      return await pickDir();
+    } catch (e) {
+      throw new HttpError(e.code === 'unsupported' ? 501 : 500, e.code === 'unsupported' ? 'pick_unsupported' : 'pick_failed', e.message);
+    }
   });
 
   app.get('/api/projects/:id', async (req) => {
@@ -738,7 +835,9 @@ export async function buildApp({
   app.post('/api/projects/:id/steps/:key/run', async (req, reply) => {
     const b = req.body === undefined || req.body === null ? {} : req.body;
     if (!isObject(b)) throw badBody('Cần gửi JSON {feedback?, allowPaid?}.');
-    const { feedback, allowPaid } = b;
+    const { feedback, allowPaid, allowOnce } = b;
+    if (allowOnce !== undefined && allowOnce !== null && (!Array.isArray(allowOnce) || allowOnce.length > 20)) throw badBody('allowOnce phải là danh sách tối đa 20 quy tắc.');
+    const once = (allowOnce || []).map((r) => pipelineCall(() => validateGrantRule(r, { once: true })));
     if (feedback !== undefined && feedback !== null && typeof feedback !== 'string') throw badBody('Góp ý phải là chuỗi.');
     if (typeof feedback === 'string' && feedback.length > MAX_FEEDBACK) throw badBody('Góp ý tối đa 20 000 ký tự.');
     if (allowPaid !== undefined && allowPaid !== null && typeof allowPaid !== 'boolean') throw badBody('allowPaid phải là true/false.');
@@ -747,8 +846,18 @@ export async function buildApp({
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
     if (!runner || typeof runner.start !== 'function') throw new Error('Runner chưa sẵn sàng.');
     const fb = typeof feedback === 'string' && feedback.trim() ? feedback : null;
-    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid });
+    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, allowOnce: once });
     return reply.code(202).send({ run: runSummary(run) });
+  });
+
+  // Nút "Cho phép" ở khung Bị chặn quyền: thêm tên công cụ vào permissions.allow của dự án (và quy trình đã lưu nếu scope=pipeline).
+  app.post('/api/projects/:id/permissions', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.tool !== 'string') throw badBody('Cần gửi JSON {tool, scope?}.');
+    if (b.scope !== undefined && b.scope !== 'project' && b.scope !== 'pipeline') throw badBody('scope phải là "project" hoặc "pipeline".');
+    const r = pipelineCall(() => projects.grantPermission(req.params.id, b.tool, { scope: b.scope }));
+    presets.invalidate?.();
+    return r;
   });
 
   app.post('/api/runs/:id/stop', async (req) => {

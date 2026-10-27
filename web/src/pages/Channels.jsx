@@ -1,15 +1,16 @@
 // Trang Kênh: danh sách kênh YouTube (thông tin chung) + thêm kênh bằng đăng nhập Google (chọn hồ sơ Chrome).
 // Trang chi tiết kênh (#/channels/:id): số liệu theo khoảng ngày, biểu đồ, bảng video, kết nối lại / xóa kênh.
 // Token Google nằm ở server (Keychain); trang chỉ thấy trạng thái và số liệu.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Modal from '../components/Modal.jsx';
+import NewProjectModal from '../components/NewProjectModal.jsx';
 import { Sk, SkZone } from '../components/Skeleton.jsx';
 import RangePicker, { rangeLabel, savedRange } from '../components/RangePicker.jsx';
 import YtChart from '../components/YtChart.jsx';
 import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } from '../components/Select.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
-import { navigate } from '../lib/router.js';
+import { navigate, stepHref } from '../lib/router.js';
 import { useNow } from '../hooks/useNow.js';
 import { fmtDate, fmtNum, fmtRelative, two } from '../lib/format.js';
 import { T, intlLocale, tr, useT } from '../lib/i18n.jsx';
@@ -101,9 +102,11 @@ export function bucketDays(days, span) {
 const UNIT = { day: T('ngày'), week: T('tuần'), month: T('tháng') };
 
 // Đầu trang + thẻ từng kênh. yt = trạng thái /api/youtube (App tải lại khi có SSE 'youtube').
-export default function Channels({ yt, error, onReload }) {
+export default function Channels({ yt, error, onReload, presetsData, doctor }) {
   const t = useT();
   const toast = useToast();
+  const [newFor, setNewFor] = useState(null);
+  const [delFor, setDelFor] = useState(null);
   const prev = useRef(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addUrl, setAddUrl] = useState(null);
@@ -377,8 +380,25 @@ export default function Channels({ yt, error, onReload }) {
           </div>
         ) : null
       ) : (
-        <ChannelList range={range} channels={yt.channels} stats={stats} />
+        <ChannelList range={range} channels={yt.channels} stats={stats} onNew={setNewFor} onDelete={setDelFor} />
       )}
+
+      {newFor ? (
+        <NewProjectModal
+          presetsData={presetsData}
+          channels={yt?.channels}
+          doctor={doctor}
+          defaultChannelId={newFor.id}
+          onClose={() => setNewFor(null)}
+          onCreated={(view) => {
+            setNewFor(null);
+            toast(t('Đã tạo dự án "{n}".', { n: view?.title || view?.id }), 'ok');
+            const first = view?.current?.key || view?.steps?.[0]?.key || '';
+            navigate(stepHref(view.id, first));
+          }}
+        />
+      ) : null}
+      {delFor ? <DeleteChannelModal c={delFor} onClose={() => setDelFor(null)} /> : null}
 
       {addOpen ? (
         <ConnectModal
@@ -395,6 +415,12 @@ export default function Channels({ yt, error, onReload }) {
   );
 }
 
+// Trang chủ kênh trên YouTube: ưu tiên @handle, không có thì dùng mã kênh; chưa có số liệu → null.
+const ytUrl = (ch) => {
+  const h = String(ch?.customUrl || '').trim();
+  if (h) return `https://www.youtube.com/${h.startsWith('@') ? h : `@${h}`}`;
+  return ch?.id ? `https://www.youtube.com/channel/${encodeURIComponent(ch.id)}` : null;
+};
 const chHref = (id) => `#/channels/${encodeURIComponent(id)}`;
 
 // Trạng thái kênh → đèn + chữ.
@@ -404,8 +430,8 @@ function chState(c) {
   return { lamp: 'ok', text: tr('Đã kết nối') };
 }
 
-// Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có nút vào chi tiết.
-function ChannelList({ channels, stats, range }) {
+// Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có menu "…" (chi tiết, tạo video, xóa).
+function ChannelList({ channels, stats, range, onNew, onDelete }) {
   const t = useT();
   return (
     <div className="tbl-wrap yt-chlist">
@@ -423,7 +449,7 @@ function ChannelList({ channels, stats, range }) {
         </thead>
         <tbody>
           {channels.map((c) => (
-            <ChannelRow key={c.id} c={c} s={stats[c.id]} />
+            <ChannelRow key={c.id} c={c} s={stats[c.id]} onNew={onNew} onDelete={onDelete} />
           ))}
         </tbody>
       </table>
@@ -432,7 +458,7 @@ function ChannelList({ channels, stats, range }) {
 }
 
 // Một hàng kênh; s = số liệu (undefined: đang tải, false: lỗi) do trang danh sách tải.
-function ChannelRow({ c, s }) {
+function ChannelRow({ c, s, onNew, onDelete }) {
   const t = useT();
   const ok = c.status !== 'reauth' && !c.pending;
   const st = chState(c);
@@ -452,11 +478,28 @@ function ChannelRow({ c, s }) {
       <td className="num hide-sm">{ok ? cell(fmtNum(ch?.videos)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
       <td className="yt-chact">
-        <a className="btn sm" href={chHref(c.id)} aria-label={t('Xem chi tiết {name}', { name: c.name })}>
-          {t('Chi tiết ›')}
-        </a>
+        <RowMenu c={c} url={ytUrl(ch)} onNew={() => onNew(c)} onDelete={() => onDelete(c)} />
       </td>
     </tr>
+  );
+}
+
+// Skill áp dụng cho kênh (dùng chung + riêng của kênh); quản lý ở tab Skills.
+function ChannelSkills({ id }) {
+  const t = useT();
+  const [list, setList] = useState(null);
+  useEffect(() => {
+    api.skills().then((r) => setList(r.skills.filter((s) => s.shared || s.channels.includes(id)))).catch(() => setList([]));
+  }, [id]);
+  if (!list) return null;
+  return (
+    <section className="card pad" aria-label={t('Skills của kênh này')}>
+      <h2>{t('Skills của kênh này')}</h2>
+      {list.length ? (
+        <ul>{list.map((s) => <li key={s.name}><b>{s.name}</b>{s.shared ? <span className="muted"> · {t('Dùng chung')}</span> : null}{s.description ? <span className="muted"> — {s.description}</span> : null}</li>)}</ul>
+      ) : <p className="note">{t('Kênh này chưa dùng skill nào.')}</p>}
+      <p className="note"><a href="#/skills">{t('Quản lý ở tab Skills')}</a></p>
+    </section>
   );
 }
 
@@ -532,7 +575,166 @@ export function ChannelDetail({ id, yt, error, onReload }) {
     <>
       {crumb}
       <ChannelCard c={c} />
+      <ChannelSkills id={id} />
     </>
+  );
+}
+
+// Hộp xác nhận xóa kênh: phải gõ đúng tên kênh; xóa xong báo kết quả và đóng.
+function DeleteChannelModal({ c, onClose }) {
+  const t = useT();
+  const toast = useToast();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [own, setOwn] = useState([]);
+  useEffect(() => {
+    api.skills().then((r) => setOwn(r.skills.filter((x) => !x.shared && x.channels.includes(c.id)).map((x) => x.name))).catch(() => {});
+  }, [c.id]);
+  // Phải gõ đúng y tên kênh (dấu, hoa/thường); chỉ chuẩn hóa NFC để bộ gõ tiếng Việt không làm lệch.
+  const nameOk = typed.normalize('NFC') === String(c.name).normalize('NFC');
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      const r = await api.ytDisconnect(c.id);
+      toast(r.revoked ? t('Đã xóa kênh {name}.', { name: c.name }) : t('Đã xóa kênh trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.'), r.revoked ? 'ok' : 'info');
+      onClose();
+    } catch (e) {
+      toast(e.message, 'err');
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={t('Xóa kênh {name} khỏi app?', { name: c.name })} onClose={onClose} busy={busy}>
+      <p className="note">{t('App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.')}</p>
+      {own.length ? <div className="err-note" role="alert">{t('Skill riêng của kênh này ({n}) sẽ không còn được nạp cho kênh nào — vào tab Skills để chuyển sang "Dùng chung" hoặc xóa.', { n: own.join(', ') })}</div> : null}
+      <form
+        id="yt-del"
+        className="yt-del"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (nameOk) disconnect();
+        }}
+      >
+        <label className="fld">
+          <span>{t('Gõ "{name}" để xác nhận', { name: <b>{c.name}</b> })}</span>
+          <input type="text" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} data-autofocus />
+        </label>
+      </form>
+      <div className="modal-acts">
+        <button type="button" className="btn" onClick={onClose} disabled={busy}>
+          {t('Không')}
+        </button>
+        <button type="submit" form="yt-del" className="btn danger" disabled={busy || !nameOk}>
+          {busy ? <span className="spinner" aria-hidden="true" /> : null} {t('Xóa kênh')}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// Menu "…" cuối hàng kênh: xem chi tiết, tạo video, xóa kênh.
+function RowMenu({ c, url, onNew, onDelete }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+  const btn = useRef(null);
+  const menu = useRef(null);
+  const id = useId();
+  const [pos, setPos] = useState(null);
+  const close = (focus = true) => {
+    setOpen(false);
+    if (focus) btn.current?.focus();
+  };
+  // Bảng cuộn ngang sẽ cắt menu absolute → đặt menu theo tọa độ cố định của nút; cuộn/đổi cỡ thì đóng.
+  const toggle = () => {
+    if (!open) {
+      const r = btn.current.getBoundingClientRect();
+      const below = window.innerHeight - r.bottom;
+      setPos({ right: Math.max(8, window.innerWidth - r.right), ...(below < 150 ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
+    }
+    setOpen((v) => !v);
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const shut = () => close(false);
+    window.addEventListener('resize', shut);
+    window.addEventListener('scroll', shut, true);
+    return () => {
+      window.removeEventListener('resize', shut);
+      window.removeEventListener('scroll', shut, true);
+    };
+  }, [open]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (!wrap.current?.contains(e.target)) close(false);
+    };
+    document.addEventListener('mousedown', onDown, true);
+    menu.current?.querySelector('[role^="menuitem"]')?.focus();
+    return () => document.removeEventListener('mousedown', onDown, true);
+  }, [open]);
+  const onKey = (e) => {
+    const items = [...menu.current.querySelectorAll('[role^="menuitem"]')];
+    const i = items.indexOf(document.activeElement);
+    const go = (n) => {
+      e.preventDefault();
+      items[n]?.focus();
+    };
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    } else if (e.key === 'Tab') close(false);
+    else if (e.key === 'ArrowDown') go((i + 1) % items.length);
+    else if (e.key === 'ArrowUp') go((i - 1 + items.length) % items.length);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(items.length - 1);
+  };
+  const pick = (fn) => () => {
+    close();
+    fn();
+  };
+  const ok = c.status !== 'reauth' && !c.pending;
+  return (
+    <div className="menu-wrap yt-rowmenu" ref={wrap}>
+      <button
+        ref={btn}
+        type="button"
+        className="btn sm"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        aria-label={t('Thao tác với kênh {name}', { name: c.name })}
+        title={t('Thao tác')}
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
+          <circle cx="3" cy="8" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="13" cy="8" r="1.5" />
+        </svg>
+      </button>
+      {open ? (
+        <div ref={menu} id={id} className="menu yt-rowpop" style={pos} role="menu" aria-label={t('Thao tác với kênh {name}', { name: c.name })} onKeyDown={onKey}>
+          <button type="button" role="menuitem" className="menu-it" onClick={pick(() => navigate(chHref(c.id)))}>
+            <span className="menu-lb">{t('Xem chi tiết kênh')}</span>
+          </button>
+          <button type="button" role="menuitem" className="menu-it" onClick={pick(() => window.open(url, '_blank', 'noopener,noreferrer'))} disabled={!url} title={url ? undefined : t('Chưa có thông tin kênh từ YouTube')}>
+            <span className="menu-lb">{t('Mở kênh trên YouTube')}</span>
+            <svg className="menu-tick" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 3h4v4M13 3L7.5 8.5M12 9v3.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5H7" />
+            </svg>
+          </button>
+          <button type="button" role="menuitem" className="menu-it" onClick={pick(onNew)} disabled={!ok} title={ok ? undefined : t('Kênh cần được kết nối trước')}>
+            <span className="menu-lb">{t('Tạo video')}</span>
+          </button>
+          <div className="menu-sep" role="separator" />
+          <button type="button" role="menuitem" className="menu-it menu-danger" onClick={pick(onDelete)}>
+            <span className="menu-lb">{t('Xóa kênh')}</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -542,7 +744,6 @@ function ChannelCard({ c }) {
   const toast = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
-  const [typed, setTyped] = useState('');
   const [authUrl, setAuthUrl] = useState(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
@@ -563,15 +764,6 @@ function ChannelCard({ c }) {
     }
   };
   const cancel = () => act(() => api.ytConnectCancel(c.id));
-  const disconnect = () =>
-    act(async () => {
-      const r = await api.ytDisconnect(c.id);
-      setConfirmOff(false);
-      toast(r.revoked ? t('Đã xóa kênh {name}.', { name: c.name }) : t('Đã xóa kênh trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.'), r.revoked ? 'ok' : 'info');
-    });
-
-  // Phải gõ đúng y tên kênh (dấu, hoa/thường); chỉ chuẩn hóa NFC để bộ gõ tiếng Việt không làm lệch.
-  const nameOk = typed.normalize('NFC') === String(c.name).normalize('NFC');
   const reauth = c.status === 'reauth';
   const { lamp, text: stText } = chState(c);
 
@@ -604,7 +796,6 @@ function ChannelCard({ c }) {
             type="button"
             className="btn sm danger"
             onClick={() => {
-              setTyped('');
               setConfirmOff(true);
             }}
             disabled={busy}
@@ -645,34 +836,7 @@ function ChannelCard({ c }) {
           }}
         />
       ) : null}
-      {confirmOff ? (
-        <Modal title={t('Xóa kênh {name} khỏi app?', { name: c.name })} onClose={() => setConfirmOff(false)} busy={busy}>
-          <p className="note">{t('App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.')}</p>
-          <form
-            id="yt-del"
-            className="yt-del"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (nameOk) disconnect();
-            }}
-          >
-            <label className="fld">
-              <span>
-                {t('Gõ "{name}" để xác nhận', { name: <b>{c.name}</b> })}
-              </span>
-              <input type="text" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} data-autofocus />
-            </label>
-          </form>
-          <div className="modal-acts">
-            <button type="button" className="btn" onClick={() => setConfirmOff(false)} disabled={busy}>
-              {t('Không')}
-            </button>
-            <button type="submit" form="yt-del" className="btn danger" disabled={busy || !nameOk}>
-              {busy ? <span className="spinner" aria-hidden="true" /> : null} {t('Xóa kênh')}
-            </button>
-          </div>
-        </Modal>
-      ) : null}
+      {confirmOff ? <DeleteChannelModal c={c} onClose={() => setConfirmOff(false)} /> : null}
     </section>
   );
 }

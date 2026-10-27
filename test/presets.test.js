@@ -334,7 +334,7 @@ test('loadPresets: trùng id trong cùng thư mục → lỗi, giữ file đầu
 });
 
 test('loadChannels: đọc channels.yaml đầu tiên tìm thấy', () => {
-  const real = loadChannels([REPO_PRESETS]);
+  const real = loadChannels([FIXTURE_PRESETS]);
   assert.deepEqual(real.map((c) => c.id), ['tiktok']);
   assert.deepEqual(real[0], { id: 'tiktok', name: 'TikTok', platform: 'tiktok', videos_dir: null });
 

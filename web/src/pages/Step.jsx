@@ -23,6 +23,7 @@ import {
   runElapsed,
   usageTokens,
 } from '../lib/format.js';
+import { grantRules, isOnceOnly } from '../lib/grant.js';
 import { stepHref } from '../lib/router.js';
 import { tr, useT } from '../lib/i18n.jsx';
 
@@ -150,8 +151,61 @@ function runTokens(run, costs) {
   return c || 0;
 }
 
+// Mỗi lần bị chặn có 3 nút: cho phép lần này (chạy lại bước, không lưu), trong dự án này, hoặc cho mọi dự án (ghi vào quy trình đã lưu).
+function GrantBar({ denials, grant }) {
+  const t = useT();
+  const items = [];
+  const seen = new Set();
+  for (const d of denials) {
+    const rules = grantRules(d);
+    const key = rules.join('|');
+    if (!rules.length || seen.has(key)) continue;
+    seen.add(key);
+    items.push(rules);
+  }
+  if (!grant || !items.length) return <p className="note">{t('Thêm quyền vào mục permissions của quy trình nếu bước thật sự cần.')}</p>;
+  return (
+    <div className="grant">
+      {items.map((rules) => {
+        const label = rules.join(', ');
+        const done = rules.every((r) => grant.granted.has(r));
+        const doneAll = rules.every((r) => grant.grantedAll.has(r));
+        const off = !!grant.busy;
+        const onceOnly = rules.some(isOnceOnly);
+        return (
+          <div className="grant-row" key={label}>
+            <code className="grant-rule">{label}</code>
+            <div className="grant-btns">
+              <button type="button" className="btn sm" disabled={off || !grant.onOnce} onClick={() => grant.onOnce(rules)} title={t('Chạy lại bước với quyền này, không lưu lại')}>
+                {t('Cho phép lần này')}
+              </button>
+              {onceOnly ? (
+                <span className="note">{t('Lệnh find chỉ cho phép một lần (không lưu), vì quy tắc lưu sẽ cho cả -delete/-exec.')}</span>
+              ) : (
+                <>
+              <button type="button" className="btn sm" disabled={off || done} onClick={() => grant.onGrant(rules, 'project')}>
+                {done ? t('✓ Đã cho phép trong dự án') : t('Cho phép trong dự án này')}
+              </button>
+              <button type="button" className="btn sm" disabled={off || doneAll} onClick={() => grant.onGrant(rules, 'pipeline')} title={t('Ghi vào quy trình đã lưu để các dự án sau cũng được phép')}>
+                {doneAll ? t('✓ Đã cho phép mọi dự án') : t('Cho phép tất cả các dự án')}
+              </button>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {grant.granted.size && grant.onRerun ? (
+        <button type="button" className="btn sm primary" disabled={!!grant.busy} onClick={grant.onRerun}>
+          {t('Chạy lại bước')}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 // Thân kết quả lượt: lỗi, tóm tắt, câu hỏi, ghi chú cho bước sau, các lần bị chặn quyền.
-function ResultBody({ run, live = false }) {
+function ResultBody({ run, live = false, grant = null }) {
   const t = useT();
   const r = run.result || {};
   const questions = Array.isArray(r.questions) ? r.questions.filter(Boolean) : [];
@@ -185,7 +239,7 @@ function ResultBody({ run, live = false }) {
               ✕ {denialText(d)}
             </div>
           ))}
-          <p className="note">{t('Thêm quyền vào mục permissions của quy trình nếu bước thật sự cần.')}</p>
+          <GrantBar denials={denials} grant={grant} />
         </>
       ) : null}
     </div>
@@ -193,7 +247,7 @@ function ResultBody({ run, live = false }) {
 }
 
 // Thẻ kết quả lượt (kèm thanh tiến độ khi đang chạy).
-function ResultCard({ run, live }) {
+function ResultCard({ run, live, grant }) {
   const t = useT();
   if (!run) {
     return (
@@ -220,7 +274,7 @@ function ResultCard({ run, live }) {
           </div>
         </>
       ) : null}
-      <ResultBody run={run} live={live} />
+      <ResultBody run={run} live={live} grant={grant} />
     </div>
   );
 }
@@ -237,7 +291,10 @@ function StepPage({ projectId, stepKey }) {
   const [costAsk, setCostAsk] = useState(null);
   const [actionErr, setActionErr] = useState(null);
   const [copied, setCopied] = useState(false);
-  const reqRef = useRef(0);
+  const [granted, setGranted] = useState(() => new Set());
+  const [grantedAll, setGrantedAll] = useState(() => new Set());
+  const [grantBusy, setGrantBusy] = useState(false);
+    const reqRef = useRef(0);
   const timer = useRef(null);
   const copyTimer = useRef(null);
   const fbRef = useRef(null);
@@ -324,11 +381,31 @@ function StepPage({ projectId, stepKey }) {
   const paid = !!(step.cost || step.has_cost);
   const fbTrim = feedback.trim();
 
-  const doRun = async (fb, allowPaid = false) => {
+  // Cho phép quy tắc bị chặn: thêm vào allow của dự án (scope 'pipeline' ghi thêm vào quy trình đã lưu), rồi gợi ý chạy lại.
+  const onGrant = async (rules, scope) => {
+    setGrantBusy(true);
+    try {
+      let saved = false;
+      for (const rule of rules) {
+        const r = await api.grantPermission(projectId, rule, scope);
+        saved = saved || !!r.savedUpdated;
+        setGranted((g) => new Set(g).add(rule));
+        if (scope === 'pipeline' && r.savedUpdated) setGrantedAll((g) => new Set(g).add(rule));
+      }
+      toast(t('Đã cho phép {tools} — chạy lại bước để áp dụng.', { tools: rules.join(', ') }) + (scope === 'pipeline' && !saved ? ' ' + t('(Quy trình này chưa được lưu nên chỉ áp cho dự án.)') : ''), 'ok');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setGrantBusy(false);
+    }
+  };
+
+
+  const doRun = async (fb, allowPaid = false, allowOnce = undefined) => {
     setBusy('run');
     setActionErr(null);
     try {
-      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid });
+      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce });
       setCostAsk(null);
       if (fb) setFeedback('');
       setSelRunId(null);
@@ -337,7 +414,7 @@ function StepPage({ projectId, stepKey }) {
       await load();
     } catch (e) {
       if (e.status === 412) {
-        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb });
+        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce });
       } else {
         setCostAsk(null);
         setActionErr(e.message);
@@ -451,6 +528,14 @@ function StepPage({ projectId, stepKey }) {
       </button>,
     );
   }
+  const nextStep = idx >= 0 ? (project.steps || [])[idx + 1] : null;
+  if (st === 'done' && nextStep) {
+    buttons.push(
+      <button key="next" type="button" className="btn primary" onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Kết quả ổn — mở bước "{n}"', { n: nextStep.name })}>
+        {t('Duyệt · sang bước tiếp →')}
+      </button>,
+    );
+  }
   buttons.push(
     <button
       key="term"
@@ -474,6 +559,9 @@ function StepPage({ projectId, stepKey }) {
   const u = selRun?.usage || null;
   const showWarn = !canRun.ok && canRun.message && !step.manual && st !== 'running' && st !== 'pending';
   const decide = st === 'needs_input' && isLatest;
+  const grant = isLatest && !live
+    ? { granted, grantedAll, busy: grantBusy || busy, onGrant, onOnce: canRun.ok && RUNNABLE.has(st) ? (rules) => doRun(undefined, false, rules) : null, onRerun: canRun.ok && RUNNABLE.has(st) ? () => doRun(undefined) : null }
+    : null;
 
   const feedbackBox = (
     <>
@@ -629,11 +717,11 @@ function StepPage({ projectId, stepKey }) {
           {decide ? (
             <div className="card pad decide ask">
               <h2>{t('Claude cần bạn trả lời')}</h2>
-              <ResultBody run={selRun} />
+              <ResultBody run={selRun} grant={grant} />
               {feedbackBox}
             </div>
           ) : (
-            <ResultCard run={selRun} live={live} />
+            <ResultCard run={selRun} live={live} grant={grant} />
           )}
 
           {!decide && !step.manual ? (
@@ -730,7 +818,7 @@ function StepPage({ projectId, stepKey }) {
           withFeedback={!!costAsk.feedback}
           busy={busy === 'run'}
           onClose={() => setCostAsk(null)}
-          onConfirm={() => doRun(costAsk.feedback, true)}
+          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce)}
         />
       ) : null}
     </>

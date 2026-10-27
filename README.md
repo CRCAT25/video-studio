@@ -76,6 +76,24 @@ A workflow is the list of steps Claude runs for one video (script, scenes, image
 Saved workflows are YAML files in `presets/` inside the data folder; you can also edit them by hand.
 Each project keeps its own copy, so editing or deleting a workflow never changes projects you already created.
 
+## Skills
+
+The **Skills** tab (next to Channels) is the app's own skill library, kept in `~/.video-studio/skills/<name>/SKILL.md` — it never touches `~/.claude/skills`.
+
+- **Import** from `~/.claude/skills` on your machine, by pasting or uploading a `SKILL.md`, or from a public GitHub repo/folder (`https://github.com/owner/repo/tree/branch/folder`; needs `git`).
+- **View and edit** `SKILL.md`, or delete a skill (you are warned if a workflow uses it).
+- **Attach** skills when you create or edit a workflow — only the selected skills are loaded for that workflow's steps.
+- **Per-channel table**: the Skills page is a table — tick a channel's box to use a skill there, or **All channels** to share it (channels added later get it too). A video for channel X loads only the skills ticked for X plus shared ones, even if a workflow lists others. Newly imported skills are shared by default.
+- **AI search** lives in its own "Find skills" tab (the "Library" tab is never filtered). Results show an AI-estimated fit percentage for each channel; tick a box to apply a skill to that channel. Describe what you need (e.g. "make stick-figure videos"). **Quick search** asks Claude once; **Discuss** lets Claude ask up to 3 short questions first, then searches with the refined need. Claude searches your library and `~/.claude/skills`; **Search the web too** also suggests public GitHub skills. Suggestions are never imported automatically. When nothing fits, an "AI suggestions" box offers alternative keywords, a web search, and "Create new skill" (opens the paste dialog prefilled).
+
+Skills are instructions Claude follows, so import only ones you trust.
+
+## Reference video
+
+Instead of loading skills, a new project can borrow the approach of one of your own published videos: in **New project**, pick a channel connected to YouTube, filter by title, sort by views or newest, and choose a video. Its title, description, length, views, likes and average watch time are written to `<project>/.studio/reference.md`, and every step is told to read it for structure and pacing only (no script or visuals are available, and the text is treated as data, not instructions). Optional; one video per project.
+
+Required fields are marked with a red `*`. "Use another folder" opens the system folder dialog (macOS) instead of accepting a typed path.
+
 ## AI assistant
 
 Click **AI assistant** in the header to open a sidebar and ask Claude to work the page for you,

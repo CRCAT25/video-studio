@@ -109,7 +109,19 @@ export function runShell(cmd, { cwd, timeoutMs = CHECK_TIMEOUT_MS, signal, maxOu
   });
 }
 
-// Kiểm `studio-check outputs`: mỗi glob phải khớp ≥1 file không rỗng có mtime ≥ since − 2 s; trả {passed, output}.
+// File .json cũ chỉ được dùng lại khi vẫn đọc được.
+function readableReuse(file) {
+  if (!/\.json$/i.test(file)) return true;
+  try {
+    JSON.parse(fs.readFileSync(file, 'utf8'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Kiểm `studio-check outputs`: mỗi glob phải khớp ≥1 file không rỗng; file mtime ≥ since − 2 s tính là mới,
+// file cũ hơn (lượt trước đã ghi, lượt này không cần ghi lại) vẫn đạt nếu hợp lệ. Trả {passed, output}.
 export async function checkOutputs({ dir, outputs, since } = {}) {
   const list = Array.isArray(outputs) ? outputs.filter((x) => typeof x === 'string' && x.trim()) : [];
   if (!list.length) return { passed: true, output: 'Bước không khai báo đầu ra — không có gì để kiểm.' };
@@ -134,6 +146,7 @@ export async function checkOutputs({ dir, outputs, since } = {}) {
     let fresh = 0;
     let empty = 0;
     let old = 0;
+    let reused = 0;
     for (const rel of files) {
       let st;
       try {
@@ -143,11 +156,16 @@ export async function checkOutputs({ dir, outputs, since } = {}) {
       }
       if (!st.isFile()) continue;
       if (st.size === 0) empty++;
-      else if (st.mtimeMs < minMtime) old++;
+      else if (st.mtimeMs < minMtime) {
+        if (readableReuse(path.join(dir, rel))) reused++;
+        else old++;
+      }
       else fresh++;
     }
     if (fresh > 0) {
-      lines.push(`✓ ${pattern} (${fresh} file)`);
+      lines.push(`✓ ${pattern} (${fresh} file${reused ? `, ${reused} file dùng lại từ lượt trước` : ''})`);
+    } else if (reused > 0) {
+      lines.push(`✓ ${pattern} (${reused} file dùng lại từ lượt trước)`);
     } else {
       passed = false;
       const why = [];

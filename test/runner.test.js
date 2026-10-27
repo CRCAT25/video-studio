@@ -219,6 +219,10 @@ test('buildArgs: đúng thứ tự §8.1, session-id → resume, allow/deny theo
   // allowPaid nhưng bước không có cost → ask vẫn bị chặn
   const noCost = buildArgs({ project: fresh, preset, step: { key: 'x', cost: null }, allowPaid: true });
   assert.deepEqual(flagValues(noCost, '--disallowedTools'), ['Bash(sudo *)', 'Bash(*elevenlabs*)']);
+  // quyền cho phép lần này → nối thêm vào allow, không đụng deny
+  const once = buildArgs({ project: fresh, preset, step, allowPaid: false, allowOnce: ['Bash(mkdir *)', 'Edit'] });
+  assert.deepEqual(flagValues(once, '--allowedTools'), ['Edit', 'Write', 'Bash(mkdir *)']);
+  assert.deepEqual(flagValues(once, '--disallowedTools'), ['Bash(sudo *)', 'Bash(*elevenlabs*)']);
   // quyền rỗng → bỏ hẳn cờ
   const empty = buildArgs({ project: fresh, preset: { id: 'e', permissions: { allow: [], ask: [], deny: [] } }, step: { key: 'x' } });
   assert.ok(!empty.includes('--allowedTools'));
@@ -236,6 +240,31 @@ test('buildArgs/buildPrompt: --add-dir và dòng Skill chỉ cho skill có thậ
   const prompt = buildPrompt({ project: { id: 'x', title: 'T', dir: '/d' }, preset, step });
   assert.ok(prompt.includes(`Skill: đọc ${skillDir}/SKILL.md trước khi làm.`));
   assert.ok(!prompt.includes(`Skill: đọc ${missingSkill}`));
+});
+
+test('buildArgs/buildPrompt: skill của kênh khác bị loại, skill chung và của kênh mình được nạp', () => {
+  const chA = path.join(tmp, 'skills/kenh-a');
+  const chB = path.join(tmp, 'skills/kenh-b');
+  for (const [d, ch] of [[chA, 'a'], [chB, 'b']]) {
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, '.studio.json'), JSON.stringify({ channel: ch }));
+  }
+  const preset = { id: 'p', name: 'P', skills: [skillDir, chA, chB], permissions: {}, steps: [{ key: 'one' }] };
+  const step = { key: 'one', name: 'Một', ord: 0, prompt: 'Đọc {skill}/SKILL.md', outputs: ['a.md'] };
+  const base = { claude_session_id: 's', session_started: 0 };
+  assert.deepEqual(flagValues(buildArgs({ project: { ...base, channel_id: 'a' }, preset, step }), '--add-dir'), [skillDir, chA]);
+  assert.deepEqual(flagValues(buildArgs({ project: { ...base, channel_id: null }, preset, step }), '--add-dir'), [skillDir]);
+  const prompt = buildPrompt({ project: { id: 'x', title: 'T', dir: '/d', channel_id: 'b' }, preset, step });
+  assert.ok(prompt.includes(`Skill: đọc ${chB}/SKILL.md`));
+  assert.ok(!prompt.includes(`${chA}/SKILL.md`));
+  // Định dạng mới: nhiều kênh.
+  const chAB = path.join(tmp, 'skills/kenh-ab');
+  fs.mkdirSync(chAB, { recursive: true });
+  fs.writeFileSync(path.join(chAB, '.studio.json'), JSON.stringify({ channels: ['a', 'b'] }));
+  const preset2 = { ...preset, skills: [chAB] };
+  for (const [ch, want] of [['a', [chAB]], ['b', [chAB]], ['c', []], [null, []]]) {
+    assert.deepEqual(flagValues(buildArgs({ project: { ...base, channel_id: ch }, preset: preset2, step }), '--add-dir'), want.length ? want : null);
+  }
 });
 
 test('buildPrompt: tiêu đề, đầu ra, góp ý (nội tuyến hoặc mục riêng), bước trước, ĐÃ DUYỆT CHI PHÍ', () => {
@@ -272,7 +301,7 @@ test('buildPrompt: tiêu đề, đầu ra, góp ý (nội tuyến hoặc mục r
   assert.ok(!r.includes('Góp ý'));
 });
 
-test('artifactKind + collectArtifacts: gộp structured + glob, bỏ file ngoài/không có/.studio/cũ', async () => {
+test('artifactKind + collectArtifacts: gộp structured + glob, bỏ file ngoài/không có/.studio, giữ file cũ khớp outputs', async () => {
   assert.equal(artifactKind('a/b.MP4'), 'video');
   assert.equal(artifactKind('x.wav'), 'audio');
   assert.equal(artifactKind('x.webp'), 'image');
@@ -309,7 +338,7 @@ test('artifactKind + collectArtifacts: gộp structured + glob, bỏ file ngoài
     },
     since: new Date().toISOString(),
   });
-  assert.deepEqual(list.map((a) => a.path).sort(), ['audio/a.wav', 'ngoai.txt', 'script.md']);
+  assert.deepEqual(list.map((a) => a.path).sort(), ['audio/a.wav', 'audio/old.wav', 'ngoai.txt', 'script.md']);
   const s = list.find((a) => a.path === 'script.md');
   assert.equal(s.kind, 'markdown');
   assert.equal(s.label, 'Kịch bản');
@@ -730,4 +759,15 @@ test('canRun lỗi được ném lại dạng HttpError (404, bước chưa tớ
   expectHttp(() => runner.start('khong-co', 'hook', {}), 404, 'not_found');
   expectHttp(() => runner.start(p.id, 'bible', {}), 409, 'not_runnable');
   assert.ok(!fs.existsSync(path.join(p.dir, '.studio', 'lock')));
+});
+
+test('buildPrompt: có .studio/reference.md → thêm dòng Tham khảo; không có thì không', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-ref-'));
+  const step = { key: 'one', name: 'Một', ord: 0, prompt: 'Làm', outputs: ['a.md'] };
+  const preset = { id: 'p', name: 'P', permissions: {}, steps: [{ key: 'one' }] };
+  const mk = () => buildPrompt({ project: { id: 'x', title: 'T', dir }, preset, step });
+  assert.ok(!mk().includes('reference.md'));
+  fs.mkdirSync(path.join(dir, '.studio'));
+  fs.writeFileSync(path.join(dir, '.studio', 'reference.md'), 'x');
+  assert.ok(mk().includes('.studio/reference.md'));
 });

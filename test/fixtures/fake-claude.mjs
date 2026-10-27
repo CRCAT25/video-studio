@@ -414,10 +414,38 @@ async function usageCheckMode() {
   out({ type: 'result', subtype: 'success', is_error: false, result: 'ok', session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1, cache_creation_input_tokens: 30 } });
 }
 
+// Tìm skill bằng AI: trả structured_output theo FAKE_SKILL_SEARCH (JSON) hoặc mặc định khớp skill đầu tiên được nhắc trong prompt.
+async function skillSearchMode() {
+  const prompt = await readStdin();
+  try {
+    fs.appendFileSync(path.join(cwd, '.fake-skill-search.jsonl'), JSON.stringify({ argv, prompt }) + '\n');
+  } catch {
+    /* bỏ qua */
+  }
+  if (process.env.FAKE_SKILL_SEARCH_FAIL) {
+    process.stderr.write('boom\n');
+    process.exitCode = 1;
+    return;
+  }
+  let so = { matches: [], suggestions: [] };
+  if (argv.join(' ').includes('"done"')) so = process.env.FAKE_SKILL_CLARIFY ? JSON.parse(process.env.FAKE_SKILL_CLARIFY) : { done: true, refined: 'nhu cầu rõ ràng' };
+  else if (process.env.FAKE_SKILL_SEARCH) so = JSON.parse(process.env.FAKE_SKILL_SEARCH);
+  if (prompt.includes('KHONGCO') && !argv.join(' ').includes('"done"')) so = { matches: [], suggestions: [], alternatives: ['từ khóa B', 'từ khóa C'], tip: 'Cần skill dựng cảnh 3D.' };
+  // Có danh sách kênh trong prompt thì chấm giả: kênh đầu 80%, còn lại 30% (kèm một id lạ để thử lọc).
+  const chIds = [...prompt.matchAll(/^- (\S+) \| .+ \| \S+$/gm)].map((m) => m[1]);
+  const fakeScores = () => [...chIds.map((c, i) => ({ channel: c, percent: i ? 30 : 80 })), { channel: 'kenh-la', percent: 99 }];
+  if (chIds.length && Array.isArray(so.matches)) so.matches = so.matches.map((m) => (m.scores ? m : { ...m, scores: fakeScores() }));
+  if (chIds.length && Array.isArray(so.suggestions)) so.suggestions = so.suggestions.map((m) => (m.scores ? m : { ...m, scores: fakeScores() }));
+  const sessionId = uuid();
+  out({ type: 'system', subtype: 'init', session_id: sessionId, model: MODEL, tools: [] });
+  out({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: so, session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1 } });
+}
+
 // ---- kịch bản
 async function main() {
   if (await doctorCommand()) return;
   if (argv.includes('--mcp-config')) return assistantMode();
+  if (argv.includes('--json-schema') && argv.includes('--no-session-persistence')) return skillSearchMode();
   if (argv.includes('--no-session-persistence')) return usageCheckMode();
   const scenario = pickScenario();
   const prompt = await readStdin();

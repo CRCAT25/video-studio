@@ -13,7 +13,7 @@ function claudeStatus(doctor, doctorError, t) {
 }
 
 // Thanh đầu trang; stats = {running, waiting}.
-export default function Header({ route, doctor, doctorError, stats, theme, onToggleTheme, onAccount, canLogout = false, onLogout, onAssistant, assistantOpen = false, usage = null }) {
+export default function Header({ route, doctor, doctorError, stats, theme, onToggleTheme, onAccount, canLogout = false, onLogout, onReset, onAssistant, assistantOpen = false, usage = null }) {
   const t = useT();
   const waiting = stats?.waiting ?? 0;
   const onOverview = route.name === 'overview' || route.name === 'step';
@@ -41,6 +41,9 @@ export default function Header({ route, doctor, doctorError, stats, theme, onTog
           <a href="#/channels" className={onChannels ? 'on' : ''} aria-current={onChannels ? 'page' : undefined}>
             {t('Kênh')}
           </a>
+          <a href="#/skills" className={route.name === 'skills' ? 'on' : ''} aria-current={route.name === 'skills' ? 'page' : undefined}>
+            Skills
+          </a>
         </nav>
         <div className="top-right">
           {usage && doctor?.auth?.loggedIn ? <UsageMeter usage={usage} onClick={onAccount} /> : null}
@@ -51,7 +54,7 @@ export default function Header({ route, doctor, doctorError, stats, theme, onTog
               <span className="show-m">AI</span>
             </span>
           </button>
-          <AccountMenu st={st} theme={theme} onTheme={onToggleTheme} onAccount={onAccount} canLogout={canLogout} onLogout={onLogout} />
+          <AccountMenu st={st} theme={theme} onTheme={onToggleTheme} onAccount={onAccount} canLogout={canLogout} onLogout={onLogout} onReset={onReset} />
         </div>
       </div>
     </header>

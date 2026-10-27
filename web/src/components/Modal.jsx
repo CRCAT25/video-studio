@@ -18,7 +18,7 @@ function inertOutside(bg) {
 }
 
 // Hiển thị hộp thoại; paid = viền đỏ (bước tốn tiền); wide = rộng hơn.
-export default function Modal({ title, lead, onClose, wide = false, paid = false, children, busy = false }) {
+export default function Modal({ title, lead, onClose, wide = false, xwide = false, paid = false, children, busy = false }) {
   const ref = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -76,7 +76,7 @@ export default function Modal({ title, lead, onClose, wide = false, paid = false
         if (e.target === e.currentTarget && !busy) onClose?.();
       }}
     >
-      <div ref={ref} className={`modal card pad${wide ? ' wide' : ''}${paid ? ' paid-m' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div ref={ref} className={`modal card pad${wide ? ' wide' : ''}${xwide ? ' xwide' : ''}${paid ? ' paid-m' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <button type="button" className="x" aria-label={t('Đóng')} title={t('Đóng (Esc)')} onClick={() => !busy && onClose?.()}>
           ✕
         </button>

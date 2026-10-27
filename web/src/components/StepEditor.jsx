@@ -1,6 +1,7 @@
 // Sửa các bước của một quy trình: bật/tắt, đổi thứ tự, đổi tên, cổng duyệt, lời dặn Claude, đầu ra; thêm bước từ thư viện.
 import { useState } from 'react';
 import Select from './Select.jsx';
+import Req from './Req.jsx';
 import { T, tr, useT } from '../lib/i18n.jsx';
 
 const GATES = [
@@ -43,7 +44,7 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
       <div className="se-main">
         <input type="checkbox" checked={!off} onChange={(e) => onChange({ enabled: e.target.checked })} disabled={disabled} aria-label={t('Dùng bước {n}', { n: s.name })} />
         <span className="se-no">{String(i + 1).padStart(2, '0')}</span>
-        <input type="text" className="se-name" value={s.name} maxLength={80} onChange={(e) => onChange({ name: e.target.value })} disabled={disabled || off} aria-label={t('Tên bước {n}', { n: i + 1 })} />
+        <input type="text" className="se-name" value={s.name} maxLength={80} onChange={(e) => onChange({ name: e.target.value })} disabled={disabled || off} aria-label={t('Tên bước {n}', { n: i + 1 })} aria-required="true" />{off ? null : <Req />}
         <span className="se-tags">
           {s.cost ? <span className="tag paid" title={`${s.cost.service} · luôn hỏi trước khi tốn tiền`}>{t('Tốn tiền')}</span> : null}
           {s.manual ? <span className="tag">{t('Việc tay')}</span> : null}

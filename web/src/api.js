@@ -24,6 +24,10 @@ const DEFAULT_MSG = {
   invalid_title: T('Tiêu đề không hợp lệ.'),
   invalid_slug: T('Slug không hợp lệ.'),
   invalid_dir: T('Thư mục không hợp lệ.'),
+  invalid_reference: T('Video tham khảo không hợp lệ.'),
+  pick_unsupported: T('Máy này chưa hỗ trợ hộp thoại chọn thư mục.'),
+  invalid_permission: T('Chỉ cấp được quyền theo tên công cụ hoặc lệnh Bash an toàn; lệnh nguy hiểm phải sửa tay trong quy trình.'),
+  pick_failed: T('Không mở được hộp thoại chọn thư mục.'),
   invalid_body: T('Dữ liệu gửi lên không hợp lệ.'),
   account_busy: T('Đang có lệnh đăng nhập / đăng xuất chạy — đợi xong hoặc bấm Hủy.'),
   not_logging_in: T('Không có lượt đăng nhập nào đang chờ.'),
@@ -111,9 +115,19 @@ export const api = {
   update: () => request('GET', '/api/update'),
   updateStart: () => request('POST', '/api/update', {}),
   updateRestart: () => request('POST', '/api/update/restart', {}),
+  resetAll: () => request('POST', '/api/reset', { confirm: 'RESET' }),
   doctor: (refresh = false) => request('GET', `/api/doctor${refresh ? '?refresh=1' : ''}`),
   channels: () => request('GET', '/api/channels'),
   presets: () => request('GET', '/api/presets'),
+  skills: () => request('GET', '/api/skills'),
+  skillsLocal: () => request('GET', '/api/skills/local'),
+  skill: (name) => request('GET', `/api/skills/${enc(name)}`),
+  saveSkill: (name, content) => request('PUT', `/api/skills/${enc(name)}`, { content }),
+  deleteSkill: (name) => request('DELETE', `/api/skills/${enc(name)}`, {}),
+  setSkillScope: (name, scope) => request('PUT', `/api/skills/${enc(name)}/scope`, scope),
+  clarifySkills: (query, answers) => request('POST', '/api/skills/search/clarify', { query, answers }),
+  searchSkills: (query, web = false) => request('POST', '/api/skills/search', { query, web }),
+  importSkills: (body) => request('POST', '/api/skills/import', body),
   pipelineCatalog: () => request('GET', '/api/pipeline/catalog'),
   suggestPipeline: (f, opts) => {
     const q = new URLSearchParams();
@@ -124,15 +138,18 @@ export const api = {
   savePipeline: (pipeline, name) => request('POST', '/api/pipelines', { pipeline, name }),
   deletePipeline: (id) => request('DELETE', `/api/pipelines/${enc(id)}`, {}), // thân {} để có Content-Type JSON (chặn CSRF)
   projects: (opts) => request('GET', '/api/projects', undefined, opts),
+  pickDir: () => request('POST', '/api/pick-dir', {}),
   createProject: (body) => request('POST', '/api/projects', body),
   project: (id, opts) => request('GET', `/api/projects/${enc(id)}`, undefined, opts),
   step: (id, key, opts) => request('GET', stepPath(id, key), undefined, opts),
-  runStep: (id, key, { feedback, allowPaid } = {}) => {
+  runStep: (id, key, { feedback, allowPaid, allowOnce } = {}) => {
     const body = {};
     if (feedback) body.feedback = feedback;
     if (allowPaid) body.allowPaid = true;
+    if (allowOnce?.length) body.allowOnce = allowOnce;
     return request('POST', `${stepPath(id, key)}/run`, body);
   },
+  grantPermission: (id, tool, scope = 'project') => request('POST', `/api/projects/${enc(id)}/permissions`, { tool, scope }),
   stopRun: (runId) => request('POST', `/api/runs/${enc(runId)}/stop`, {}),
   completeStep: (id, key) => request('POST', `${stepPath(id, key)}/complete`, {}),
   account: () => request('GET', '/api/claude/account'),

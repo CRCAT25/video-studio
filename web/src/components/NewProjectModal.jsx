@@ -5,6 +5,9 @@ import Flow from './Flow.jsx';
 import Select from './Select.jsx';
 import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatalog, useSuggestion } from './FormatPicker.jsx';
 import { Sk, SkFlow, SkZone } from './Skeleton.jsx';
+import SkillPicker from './SkillPicker.jsx';
+import ReferencePicker from './ReferencePicker.jsx';
+import Req from './Req.jsx';
 import StepEditor, { stepProblem } from './StepEditor.jsx';
 import { api } from '../api.js';
 import { isValidSlug, slugify } from '../lib/slug.js';
@@ -31,10 +34,10 @@ const toDraft = (raw) => {
   return d;
 };
 const ADV_CODES = ['invalid_slug', 'slug_taken', 'invalid_dir', 'dir_taken'];
-const FIELD_CODES = ['invalid_title', 'invalid_name', ...ADV_CODES];
+const FIELD_CODES = ['invalid_title', 'invalid_name', 'invalid_reference', ...ADV_CODES];
 
 // Hiển thị modal; onCreated(project) sau khi tạo xong. Bước 1: chọn định dạng hoặc quy trình đã lưu. Bước 2: tiêu đề, kênh, sửa các bước.
-export default function NewProjectModal({ presetsData, channels, doctor, onClose, onCreated }) {
+export default function NewProjectModal({ presetsData, channels, doctor, defaultChannelId = '', onClose, onCreated }) {
   const t = useT();
   const saved = presetsData?.presets || [];
   const loadErrors = presetsData?.errors || [];
@@ -48,13 +51,16 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   const [draft, setDraft] = useState(null);
   const [draftKey, setDraftKey] = useState('');
   const [title, setTitle] = useState('');
-  const [channelId, setChannelId] = useState('');
+  const [channelId, setChannelId] = useState(defaultChannelId);
   const [saveOn, setSaveOn] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
   const [useDir, setUseDir] = useState(false);
   const [dir, setDir] = useState('');
+  const [picking, setPicking] = useState(false);
+  const [pickErr, setPickErr] = useState('');
+  const [reference, setReference] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [adv, setAdv] = useState(false);
@@ -70,14 +76,13 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   const titleBad = titleT.length > TITLE_MAX;
   const slugBad = slugEdited && !isValidSlug(slug);
   const dirT = dir.trim();
-  const dirBad = useDir && dirT !== '' && !(dirT.startsWith('/') || dirT.startsWith('~'));
   const home = doctor?.home || '';
   const shownDir = useDir ? (dirT ? previewDir(dirT, effSlug, home) : '') : previewDir(draft?.project_dir || 'projects/{slug}', effSlug, home);
   const enabled = (draft?.steps || []).filter((s) => s.enabled !== false);
   const stepsBad = !enabled.length || enabled.some((s) => stepProblem(s));
   const saveNameT = saveName.trim();
   const saveBad = saveOn && (!saveNameT || saveNameT.length > 80);
-  const canSubmit = !!draft && titleT.length > 0 && !titleBad && !slugBad && !stepsBad && !saveBad && (!useDir || (dirT && !dirBad)) && !busy;
+  const canSubmit = !!draft && titleT.length > 0 && !titleBad && !slugBad && !stepsBad && !saveBad && (!useDir || dirT) && !busy;
   const fieldErr = (codes) => (err && codes.includes(err.code) ? err.message : null);
   const chOptions = [{ value: '', label: t('Không gắn kênh') }, ...(channels || []).map((c) => ({ value: c.id, label: c.name || c.id }))];
 
@@ -95,6 +100,20 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
     setStage(2);
   };
 
+  // Mở hộp thoại chọn thư mục của máy (server mở); không cho gõ/dán đường dẫn.
+  const pickDirectory = async () => {
+    setPicking(true);
+    setPickErr('');
+    try {
+      const r = await api.pickDir();
+      if (r?.path) setDir(r.path);
+    } catch (e) {
+      setPickErr(e.message);
+    } finally {
+      setPicking(false);
+    }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -108,6 +127,7 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
       if (saveOn) body.saveAs = saveNameT;
       if (slugEdited) body.slug = slug;
       if (useDir && dirT) body.dir = dirT;
+      if (reference) body.reference = reference;
       const view = await api.createProject(body);
       onCreated?.(view);
     } catch (e2) {
@@ -191,12 +211,14 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   }
 
   return (
-    <Modal title={t('Dự án mới')} wide onClose={onClose} busy={busy}>
+    <Modal title={t('Dự án mới')} wide xwide onClose={onClose} busy={busy}>
       <form onSubmit={submit} noValidate>
         <p className="lead">{draft?.name ? tr(draft.name) : draft?.name}</p>
+        <div className="np-grid">
+          <div className="np-col">
         <label className="fld">
-          <span>{t('Tiêu đề video')}</span>
-          <input type="text" value={title} maxLength={TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} placeholder={t('Vd: Mua vàng hay gửi tiết kiệm?')} disabled={busy} data-autofocus />
+          <span>{t('Tiêu đề video')}<Req /></span>
+          <input type="text" required aria-required="true" value={title} maxLength={TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} placeholder={t('Vd: Mua vàng hay gửi tiết kiệm?')} disabled={busy} data-autofocus />
           {titleBad ? <span className="hint bad">{t('Tiêu đề tối đa {n} ký tự.', { n: TITLE_MAX })}</span> : null}
           {fieldErr(['invalid_title']) ? <span className="hint bad">{fieldErr(['invalid_title'])}</span> : null}
         </label>
@@ -212,13 +234,24 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
           <StepEditor steps={draft?.steps || []} library={catalog?.steps || []} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
           {!enabled.length ? <span className="hint bad">{t('Cần ít nhất 1 bước.')}</span> : null}
         </div>
+          </div>
+          <div className="np-col">
+        <div className="fld">
+          <span className="fld-l">Skills <span className="muted">· {t('chỉ skill được chọn mới nạp cho các bước')}</span></span>
+          <SkillPicker channelId={channelId || null} value={draft?.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy} />
+        </div>
+        <div className="fld">
+          <span className="fld-l">{t('Tham khảo video')} <span className="muted">· {t('tùy chọn, thay cho việc nạp skill')}</span></span>
+          <ReferencePicker channels={channels || []} defaultChannelId={channelId} value={reference} onChange={setReference} disabled={busy} />
+          {fieldErr(['invalid_reference']) ? <span className="hint bad">{fieldErr(['invalid_reference'])}</span> : null}
+        </div>
         <div className="fld">
           <label className="chk">
             <input type="checkbox" checked={saveOn} onChange={(e) => setSaveOn(e.target.checked)} disabled={busy} />
-            <span>{t('Lưu làm quy trình của tôi (dùng lại cho dự án sau)')}</span>
+            <span>{t('Lưu làm quy trình của tôi (dùng lại cho dự án sau)')}{saveOn ? <Req /> : null}</span>
           </label>
           {saveOn ? (
-            <input type="text" style={{ width: '100%', marginTop: 8 }} value={saveName} maxLength={80} onChange={(e) => setSaveName(e.target.value)} placeholder={t('Tên quy trình')} disabled={busy} aria-label={t('Tên quy trình')} aria-invalid={saveBad} />
+            <input type="text" required aria-required="true" style={{ width: '100%', marginTop: 8 }} value={saveName} maxLength={80} onChange={(e) => setSaveName(e.target.value)} placeholder={t('Tên quy trình')} disabled={busy} aria-label={t('Tên quy trình')} aria-invalid={saveBad} />
           ) : null}
           {saveOn && !saveNameT ? <span className="hint bad">{t('Đặt tên cho quy trình.')}</span> : null}
           {fieldErr(['invalid_name']) ? <span className="hint bad">{fieldErr(['invalid_name'])}</span> : null}
@@ -258,18 +291,25 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
           </div>
           <div className="fld">
             <span className="fld-l">{t('Thư mục dự án')}</span>
-            {shownDir ? <div className="dirprev">{shownDir}</div> : <div className="dirprev dim">{t('Nhập đường dẫn bên dưới')}</div>}
+            {shownDir ? <div className="dirprev">{shownDir}</div> : <div className="dirprev dim">{t('Chưa chọn thư mục')}</div>}
             <label className="chk">
               <input type="checkbox" checked={useDir} onChange={(e) => setUseDir(e.target.checked)} disabled={busy} />
-              <span>{t('Dùng thư mục khác (vd: dự án có sẵn)')}</span>
+              <span>{t('Dùng thư mục khác (vd: dự án có sẵn)')}{useDir ? <Req /> : null}</span>
             </label>
             {useDir ? (
-              <input type="text" className="mono-in" style={{ width: '100%', marginTop: 8 }} value={dir} onChange={(e) => setDir(e.target.value)} placeholder="~/Documents/Youtube/du-an-cu" disabled={busy} aria-label={t('Thư mục dự án')} />
+              <div className="dir-row" style={{ marginTop: 8 }}>
+                <button type="button" className="btn sm" onClick={pickDirectory} disabled={busy || picking}>
+                  {picking ? <span className="spinner" aria-hidden="true" /> : null}{dirT ? t('Chọn thư mục khác…') : t('Chọn thư mục…')}
+                </button>
+                <span className="hint" style={{ margin: 0 }}>{dirT ? t('Đã chọn thư mục ở trên.') : t('Chưa chọn thư mục — bắt buộc khi dùng thư mục khác.')}</span>
+              </div>
             ) : null}
-            {dirBad ? <span className="hint bad">{t('Cần đường dẫn tuyệt đối (bắt đầu bằng / hoặc ~).')}</span> : null}
+            {pickErr ? <span className="hint bad">{pickErr}</span> : null}
             {fieldErr(['invalid_dir', 'dir_taken']) ? <span className="hint bad">{fieldErr(['invalid_dir', 'dir_taken'])}</span> : null}
           </div>
         </details>
+          </div>
+        </div>
         {err && !fieldErr([...FIELD_CODES, 'channel_not_found']) ? (
           <div className="err-note" role="alert">
             {err.message}

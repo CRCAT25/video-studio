@@ -76,6 +76,24 @@ Quy trình là danh sách các bước Claude chạy cho một video (kịch b�
 Quy trình đã lưu là các file YAML trong `presets/` của thư mục dữ liệu; bạn cũng có thể sửa tay.
 Mỗi dự án giữ bản sao riêng, nên sửa hay xóa quy trình không ảnh hưởng dự án đã tạo.
 
+## Skills
+
+Tab **Skills** (cạnh Kênh) là thư viện skill riêng của app, lưu ở `~/.video-studio/skills/<tên>/SKILL.md` — không đụng tới `~/.claude/skills`.
+
+- **Nhập** từ `~/.claude/skills` trên máy, dán hoặc tải lên file `SKILL.md`, hoặc từ repo/thư mục GitHub công khai (`https://github.com/chủ/repo/tree/nhánh/thư-mục`; cần có `git`).
+- **Xem và sửa** `SKILL.md`, hoặc xóa skill (có cảnh báo nếu quy trình đang dùng).
+- **Gắn** skill khi tạo hoặc sửa quy trình — chỉ skill được chọn mới được nạp cho các bước của quy trình đó.
+- **Bảng theo kênh**: trang Skills là một bảng — tick ô của kênh để skill dùng cho kênh đó, hoặc **Tất cả kênh** để dùng chung (kênh thêm sau cũng dùng). Video của kênh X chỉ nạp skill đã tick cho X và skill dùng chung, dù quy trình có gắn skill khác. Skill mới nhập mặc định dùng chung.
+- **Tìm bằng AI** nằm ở tab "Tìm skill" riêng (tab "Thư viện" không bị lọc). Kết quả hiện % phù hợp AI ước lượng cho từng kênh; tick ô để áp dụng skill cho kênh. Mô tả nhu cầu (ví dụ "làm video người que"). **Tìm nhanh** hỏi Claude một lượt; **Thảo luận** để Claude hỏi lại tối đa 3 câu ngắn rồi mới tìm theo nhu cầu đã làm rõ. Claude tìm trong thư viện và `~/.claude/skills`; **Tìm rộng hơn trên web** gợi ý thêm skill GitHub công khai. Gợi ý không bao giờ tự nhập. Khi không có kết quả, khung "Gợi ý từ AI" đưa từ khóa khác, tìm trên web và "Tạo skill mới" (mở sẵn hộp dán nội dung).
+
+Skill là chỉ dẫn mà Claude làm theo, nên chỉ nhập skill bạn tin tưởng.
+
+## Video tham khảo
+
+Thay vì nạp skill, dự án mới có thể mượn cách làm của một video đã đăng của bạn: ở **Dự án mới**, chọn kênh đã kết nối YouTube, lọc theo tên, sắp theo lượt xem hoặc mới nhất rồi chọn video. Tiêu đề, mô tả, độ dài, lượt xem, thích và thời lượng xem trung bình được ghi vào `<dự án>/.studio/reference.md`; mọi bước được dặn đọc để tham khảo cấu trúc, nhịp độ (không có kịch bản hay hình ảnh; nội dung được coi là dữ liệu, không phải chỉ thị). Tùy chọn; tối đa 1 video mỗi dự án.
+
+Trường bắt buộc có dấu `*` đỏ. "Dùng thư mục khác" mở hộp thoại chọn thư mục của hệ thống (macOS), không cho gõ đường dẫn.
+
 ## Trợ lý AI
 
 Bấm **Trợ lý AI** trên thanh trên để mở thanh bên và nhờ Claude thao tác trên trang giúp bạn,

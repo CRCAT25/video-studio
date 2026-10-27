@@ -10,6 +10,7 @@ import { buildApp } from './app.js';
 import { createAssistant } from './assistant.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
+import { createSkillSearch } from './skill-search.js';
 import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
 import { openStore } from './db.js';
@@ -234,6 +235,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   let wizard = null;
   let stopBackups = () => {};
   let closeRef = null;
+  let backupDir = null;
   // Lệnh `claude auth` không cần (và không được thấy) biến VS_* như token của app.
   const authEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('VS_')));
   const account = createClaudeAccount({ claudeBin, env: authEnv });
@@ -284,6 +286,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       account,
       assistant,
       usage,
+      skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
       youtube,
       googleWizard: wizard,
       login: createLogin({
@@ -294,6 +297,23 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
         onSetupCode: (code) => !opts.service && console.log(`Mã thiết lập mới: ${code}`),
       }),
       home,
+      resetAll: {
+        // Tên thư mục sao lưu (chưa đụng gì); run() đóng app, chuyển thư mục dữ liệu sang đó rồi thoát (mã 75 → được mở lại).
+        prepare: async () => {
+          const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '');
+          backupDir = `${home}.bak-${stamp}`;
+          return { backup: backupDir, restarting: !!(opts.service || env[SUPERVISED_ENV] === '1') };
+        },
+        run: async () => {
+          try {
+            await closeRef?.();
+            fs.renameSync(home, backupDir);
+          } catch (e) {
+            console.error('Đặt lại lỗi:', e?.message || e);
+          }
+          process.exit(opts.service || env[SUPERVISED_ENV] === '1' ? RESTART_CODE : 0);
+        },
+      },
     });
     // Dịch vụ nền: cổng cố định (bookmark/cookie gắn cổng) — bận thì báo lỗi, launchd thử lại sau.
     const port = await listenWithFallback(app, { host: opts.host, port: opts.port, tries: opts.service ? 0 : PORT_TRIES });

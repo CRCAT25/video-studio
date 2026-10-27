@@ -1,6 +1,8 @@
 # Danh sách kênh không phải YouTube — preset trỏ tới kênh qua trường `channel`.
 # Kênh YouTube không khai ở đây: thêm trong app (trang Kênh → + Thêm kênh, đăng nhập Google của kênh).
 # Kênh riêng của bạn: chép file này vào ~/.video-studio/presets/channels.yaml rồi sửa (bản đó được ưu tiên).
-- id: tiktok
-  name: TikTok
-  platform: tiktok
+# Ví dụ:
+# - id: tiktok
+#   name: TikTok
+#   platform: tiktok
+[]

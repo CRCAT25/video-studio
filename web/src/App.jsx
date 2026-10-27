@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import DoctorBanner from './components/DoctorBanner.jsx';
 import UpdateBanner from './components/UpdateBanner.jsx';
+import ResetModal from './components/ResetModal.jsx';
 import ClaudeAccount, { accountResultMessage } from './components/ClaudeAccount.jsx';
 import { useUsage } from './components/Usage.jsx';
 import { ToastProvider, useToast } from './components/Toast.jsx';
@@ -11,6 +12,7 @@ import Overview from './pages/Overview.jsx';
 import Step from './pages/Step.jsx';
 import Pipelines from './pages/Pipelines.jsx';
 import Channels, { ChannelDetail } from './pages/Channels.jsx';
+import Skills from './pages/Skills.jsx';
 import YouTubeSetup from './pages/YouTubeSetup.jsx';
 import { api } from './api.js';
 import { useHashRoute } from './lib/router.js';
@@ -47,6 +49,7 @@ function Shell() {
   const [channels, setChannels] = useState([]);
   const [account, setAccount] = useState(null);
   const [canLogout, setCanLogout] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [yt, setYt] = useState(null);
   const [ytErr, setYtErr] = useState(null);
   const ytTimer = useRef(null);
@@ -198,7 +201,7 @@ function Shell() {
   }, [running]);
 
   useEffect(() => {
-    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio') };
+    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio' };
     if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
   }, [route.name, t]);
 
@@ -231,8 +234,10 @@ function Shell() {
     page = <Step key={`${route.params.id}/${route.params.key || ''}`} projectId={route.params.id} stepKey={route.params.key} />;
   } else if (route.name === 'presets') {
     page = <Pipelines data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} />;
+  } else if (route.name === 'skills') {
+    page = <Skills onReloadPresets={loadPresets} />;
   } else if (route.name === 'channels') {
-    page = <Channels yt={yt} error={ytErr} onReload={loadYoutube} />;
+    page = <Channels yt={yt} error={ytErr} onReload={loadYoutube} presetsData={presetsData} doctor={doctor} />;
   } else if (route.name === 'channel') {
     page = <ChannelDetail key={route.params.id} id={route.params.id} yt={yt} error={ytErr} onReload={loadYoutube} />;
   } else if (route.name === 'channelsSetup') {
@@ -262,13 +267,14 @@ function Shell() {
 
   return (
     <>
-      <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} onAssistant={() => assistant.setOpen((v) => !v)} assistantOpen={assistant.open} usage={usage} />
+      <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} onReset={() => setResetOpen(true)} onAssistant={() => assistant.setOpen((v) => !v)} assistantOpen={assistant.open} usage={usage} />
       <DoctorBanner doctor={doctor} error={banner} onRefresh={() => Promise.all([loadDoctor(true), loadOverview()])} onAccount={() => setAccountOpen(true)} />
       <UpdateBanner u={update} running={running} />
       <main>{page}</main>
       {aiMounted || assistant.open ? (
         <AssistantPanel a={assistant} loggedIn={doctor ? !!doctor.auth?.loggedIn : null} onAccount={() => setAccountOpen(true)} />
       ) : null}
+      {resetOpen ? <ResetModal running={running} onClose={() => setResetOpen(false)} /> : null}
       {accountOpen ? (
         <ClaudeAccount doctor={doctor} account={account} running={running} usage={usage} onClose={() => setAccountOpen(false)} onRefresh={() => Promise.all([loadDoctor(true), loadAccount()])} />
       ) : null}

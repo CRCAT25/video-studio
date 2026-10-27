@@ -143,3 +143,9 @@
 .yt-range-c{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .yt-range-c input[type=date]{height:34px;padding:0 8px}
 .yt-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+
+.yt-rowmenu{display:inline-block}
+.yt-rowmenu .menu{min-width:190px}
+.menu-it:disabled{opacity:.5;cursor:not-allowed}
+.yt-rowmenu .menu.yt-rowpop{position:fixed;left:auto}
+.yt-rowmenu .btn svg{display:block}

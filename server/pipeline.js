@@ -61,9 +61,8 @@ const S = {
   },
   visuals: {
     id: 'hinh-anh', name: 'Hình ảnh & cảnh quay',
-    prompt: 'Tạo hình cho từng cảnh trong project.json, đúng khung {vars.resolution}, giữ nhân vật và màu thống nhất. ' +
-      'Không chữ, logo hay người thật. ' + COST_NOTE + ' {feedback}',
-    outputs: ['images/*'], cost: { service: 'Tạo hình ảnh AI', estimate: 'count(scenes)', always_ask: true }, gate: { mode: 'manual' },
+    prompt: 'Dựng hình cho từng cảnh trong project.json bằng code chạy trên máy (canvas/SVG/three.js, biểu đồ, chữ, số, ffmpeg) và tài nguyên miễn phí CC0 nếu cần. Xuất PNG đúng khung {vars.resolution} vào images/, tên theo mã cảnh. Giữ màu và phông thống nhất, không logo hay người thật. Không gọi dịch vụ sinh ảnh trả phí. {feedback}',
+    outputs: ['images/*'], gate: { mode: 'manual' },
   },
   voice: {
     id: 'giong-doc', name: 'Giọng đọc',
@@ -242,4 +241,94 @@ export function deletePipeline(home, id) {
     return { ok: true };
   }
   throw notFound('Không tìm thấy quy trình.');
+}
+
+// Quy tắc được cấp bằng nút "Cho phép": tên công cụ nguyên khối (WebSearch, mcp__…) hoặc Bash(<lệnh> *) cho lệnh không nguy hiểm.
+const GRANT_TOOL = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
+const GRANT_BASH = /^Bash\(([A-Za-z0-9._-]{1,40}) \*\)$/;
+const DANGEROUS_CMDS = new Set([
+  'rm', 'sudo', 'su', 'doas', 'curl', 'wget', 'git', 'chmod', 'chown', 'kill', 'killall', 'pkill', 'dd', 'ssh', 'scp', 'sh', 'bash', 'zsh', 'fish',
+  'eval', 'exec', 'xargs', 'find', 'env', 'nohup', 'osascript', 'launchctl', 'open', 'npm', 'npx', 'pnpm', 'yarn', 'brew', 'pip', 'pip3', 'mkfs',
+  'diskutil', 'shutdown', 'reboot', 'security',
+]);
+
+function grantError(status, code, message) {
+  const e = new Error(message);
+  e.status = status;
+  e.code = code;
+  return e;
+}
+
+// Kiểm quy tắc có cấp được bằng nút không; trả chính chuỗi quy tắc hoặc throw 400 invalid_permission.
+// Lệnh chỉ cho phép "lần này" (không lưu): find chỉ đọc có thể cấp một lần, vì quy tắc Bash(find *) lưu lại sẽ cho cả -delete/-exec.
+export const ONCE_ONLY_CMDS = new Set(['find']);
+
+export function validateGrantRule(rule, { once = false } = {}) {
+  const bad = () => grantError(400, 'invalid_permission', 'Chỉ cấp được quyền theo tên công cụ (ví dụ WebSearch) hoặc lệnh Bash an toàn (ví dụ Bash(mkdir *)); lệnh nguy hiểm như rm, curl, git phải sửa tay trong quy trình.');
+  if (typeof rule !== 'string') throw bad();
+  if (GRANT_TOOL.test(rule) && rule !== 'Bash') return rule;
+  const m = GRANT_BASH.exec(rule);
+  if (m && once && ONCE_ONLY_CMDS.has(m[1].toLowerCase())) return rule;
+  if (m && !DANGEROUS_CMDS.has(m[1].toLowerCase())) return rule;
+  throw bad();
+}
+
+// Thêm quy tắc vào permissions.allow của bản thô quy trình (sửa tại chỗ); trả true nếu có thay đổi.
+export function addAllowTool(raw, rule) {
+  validateGrantRule(rule);
+  const perm = (raw.permissions && typeof raw.permissions === 'object' ? raw.permissions : (raw.permissions = {}));
+  const list = (k) => (Array.isArray(perm[k]) ? perm[k] : []);
+  const whole = !rule.startsWith('Bash(');
+  const hit = ['deny', 'ask'].find((k) => list(k).some((x) => x === rule || (whole && String(x).startsWith(`${rule}(`))));
+  if (hit) throw grantError(409, 'permission_blocked_by_rule', `Quy trình đang để "${rule}" ở mục ${hit} — sửa tay trong quy trình nếu muốn cho phép.`);
+  if (list('allow').includes(rule)) return false;
+  perm.allow = [...list('allow'), rule];
+  return true;
+}
+
+// Cấp quyền cho cả quy trình đã lưu (<home>/presets/<id>.yaml). Trả true nếu đã ghi, false nếu không có file/không đổi.
+export function grantSavedPipeline(home, id, tool) {
+  if (!isValidSlug(id)) return false;
+  const dir = path.join(home, 'presets');
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => /\.ya?ml$/i.test(n) && !/^channels\.ya?ml$/i.test(n));
+  } catch {
+    return false;
+  }
+  for (const n of names) {
+    const file = path.join(dir, n);
+    let raw;
+    try {
+      raw = YAML.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      continue;
+    }
+    if (!raw || raw.id !== id) continue;
+    if (!addAllowTool(raw, tool)) return false;
+    fs.writeFileSync(file, `# Quy trình của tôi — tạo bởi Video Studio\n${YAML.stringify(raw, { lineWidth: 0 })}`);
+    return true;
+  }
+  return false;
+}
+
+// Quyền cấp cho mọi dự án (nút "Cho phép tất cả các dự án"): <home>/global-permissions.json {allow: [...]}.
+export function readGlobalAllow(home) {
+  if (!home) return [];
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(home, 'global-permissions.json'), 'utf8'));
+    return Array.isArray(j?.allow) ? j.allow.filter((r) => { try { return validateGrantRule(r) === r; } catch { return false; } }) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Thêm quy tắc vào danh sách chung; trả true nếu có thay đổi.
+export function addGlobalAllow(home, rule) {
+  validateGrantRule(rule);
+  const list = readGlobalAllow(home);
+  if (list.includes(rule)) return false;
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'global-permissions.json'), `${JSON.stringify({ allow: [...list, rule] }, null, 2)}\n`);
+  return true;
 }

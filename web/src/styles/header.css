@@ -32,8 +32,8 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
   .top-in{gap:8px;padding:0 12px}
   .top-right{gap:6px}
   nav.tabs{gap:0}
-  nav.tabs a{padding:0 6px}
-  nav.tabs a.on:after{left:6px;right:6px}
+  nav.tabs a{padding:0 4px;font-size:var(--fs-sm)}
+  nav.tabs a.on:after{left:4px;right:4px}
 }
 .upd{max-width:var(--page-w);margin:16px auto 0;padding:0 24px}
 .upd-in{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 16px;border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
@@ -45,10 +45,10 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
 .menu-wrap{position:relative}
 .acc-btn .menu-chev{flex:none;color:var(--dim);transition:transform .15s}
 .acc-btn.open .menu-chev{transform:rotate(180deg)}
-.menu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:230px;max-width:calc(100vw - 24px);padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:260px;max-width:calc(100vw - 24px);padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .menu-it{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:6px 10px;border:0;border-radius:6px;background:none;color:var(--text);font:inherit;font-size:var(--fs-sm);text-align:left;cursor:pointer}
 .menu-it:hover,.menu-it:focus-visible{background:var(--surface-2);outline:none}
-.menu-lb{flex:1;min-width:0}
+.menu-lb{flex:1;min-width:0;white-space:nowrap}
 .menu-meta{color:var(--muted);font-size:var(--fs-xs);white-space:nowrap}
 .menu-meta.bad{color:var(--err)}
 .menu-tick{flex:none;color:var(--accent-tx)}
@@ -59,3 +59,4 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
   .acc-btn .acc-st{display:none}
   .use-btn{padding:0 8px}
 }
+.menu-danger{color:var(--err)}

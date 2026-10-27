@@ -12,7 +12,7 @@ function Tick() {
 }
 
 // st = {text, lamp, bad, loading}; mở bảng Claude bằng onAccount.
-export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, onLogout }) {
+export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, onLogout, onReset }) {
   const t = useT();
   const { lang, setLang } = useLang();
   const [open, setOpen] = useState(false);
@@ -112,6 +112,10 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
               {theme === v ? <Tick /> : null}
             </button>
           ))}
+          <div className="menu-sep" role="separator" />
+          <button type="button" role="menuitem" className="menu-it menu-danger" onClick={pick(onReset)} title={t('Xóa dữ liệu và đưa app về như mới cài')}>
+            <span className="menu-lb">{t('Đặt lại toàn bộ…')}</span>
+          </button>
           {canLogout ? (
             <>
               <div className="menu-sep" role="separator" />

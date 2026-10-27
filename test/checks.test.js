@@ -82,12 +82,21 @@ test('studio-check outputs: file mới → ĐẠT', async () => {
   assert.match(r.output, /✓ audio\/\*\.wav \(1 file\)/);
 });
 
-test('studio-check outputs: file cũ hơn lượt chạy → TRƯỢT', async () => {
+test('studio-check outputs: file cũ hơn lượt chạy nhưng hợp lệ → ĐẠT (dùng lại); .json hỏng → TRƯỢT', async () => {
   write('exports/caption.md', 'caption');
   ageFile('exports/caption.md', 3600);
-  const r = await checkOutputs({ dir, outputs: ['exports/caption.md'], since: new Date().toISOString() });
-  assert.equal(r.passed, false);
-  assert.match(r.output, /1 file cũ hơn lượt chạy/);
+  const since = new Date().toISOString();
+  const r = await checkOutputs({ dir, outputs: ['exports/caption.md'], since });
+  assert.equal(r.passed, true, r.output);
+  assert.match(r.output, /1 file dùng lại từ lượt trước/);
+  write('p.json', '{"a":1}');
+  ageFile('p.json', 3600);
+  assert.equal((await checkOutputs({ dir, outputs: ['p.json'], since })).passed, true);
+  write('bad.json', '{oops');
+  ageFile('bad.json', 3600);
+  const bad = await checkOutputs({ dir, outputs: ['bad.json'], since });
+  assert.equal(bad.passed, false);
+  assert.match(bad.output, /1 file cũ hơn lượt chạy/);
 });
 
 test('studio-check outputs: file trong 2 s trước started_at vẫn tính là mới', async () => {

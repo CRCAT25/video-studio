@@ -16,7 +16,6 @@ import { createClaudeAccount } from '../server/claude-account.js';
 import { cachedPresets, DEFAULT_PORT, listenWithFallback, main, parseArgs, parsePort, resolveClaudeBin, resolveHome } from '../server/cli.js';
 
 const FIXTURE_PRESETS = path.join(REPO_ROOT, 'test', 'fixtures', 'presets');
-const REPO_PRESETS = path.join(REPO_ROOT, 'presets');
 const TOKEN = 'test-token-abcdefghijklmnop';
 const HOST = '127.0.0.1:4318';
 
@@ -63,7 +62,7 @@ async function makeApp(overrides = {}) {
     projects,
     runner,
     presets: () => loadPresets([FIXTURE_PRESETS]),
-    channels: () => loadChannels([REPO_PRESETS]),
+    channels: () => loadChannels([FIXTURE_PRESETS]),
     token: TOKEN,
     webDist: path.join(tmp, 'no-dist'),
     doctor: async () => {
@@ -105,7 +104,7 @@ beforeEach(() => {
   projects = createProjects({
     store,
     presets: () => loadPresets([FIXTURE_PRESETS]),
-    channels: () => loadChannels([REPO_PRESETS]),
+    channels: () => loadChannels([FIXTURE_PRESETS]),
     home,
   });
   runner = new FakeRunner(projects);
@@ -507,7 +506,7 @@ test('run → 202 {run}, runner.start nhận feedback/allowPaid; busy 409; stop 
   assert.deepEqual(Object.keys(run).sort(), ['ended_at', 'error', 'exit_code', 'id', 'n', 'progress_msg', 'progress_pct', 'started_at', 'state', 'summary']);
   assert.equal(run.n, 1);
   assert.equal(run.state, 'running');
-  assert.deepEqual(runner.calls[0], { id: 'chay-thu', key: 'hook', opts: { feedback: 'Ngắn hơn nhé', allowPaid: false } });
+  assert.deepEqual(runner.calls[0], { id: 'chay-thu', key: 'hook', opts: { feedback: 'Ngắn hơn nhé', allowPaid: false, allowOnce: [] } });
 
   const stats = (await req({ url: '/api/projects' })).json().stats;
   assert.equal(stats.running, 1);
@@ -573,7 +572,7 @@ test('run: body sai → 400; bước trước chưa xong → 409 not_runnable; d
   // thân rỗng nhưng có content-type JSON vẫn chạy được (nút Dừng/Đánh dấu xong)
   const empty = await req({ method: 'POST', url, headers: { 'content-type': 'application/json' } });
   assert.equal(empty.statusCode, 202);
-  assert.deepEqual(runner.calls.at(-1).opts, { feedback: null, allowPaid: false });
+  assert.deepEqual(runner.calls.at(-1).opts, { feedback: null, allowPaid: false, allowOnce: [] });
 });
 
 test('bước tốn tiền: thiếu allowPaid → 412 cost_confirm_required kèm cost; allowPaid:true → 202', async () => {
@@ -594,7 +593,23 @@ test('bước tốn tiền: thiếu allowPaid → 412 cost_confirm_required kèm
 
   const ok = await req({ method: 'POST', url: '/api/projects/ton-tien/steps/voice/run', payload: { allowPaid: true } });
   assert.equal(ok.statusCode, 202);
-  assert.deepEqual(runner.calls[0].opts, { feedback: null, allowPaid: true });
+  assert.deepEqual(runner.calls[0].opts, { feedback: null, allowPaid: true, allowOnce: [] });
+});
+
+test('run: allowOnce hợp lệ chuyển tới runner; quy tắc nguy hiểm/sai kiểu → 400', async () => {
+  await makeApp();
+  const p = await createProject('Một lần');
+  const url = `/api/projects/${p.id}/steps/hook/run`;
+  const bad = await req({ method: 'POST', url, payload: { allowOnce: ['Bash(rm *)'] } });
+  assert.equal(bad.statusCode, 400);
+  assert.equal((await req({ method: 'POST', url, payload: { allowOnce: 'WebSearch' } })).statusCode, 400);
+  const { validateGrantRule } = await import('../server/pipeline.js');
+  assert.equal(validateGrantRule('Bash(find *)', { once: true }), 'Bash(find *)');
+  assert.throws(() => validateGrantRule('Bash(find *)'));
+  assert.equal((await req({ method: 'POST', url: `/api/projects/${p.id}/permissions`, payload: { tool: 'Bash(find *)' } })).statusCode, 400);
+  const ok = await req({ method: 'POST', url, payload: { allowOnce: ['Bash(mkdir *)', 'WebSearch'] } });
+  assert.equal(ok.statusCode, 202, ok.body);
+  assert.deepEqual(runner.calls.at(-1).opts.allowOnce, ['Bash(mkdir *)', 'WebSearch']);
 });
 
 test('runner.start ném HttpError (vd locked) → đúng mã; complete 200 + change, lần 2 → 409', async () => {
@@ -1191,4 +1206,87 @@ test('mức dùng: không có → 503; có → GET summary, POST check (lỗi 42
   assert.deepEqual(args, [{ auto: false }, { auto: false }, { auto: true }]);
   listener(snap);
   assert.deepEqual(sent.at(-1), ['usage', snap]);
+});
+
+test('đặt lại: thiếu resetAll → 503; sai xác nhận → 400; còn bước chạy → 409; đúng → prepare', async () => {
+  await makeApp();
+  const none = await req({ method: 'POST', url: '/api/reset', payload: { confirm: 'RESET' } });
+  assert.equal(none.statusCode, 503);
+  assert.equal(none.json().error, 'reset_unavailable');
+  await app.close();
+
+  const calls = [];
+  await makeApp({ resetAll: { prepare: async () => (calls.push('prepare'), { backup: '/x.bak', restarting: true }), run: async () => calls.push('run') } });
+  const bad = await req({ method: 'POST', url: '/api/reset', payload: { confirm: 'reset' } });
+  assert.equal(bad.statusCode, 400);
+  assert.deepEqual(calls, []);
+
+  const p = await createProject();
+  const run = projects.beginRun(p.id, 'hook', { prompt: 'x' });
+  const busy = await req({ method: 'POST', url: '/api/reset', payload: { confirm: 'RESET' } });
+  assert.equal(busy.statusCode, 409);
+  assert.equal(busy.json().error, 'runs_active');
+  assert.deepEqual(calls, []);
+
+  projects.finishRun(run.id, { state: 'stopped' });
+  const ok = await req({ method: 'POST', url: '/api/reset', payload: { confirm: 'RESET' } });
+  assert.equal(ok.statusCode, 200, ok.body);
+  assert.deepEqual(ok.json(), { ok: true, backup: '/x.bak', restarting: true });
+  assert.deepEqual(calls, ['prepare']); // run chạy sau 'finish' của socket thật (inject không phát)
+});
+
+test('POST /api/projects với reference: ghi .studio/reference.md; id sai → 400 invalid_reference; kênh chưa kết nối → vẫn tạo + cảnh báo', async () => {
+  const youtube = { videos: async (id) => { if (id !== 'tiktok') { const e = new Error('Kênh chưa kết nối.'); e.status = 409; e.code = 'not_connected'; throw e; } return { videos: [{ id: 'v1', title: 'Video mẫu', description: 'mô tả', publishedAt: '2026-01-01T00:00:00Z', duration: 300, views: 99, avgViewDuration: 100 }] }; }, on: () => () => {} };
+  await makeApp({ youtube });
+  const ok = await createProject('Có tham khảo', { channelId: 'tiktok', reference: { channelId: 'tiktok', videoId: 'v1' } });
+  const md = fs.readFileSync(path.join(ok.dir, '.studio', 'reference.md'), 'utf8');
+  assert.match(md, /Video mẫu/);
+  const bad = await req({ method: 'POST', url: '/api/projects', payload: { presetId: 'e2e-short', title: 'Sai id', reference: { channelId: 'tiktok', videoId: 'nope' } } });
+  assert.equal(bad.statusCode, 400);
+  assert.equal(bad.json().error, 'invalid_reference');
+  const bad2 = await req({ method: 'POST', url: '/api/projects', payload: { presetId: 'e2e-short', title: 'Sai dạng', reference: 'x' } });
+  assert.equal(bad2.json().error, 'invalid_reference');
+  const warn = await req({ method: 'POST', url: '/api/projects', payload: { presetId: 'e2e-short', title: 'Chưa kết nối', reference: { channelId: 'khac', videoId: 'v1' } } });
+  assert.equal(warn.statusCode, 201, warn.body);
+  assert.ok(warn.json().referenceWarning);
+});
+
+test('POST /api/pick-dir: trả path / cancelled; unsupported → 501; lỗi → 500', async () => {
+  const mk = (fn) => makeApp({ pickDir: fn });
+  await mk(async () => ({ path: '/x/y' }));
+  assert.deepEqual((await req({ method: 'POST', url: '/api/pick-dir', payload: {} })).json(), { path: '/x/y' });
+  await app.close();
+  await mk(async () => { throw Object.assign(new Error('u'), { code: 'unsupported' }); });
+  assert.equal((await req({ method: 'POST', url: '/api/pick-dir', payload: {} })).statusCode, 501);
+  await app.close();
+  await mk(async () => { throw Object.assign(new Error('f'), { code: 'pick_failed' }); });
+  assert.equal((await req({ method: 'POST', url: '/api/pick-dir', payload: {} })).statusCode, 500);
+});
+
+test('POST /api/projects/:id/permissions: thêm tool vào allow của dự án, từ chối Bash/deny/ask', async () => {
+  await makeApp();
+  const p = await createProject('Cấp quyền');
+  const url = `/api/projects/${p.id}/permissions`;
+  const post = (payload) => req({ method: 'POST', url, payload });
+  const ok = await post({ tool: 'WebSearch' });
+  assert.equal(ok.statusCode, 200, ok.body);
+  assert.equal(ok.json().changed, true);
+  assert.equal(store.getProject(p.id).pipeline.includes('"WebSearch"'), true);
+  assert.equal(projects.presetOf(p.id).permissions.allow.includes('WebSearch'), true);
+  assert.equal((await post({ tool: 'WebSearch' })).json().changed, false);
+  const all = await post({ tool: 'Bash(ls *)', scope: 'pipeline' });
+  assert.equal(all.statusCode, 200, all.body);
+  assert.equal(all.json().savedUpdated, true);
+  const { readGlobalAllow } = await import('../server/pipeline.js');
+  assert.deepEqual(readGlobalAllow(home), ['Bash(ls *)']);
+  assert.equal((await post({ tool: 'Bash' })).statusCode, 400);
+  assert.equal((await post({ tool: 'Bash(rm *)' })).statusCode, 400);
+  assert.equal((await post({ tool: 'Bash(curl *)' })).statusCode, 400);
+  assert.equal((await post({ tool: 'Bash(mkdir -p *)' })).statusCode, 400);
+  const bash = await post({ tool: 'Bash(mkdir *)' });
+  assert.equal(bash.statusCode, 200, bash.body);
+  assert.equal(projects.presetOf(p.id).permissions.allow.includes('Bash(mkdir *)'), true);
+  assert.equal((await post({})).statusCode, 400);
+  assert.equal((await post({ tool: 'WebFetch', scope: 'x' })).statusCode, 400);
+  assert.equal((await req({ method: 'POST', url: '/api/projects/khong-co/permissions', payload: { tool: 'WebFetch' } })).statusCode, 404);
 });

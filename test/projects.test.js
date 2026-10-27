@@ -9,7 +9,6 @@ import { createProjects, HttpError } from '../server/projects.js';
 import { suggestPipeline } from '../server/pipeline.js';
 
 const FIXTURE_PRESETS = path.join(REPO_ROOT, 'test', 'fixtures', 'presets');
-const REPO_PRESETS = path.join(REPO_ROOT, 'presets');
 
 let tmp;
 let home;
@@ -48,7 +47,7 @@ beforeEach(() => {
   projects = createProjects({
     store,
     presets: () => loadPresets([FIXTURE_PRESETS, extraDir]),
-    channels: () => loadChannels([REPO_PRESETS]),
+    channels: () => loadChannels([FIXTURE_PRESETS]),
     home,
   });
 });

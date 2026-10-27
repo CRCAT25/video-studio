@@ -5,6 +5,8 @@ import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatal
 import Modal from '../components/Modal.jsx';
 import { PresetErrors } from '../components/NewProjectModal.jsx';
 import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
+import Req from '../components/Req.jsx';
+import SkillPicker from '../components/SkillPicker.jsx';
 import StepEditor, { stepProblem } from '../components/StepEditor.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
@@ -71,7 +73,7 @@ function PresetCard({ p, channelName, onDelete }) {
           <Kv k={t('Kênh')}>{channelName || p.channel || '—'}</Kv>
           <Kv k={t('Định dạng')}>{formatText(p)}</Kv>
           <Kv k={t('Thư mục')}><span className="mono">{p.project_dir || '—'}</span></Kv>
-          <Kv k="Skills"><span className="mono">{p.skills?.length ? p.skills.join(', ') : '—'}</span></Kv>
+          <Kv k="Skills"><span className="mono">{p.skills?.length ? p.skills.map((x) => String(x).split(/[\\/]/).filter(Boolean).pop()).join(', ') : '—'}</span></Kv>
           {vars.map(([k, v]) => (
             <Kv key={k} k={`vars.${k}`}>
               <span className="mono">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
@@ -224,9 +226,14 @@ function Suggest({ onSaved }) {
             <details className="bp-more">
               <summary>{t('Tùy chỉnh các bước')}</summary>
               <StepEditor key={draft.id} steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
+              <div className="fld">
+                <span className="fld-l">Skills</span>
+                <SkillPicker channelId={draft.channel || null} value={draft.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy} />
+              </div>
             </details>
             <div className="sg-save">
-              <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={t('Tên quy trình')} aria-label={t('Tên quy trình')} disabled={busy} />
+              <span className="fld-l" style={{ flex: '0 0 100%', margin: 0 }}>{t('Tên quy trình')}<Req /></span>
+              <input type="text" required aria-required="true" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={t('Tên quy trình')} aria-label={t('Tên quy trình')} disabled={busy} />
               <button type="submit" className="btn primary" disabled={!canSave}>
                 {busy ? <span className="spinner" aria-hidden="true" /> : null}{t('Lưu làm quy trình của tôi')}
               </button>

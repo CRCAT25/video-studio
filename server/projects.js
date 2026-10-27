@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expandHome, isValidSlug, safeJoin, shellQuote, slugify, studioHome } from './paths.js';
-import { preparePipeline } from './pipeline.js';
+import { addAllowTool, addGlobalAllow, grantSavedPipeline, preparePipeline } from './pipeline.js';
 import { DEFAULT_TIMEOUT_MS, renderTemplate, validatePreset } from './presets.js';
 
 // Lỗi có mã HTTP + code máy đọc (§10); extra (vd {cost}) được gộp vào body JSON.
@@ -241,7 +241,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
   }
 
   // Tạo dự án mới (§6 create) từ quy trình gửi lên hoặc quy trình đã lưu; trả ProjectView hoặc throw HttpError 400/404/409.
-  function create({ presetId, pipeline, channelId, title, slug, dir } = {}) {
+  function create({ presetId, pipeline, channelId, title, slug, dir, referenceMd } = {}) {
     const { preset, snapshot } = resolvePipeline(presetId, pipeline);
     let channel = preset.channel ?? null;
     if (channelId != null && channelId !== '') {
@@ -311,6 +311,13 @@ export function createProjects({ store, presets, channels, home } = {}) {
         throw new HttpError(409, 'slug_taken', `Slug "${id}" đã có dự án khác dùng. Hãy chọn slug khác.`);
       }
       throw e;
+    }
+    if (typeof referenceMd === 'string' && referenceMd) {
+      try {
+        fs.writeFileSync(path.join(abs, '.studio', 'reference.md'), referenceMd);
+      } catch {
+        /* không ghi được thì bỏ qua: tham khảo chỉ là phần thêm */
+      }
     }
     writeSnapshot(id);
     return view(id);
@@ -667,6 +674,44 @@ export function createProjects({ store, presets, channels, home } = {}) {
     return data;
   }
 
+  // Cấp quyền công cụ cho dự án (sửa bản chụp quy trình); scope 'pipeline' ghi thêm vào quy trình đã lưu.
+  function grantPermission(id, tool, { scope = 'project' } = {}) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    const preset = presetFor(p);
+    let raw = null;
+    try {
+      if (p.pipeline) raw = JSON.parse(p.pipeline);
+      else if (preset?.pipeline) raw = { ...preset.pipeline, skills: preset.skills };
+      else if (preset) {
+        raw = JSON.parse(JSON.stringify(preset));
+        delete raw.yaml;
+        delete raw.file;
+      }
+    } catch {
+      raw = null;
+    }
+    if (!raw) throw new HttpError(409, 'preset_not_found', 'Dự án không còn quy trình để thêm quyền.');
+    let changed;
+    try {
+      changed = addAllowTool(raw, tool);
+      if (changed) validatePreset(raw);
+    } catch (e) {
+      if (e.code === 'EPRESET') throw new HttpError(409, 'no_snapshot', 'Quy trình của dự án không sửa được tự động — hãy thêm quyền tay.');
+      if (Number.isInteger(e.status) && typeof e.code === 'string') throw new HttpError(e.status, e.code, e.message);
+      throw e;
+    }
+    if (changed) store.updateProject(id, { pipeline: JSON.stringify(raw) });
+    let savedUpdated = false;
+    if (scope === 'pipeline') {
+      // Mọi dự án (kể cả quy trình có sẵn không có file) + quy trình đã lưu của dự án này nếu có.
+      if (p.preset_id) grantSavedPipeline(homeDir(), p.preset_id, tool);
+      addGlobalAllow(homeDir(), tool);
+      savedUpdated = true;
+    }
+    return { ok: true, changed, savedUpdated };
+  }
+
   // Preset (đã chuẩn hóa) của dự án, hoặc null nếu dự án/preset không còn.
   function presetOf(id) {
     const p = store.getProject(id);
@@ -727,6 +772,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     abandonRun,
     writeSnapshot,
     presetOf,
+    grantPermission,
     estimateCost,
   };
 }

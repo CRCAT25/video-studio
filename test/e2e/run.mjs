@@ -55,12 +55,13 @@ async function openAccount(p) {
   await p.getByRole('menuitem', { name: 'Tài khoản Claude' }).click();
 }
 
+const E2E_LINES = Number(process.env.E2E_LINES) || 1;
 async function check(name, fn) {
   try {
     const detail = await fn();
     return record(name, true, typeof detail === 'string' ? detail : '');
   } catch (e) {
-    return record(name, false, String(e && e.message ? e.message : e).split('\n')[0]);
+    return record(name, false, String(e && e.message ? e.message : e).split('\n').slice(0, E2E_LINES).join(' | '));
   }
 }
 
@@ -97,6 +98,7 @@ function startServer(port, home, googleBase, claudeApiBase) {
     VS_UPDATE_API: googleBase,
     VS_UPDATE_BIN: path.join(ROOT, 'test', 'fixtures', 'fake-update.mjs'),
     VS_HOME: home,
+    VS_LOCAL_SKILLS: path.join(home, 'no-local-skills'), // không đọc ~/.claude/skills thật
     VS_TOKEN: TOKEN,
     VS_CLAUDE_BIN: FAKE_BIN,
     // Mức dùng: token giả + API giả — không đọc Keychain thật, không gọi api.anthropic.com.
@@ -106,8 +108,13 @@ function startServer(port, home, googleBase, claudeApiBase) {
     FAKE_LOGIN_MS: '1500',
     FAKE_BROWSER_LOG: path.join(home, 'fake-browser.jsonl'),
     VS_GCLOUD: FAKE_GCLOUD,
+    VS_PICK_DIR_BIN: path.join(ROOT, 'test', 'fixtures', 'fake-osascript.mjs'),
+    FAKE_PICK_DIR: path.join(home, 'picked-dir'),
     VS_DOWNLOADS: path.join(home, 'Downloads'),
     FAKE_GCLOUD_LOG: path.join(home, 'fake-gcloud.jsonl'),
+    // Tìm skill bằng AI: claude giả trả sẵn một skill khớp + một gợi ý GitHub (không mạng).
+    FAKE_SKILL_CLARIFY: JSON.stringify({ done: false, question: 'Phong cách hình nào?', options: ['Tối giản', 'Hoạt hình'] }),
+    FAKE_SKILL_SEARCH: JSON.stringify({ matches: [{ name: 'skill-e2e', source: 'library', reason: 'Khớp nhu cầu thử' }], suggestions: [{ title: 'repo-mau', url: 'https://github.com/mau/skills', reason: 'Bộ skill mẫu' }, { title: 'bậy', url: 'https://evil.example/x', reason: '' }] }),
   };
   delete env.FAKE_GCLOUD_LOGIN;
   delete env.FAKE_GCLOUD_LOGIN_MS;
@@ -236,7 +243,7 @@ async function main() {
     page.on('console', (m) => {
       if (m.type() === 'error' || m.type() === 'warning') consoleIssues.push(`${m.type()}: ${m.text()}`);
     });
-    page.on('pageerror', (e) => consoleIssues.push(`pageerror: ${e.message}`));
+    page.on('pageerror', (e) => consoleIssues.push(`pageerror: ${e.message} ${(e.stack || '').split('\n').slice(1, 3).join(' | ')}`));
     const runPosts = [];
     page.on('request', (req) => {
       if (req.method() === 'POST' && /\/api\/projects\/[^/]+\/steps\/[^/]+\/run$/.test(new URL(req.url()).pathname)) runPosts.push(req.url());
@@ -958,12 +965,13 @@ async function main() {
       assert(auth.query.code_challenge_method === 'S256', 'thiếu PKCE');
       return auth.query.scope.split(' ').map((s) => s.split('/').pop()).join(', ');
     });
-    await check('Kênh: danh sách hiện thông tin chung → Chi tiết › mở trang kênh', async () => {
+    await check('Kênh: danh sách hiện thông tin chung → menu … → Xem chi tiết kênh', async () => {
       const row = ytRow('Kênh Giả');
       await row.locator('td.num', { hasText: /1[.,]?234/ }).waitFor();
       assert((await page.locator('section.yt-card, .yt-tiles').count()) === 0, 'danh sách hiện số liệu chi tiết');
       await shot('yt-list');
-      await row.getByRole('link', { name: /Xem chi tiết/ }).click();
+      await row.getByRole('button', { name: /Thao tác với kênh/ }).click();
+      await page.getByRole('menuitem', { name: 'Xem chi tiết kênh' }).click();
       await page.locator('section.yt-card h1', { hasText: 'Kênh Giả' }).waitFor();
       ytHash = new URL(page.url()).hash;
       assert(/^#\/channels\/[^/]+$/.test(ytHash), `hash sai: ${ytHash}`);
@@ -1125,6 +1133,47 @@ async function main() {
       }
       assert(!bad.length, bad.join('; '));
       return 'channels, channel, setup × sáng/tối';
+    });
+    await check('Dự án mới: dấu * đỏ, chọn thư mục bằng hộp thoại (không gõ), tham khảo video theo view → reference.md', async () => {
+      fs.mkdirSync(path.join(home, 'picked-dir'), { recursive: true });
+      await page.goto(`${base}/#/`);
+      await page.getByRole('button', { name: /Dự án mới/ }).first().click();
+      const modal = page.locator('.modal[role="dialog"]');
+      await modal.waitFor();
+      await modal.getByRole('tab', { name: /Quy trình đã lưu/ }).click();
+      await modal.locator('.saved-item', { hasText: 'E2E short' }).click();
+      await modal.locator('.fld.prev:not(.sk-zone)').waitFor();
+      await modal.getByRole('button', { name: 'Tiếp tục' }).click();
+      const title = modal.locator('input[data-autofocus]');
+      assert((await title.getAttribute('aria-required')) === 'true', 'tiêu đề thiếu aria-required');
+      const star = modal.locator('.fld > span .req').first();
+      await star.waitFor();
+      const color = await star.evaluate((e) => getComputedStyle(e).color);
+      assert(/^rgb/.test(color) && !color.startsWith('rgb(0, 0, 0'), `màu dấu *: ${color}`);
+      await title.fill('Tham khảo e2e');
+      await modal.locator('details.adv summary').click();
+      await modal.getByLabel(/Dùng thư mục khác/).check();
+      assert((await modal.locator('input[placeholder*="du-an-cu"]').count()) === 0, 'vẫn còn ô gõ đường dẫn');
+      await modal.getByRole('button', { name: 'Chọn thư mục…' }).click();
+      await modal.getByRole('button', { name: 'Chọn thư mục khác…' }).waitFor();
+      const shown = await modal.locator('.dirprev').innerText();
+      assert(shown.includes('picked-dir'), `thư mục hiện = ${shown}`);
+      const items = modal.locator('.ref-it');
+      await items.first().waitFor();
+      const first = await items.first().innerText();
+      assert(first.includes('Video một'), `sắp theo view, đầu = ${first}`);
+      await items.first().click();
+      assert(await items.first().locator('input').isChecked(), 'chưa chọn video');
+      await shot('new-project-reference');
+      const w = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth);
+      assert(w <= 0, `tràn ngang ${w}px`);
+      await modal.getByRole('button', { name: /Tạo dự án/ }).click();
+      await modal.waitFor({ state: 'detached' });
+      const md = path.join(home, 'picked-dir', '.studio', 'reference.md');
+      for (let i = 0; i < 20 && !fs.existsSync(md); i++) await page.waitForTimeout(200);
+      assert(fs.existsSync(md), 'thiếu .studio/reference.md');
+      assert(fs.readFileSync(md, 'utf8').includes('Video một'), 'reference.md thiếu tiêu đề video');
+      return 'reference.md có mặt';
     });
     await check('Kênh: Xóa kênh cần xác nhận → thu hồi token, về trang trống; xóa thiết lập được', async () => {
       await page.goto(`${base}/${ytHash}`);
@@ -1297,6 +1346,111 @@ async function main() {
       return seen.join(' + ');
     });
 
+    await check('Skills: bảng → nhập dán → tick Tất cả/kênh → tìm AI lọc + gợi ý → sửa + lưu → xóa', async () => {
+      await page.locator('header.top a', { hasText: 'Skills' }).click();
+      await page.locator('.page-h h1', { hasText: 'Skills' }).waitFor();
+      await page.getByRole('button', { name: 'Nhập skill' }).first().click();
+      await page.getByRole('button', { name: 'Dán nội dung' }).click();
+      assert((await page.locator('.modal').getByText('Phạm vi').count()) === 0, 'hộp nhập còn ô Phạm vi');
+      await page.locator('input[placeholder^="để trống"]').fill('skill-e2e');
+      await page.locator('textarea.mono-in').fill('---\nname: skill-e2e\ndescription: thử\n---\n# Thử\n');
+      await page.getByRole('button', { name: 'Nhập', exact: true }).click();
+      const row = page.locator('.sk-tbl tbody tr', { hasText: 'skill-e2e' });
+      await row.waitFor();
+      const all = row.getByRole('checkbox', { name: /tất cả kênh/i });
+      assert(await all.isChecked(), 'skill mới phải "Dùng chung"');
+      const chBoxes = row.locator('td.sk-ck input').filter({ hasNot: all });
+      const nCh = (await row.locator('td.sk-ck input').count()) - 1;
+      let note = 'nhập (chung)';
+      if (nCh > 0) {
+        for (let i = 0; i < nCh; i++) assert(await row.locator('td.sk-ck input').nth(i + 1).isChecked(), 'ô kênh phải sáng khi Tất cả');
+        // Bỏ một kênh khi đang "Tất cả" → danh sách cụ thể; các kênh khác vẫn tick.
+        await row.locator('td.sk-ck input').nth(1).uncheck();
+        await page.waitForFunction(() => !document.querySelector('.sk-tbl tbody tr input[aria-label*="tất cả kênh"]')?.checked);
+        assert(!(await all.isChecked()), 'Tất cả phải tắt');
+        for (let i = 1; i < nCh; i++) assert(await row.locator('td.sk-ck input').nth(i + 1).isChecked(), 'kênh còn lại phải giữ tick');
+        // Tải lại trang: phạm vi đã lưu.
+        await page.reload();
+        await page.locator('.sk-tbl tbody tr', { hasText: 'skill-e2e' }).waitFor();
+        assert(!(await page.locator('.sk-tbl tbody tr', { hasText: 'skill-e2e' }).locator('td.sk-ck input').nth(1).isChecked()), 'phạm vi không được lưu');
+        await page.locator('.sk-tbl tbody tr', { hasText: 'skill-e2e' }).getByRole('checkbox', { name: /tất cả kênh/i }).check();
+        await page.waitForFunction(() => [...document.querySelectorAll('.sk-tbl tbody tr input')].every((i) => i.checked));
+        note = `nhập → ${nCh} kênh: bỏ 1 → cụ thể → lưu → Tất cả`;
+      }
+      // Tìm bằng AI nằm ở tab riêng; bảng thư viện không bị lọc.
+      await page.getByRole('button', { name: 'Tìm skill', exact: true }).click();
+      assert((await page.locator('.sk-tbl').count()) === 0, 'chưa tìm thì tab Tìm skill không có bảng');
+      // Tìm bằng AI: bảng kết quả (kèm lý do, % từng kênh) + hộp gợi ý chỉ có link GitHub hợp lệ.
+      await page.getByLabel('Mô tả skill cần tìm').fill('skill thử nghiệm');
+      await page.getByRole('button', { name: 'Tìm rộng hơn trên web' }).click();
+      await page.locator('.sk-tbl tbody tr.hit .hint', { hasText: 'Khớp nhu cầu thử' }).waitFor();
+      await page.locator('.sk-sug', { hasText: 'repo-mau' }).waitFor();
+      if (nCh > 0) {
+        const pcts = await page.locator('.sk-tbl tbody tr.hit .sk-pct').allTextContents();
+        assert(pcts.length === nCh && pcts[0].startsWith('80%') && pcts.slice(1).every((x) => x.startsWith('30%')), `% theo kênh sai: ${pcts.join(',')}`);
+      }
+      if (nCh > 0) {
+        const chips = await page.locator('.sk-sug', { hasText: 'repo-mau' }).locator('.sk-pct-chip').allTextContents();
+        assert(chips.length === nCh && /80%/.test(chips[0]) && chips.slice(1).every((x) => /30%/.test(x)), `% gợi ý web sai: ${chips.join(',')}`);
+      }
+      assert((await page.locator('.sk-sug', { hasText: 'bậy' }).count()) === 0, 'link không phải GitHub không được lọt vào gợi ý');
+      await page.locator('.sk-sug').getByRole('button', { name: 'Nhập' }).click();
+      assert(/github\.com\/mau\/skills/.test(await page.locator('.modal input[type="text"]').inputValue()), 'gợi ý phải điền sẵn link');
+      assert((await page.locator('.modal').getByText('chỉ nhập skill từ nguồn bạn tin cậy').count()) === 1, 'thiếu cảnh báo tin cậy');
+      await page.locator('.modal-acts').getByRole('button', { name: 'Hủy' }).click();
+      // Không có kết quả: khung "Gợi ý từ AI" — chip từ khóa khác tìm lại; "Tạo skill mới" mở sẵn tab Dán nội dung.
+      await page.getByLabel('Mô tả skill cần tìm').fill('KHONGCO xyz');
+      await page.getByRole('button', { name: 'Tìm nhanh' }).click();
+      await page.locator('.sk-nomatch', { hasText: 'Cần skill dựng cảnh 3D.' }).waitFor();
+      await page.locator('.sk-nomatch').getByRole('button', { name: 'Tạo skill mới' }).click();
+      assert((await page.locator('.modal input[type="text"]').first().inputValue()) === 'khongco-xyz', 'tên skill mới phải lấy từ nhu cầu');
+      assert(/description: KHONGCO xyz/.test(await page.locator('.modal textarea').first().inputValue()), 'khung SKILL.md phải có mô tả');
+      await page.locator('.modal-acts').getByRole('button', { name: 'Hủy' }).click();
+      await page.locator('.sk-nomatch').getByRole('button', { name: 'từ khóa B' }).click();
+      await page.locator('.sk-tbl tbody tr.hit .hint', { hasText: 'Khớp nhu cầu thử' }).waitFor();
+      assert((await page.locator('.sk-nomatch').count()) === 0, 'có kết quả thì không còn khung gợi ý trống');
+      // Thảo luận: AI hỏi lại → bấm đáp án → câu đã trả lời hiện lại → Hủy; rồi hỏi lần nữa và "Tìm luôn".
+      await page.getByRole('button', { name: 'Thảo luận' }).click();
+      await page.locator('.sk-chat', { hasText: 'Phong cách hình nào?' }).waitFor();
+      assert(await page.getByLabel('Mô tả skill cần tìm').isDisabled(), 'ô tìm phải khóa khi đang thảo luận');
+      await page.locator('.sk-chat-opts').getByRole('button', { name: 'Hoạt hình' }).click();
+      await page.locator('.sk-chat-qa', { hasText: 'Hoạt hình' }).waitFor();
+      await page.locator('.sk-chat-acts').getByRole('button', { name: 'Hủy' }).click();
+      assert((await page.locator('.sk-chat').count()) === 0, 'Hủy phải đóng khung thảo luận');
+      await page.getByRole('button', { name: 'Thảo luận' }).click();
+      await page.locator('.sk-chat', { hasText: 'Phong cách hình nào?' }).waitFor();
+      await page.locator('.sk-chat-free input').fill('Tự trả lời');
+      await page.locator('.sk-chat-free').getByRole('button', { name: 'Trả lời' }).click();
+      await page.locator('.sk-chat-qa', { hasText: 'Tự trả lời' }).waitFor();
+      await page.locator('.sk-chat-acts').getByRole('button', { name: 'Tìm luôn' }).click();
+      await page.locator('.sk-tbl tbody tr.hit .hint', { hasText: 'Khớp nhu cầu thử' }).waitFor();
+      assert((await page.locator('.sk-chat').count()) === 0, 'Tìm luôn phải đóng khung thảo luận');
+      await shot('skills');
+      await page.setViewportSize({ width: 390, height: 800 });
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+      const wide = overflow ? await page.evaluate(() => [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && !e.closest('.sk-tbl-wrap')).slice(0, 4).map((e) => `${e.tagName}.${e.className}`).join(', ')) : '';
+      assert(!overflow, `trang tràn ngang ở 390px (bảng phải cuộn trong khung riêng) ${wide}`);
+      await toggleTheme(page);
+      await shot('skills-mobile-dark');
+      await toggleTheme(page);
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await page.getByRole('button', { name: 'Xóa lọc' }).click();
+      assert((await page.locator('.sk-tbl').count()) === 0, 'Xóa lọc phải làm trống kết quả tìm');
+      await page.getByRole('button', { name: 'Thư viện', exact: true }).click();
+      assert((await page.locator('.sk-tbl .sk-pct').count()) === 0, 'tab Thư viện không hiện %');
+      const row2 = page.locator('.sk-tbl tbody tr', { hasText: 'skill-e2e' });
+      await row2.getByRole('button', { name: 'Xem / sửa' }).click();
+      const ta = page.locator('.modal textarea.mono-in');
+      await ta.fill('---\nname: skill-e2e\ndescription: đã sửa\n---\n# Đã sửa\n');
+      await page.locator('.modal').getByRole('button', { name: 'Lưu' }).click();
+      await page.locator('.toast', { hasText: 'Đã lưu skill "skill-e2e"' }).waitFor();
+      await page.locator('.modal-acts').getByRole('button', { name: 'Đóng', exact: true }).click();
+      await page.locator('.sk-tbl tbody tr', { hasText: 'đã sửa' }).waitFor();
+      await row2.getByRole('button', { name: 'Xóa' }).click();
+      await page.locator('.modal').getByRole('button', { name: 'Xóa', exact: true }).click();
+      await page.locator('.toast', { hasText: 'Đã xóa skill "skill-e2e"' }).waitFor();
+      return `${note} → tìm AI → sửa → xóa`;
+    });
     await check('Console sạch (không error/warning)', async () => {
       assert(!consoleIssues.length, consoleIssues.slice(0, 5).join(' | '));
     });
