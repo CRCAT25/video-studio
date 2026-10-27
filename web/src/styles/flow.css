@@ -4,7 +4,9 @@
 /* mờ mép khi còn bước bị khuất, báo là cuộn ngang được */
 .flow{--fl:#000;--fr:#000;-webkit-mask-image:linear-gradient(90deg,var(--fl),#000 32px,#000 calc(100% - 32px),var(--fr));mask-image:linear-gradient(90deg,var(--fl),#000 32px,#000 calc(100% - 32px),var(--fr))}
 .flow.fl{--fl:transparent} .flow.fr{--fr:transparent}
-.belt{display:flex;align-items:stretch;width:max-content}
+.belt{display:flex;flex-wrap:wrap;align-items:stretch;row-gap:10px}
+/* các bước tự xuống dòng thay vì cuộn ngang → thấy đủ mọi bước */
+.flow{overflow:visible;-webkit-mask-image:none;mask-image:none}
 .box{flex:none;width:128px;min-height:72px;border-radius:8px;position:relative;overflow:hidden;
   display:flex;flex-direction:column;gap:4px;padding:8px 10px;text-decoration:none;color:var(--text);
   border:1px solid var(--line);background:var(--surface);transition:border-color .12s,background .12s}
