@@ -359,3 +359,12 @@ test('presetDirs: repo trước, home sau', () => {
   assert.deepEqual(presetDirs('/h'), [REPO_PRESETS, '/h/presets']);
   assert.deepEqual(presetDirs(), [REPO_PRESETS]);
 });
+
+test('bước có model: giữ lại, sai định dạng thì báo lỗi', () => {
+  const ok = base();
+  ok.steps[0].model = 'opus';
+  assert.equal(validatePreset(ok).steps[0].model, 'opus');
+  const bad = base();
+  bad.steps[0].model = 'a b;c';
+  assert.throws(() => validatePreset(bad), /model/);
+});

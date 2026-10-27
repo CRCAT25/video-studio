@@ -26,6 +26,13 @@ function freeId(steps, base) {
   return id;
 }
 
+export const MODELS = [
+  ['', T('Mặc định của máy')],
+  ['opus', 'Opus'],
+  ['sonnet', 'Sonnet'],
+  ['haiku', 'Haiku'],
+];
+
 const outputsText = (o) => (o || []).join('\n');
 const parseOutputs = (t) =>
   String(t)
@@ -96,6 +103,18 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
               disabled={disabled}
             />
             <span className="hint">{t('Mỗi dòng một file hoặc mẫu, vd: script.md, images/*')}</span>
+          </label>
+          <label className="fld">
+            <span>{t('Model của bước này')}</span>
+            <Select
+              size="sm"
+              value={s.model || ''}
+              options={[...MODELS, ...(!s.model || MODELS.some(([v]) => v === s.model) ? [] : [[s.model, s.model]])].map(([value, label]) => ({ value, label: t(label) }))}
+              onChange={(model) => onChange({ model: model || undefined })}
+              disabled={disabled}
+              label={t('Model của bước này')}
+            />
+            <span className="hint">{t('Opus giỏi hơn nhưng tốn lượt dùng gói nhiều hơn.')}</span>
           </label>
           {problem ? <div className="hint bad">{problem}</div> : null}
         </div>

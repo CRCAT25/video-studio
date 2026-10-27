@@ -93,7 +93,7 @@ test('create: slug tự sinh, dir tương đối tính từ home, steps ban đ�
   assert.equal(v.running_run_id, null);
   assert.deepEqual(v.costs, { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, usd: null, runs: 0 });
   const voice = v.steps[2];
-  assert.deepEqual(Object.keys(voice).sort(), ['gate_mode', 'has_cost', 'key', 'manual', 'name', 'ord', 'outputs', 'run', 'state'].sort());
+  assert.deepEqual(Object.keys(voice).sort(), ['gate_mode', 'has_cost', 'key', 'manual', 'model', 'name', 'ord', 'outputs', 'run', 'state'].sort());
   assert.equal(voice.has_cost, true);
   assert.equal(voice.gate_mode, 'manual');
   assert.equal(voice.manual, false);

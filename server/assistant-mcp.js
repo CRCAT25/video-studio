@@ -44,9 +44,56 @@ export const TOOLS = [
     description: `Chờ trang tải/chạy xong (tối đa ${WAIT_MAX_MS / 1000} giây) rồi đọc lại trang.`,
     inputSchema: { type: 'object', properties: { ms: { type: 'integer', minimum: 100, maximum: WAIT_MAX_MS } }, additionalProperties: false },
   },
+  {
+    name: 'project_images',
+    description: 'Liệt kê ảnh trong thư mục một dự án kèm trích storyboard/script để chọn ảnh theo nội dung. Bỏ projectId để xem danh sách dự án.',
+    inputSchema: { type: 'object', properties: { projectId: { type: 'string' } }, additionalProperties: false },
+  },
+  {
+    name: 'view_images',
+    description: 'Xem tối đa 4 ảnh của dự án (thu nhỏ) để biết nội dung từng ảnh.',
+    inputSchema: {
+      type: 'object',
+      properties: { projectId: { type: 'string' }, paths: { type: 'array', items: { type: 'string' }, maxItems: 4 } },
+      required: ['projectId', 'paths'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'make_short',
+    description: 'Dựng 1 Short dọc 9:16 từ ảnh có sẵn của dự án, lưu vào shorts/ của dự án. voice=system dùng giọng máy miễn phí (Linh); không dùng dịch vụ tốn tiền.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        title: { type: 'string' },
+        voice: { type: 'string', enum: ['none', 'system'] },
+        scenes: {
+          type: 'array',
+          maxItems: 40,
+          items: {
+            type: 'object',
+            properties: {
+              image: { type: 'string', description: 'Đường dẫn ảnh như project_images trả về.' },
+              seconds: { type: 'number', description: 'Số giây của cảnh (1–30).' },
+              caption: { type: 'string', description: 'Phụ đề hiện trên cảnh (bỏ trống = không phụ đề).' },
+              narration: { type: 'string', description: 'Lời đọc (chỉ dùng khi voice=system).' },
+              reveal: { type: 'string', enum: ['none', 'draw'], description: 'draw = vẽ dần từ giấy trắng (nét đậm hiện trước, mảng màu sau) thay vì hiện cả ảnh ngay.' },
+            },
+            required: ['image', 'seconds'],
+          },
+        },
+      },
+      required: ['projectId', 'title', 'scenes'],
+      additionalProperties: false,
+    },
+  },
 ];
 
-const text = (t, isError = false) => ({ content: [{ type: 'text', text: String(t) }], ...(isError ? { isError: true } : {}) });
+const text = (t, isError = false, images = []) => ({
+  content: [...images.map((i) => ({ type: 'image', data: i.data, mimeType: i.mimeType })), { type: 'text', text: String(t) }],
+  ...(isError ? { isError: true } : {}),
+});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Gửi 1 lệnh về app; trả {text, isError}. Lỗi mạng/HTTP → isError kèm lý do.
@@ -63,7 +110,7 @@ export async function forward({ url, key, tool, args, fetchFn = fetch }) {
   }
   const body = await res.json().catch(() => null);
   if (!res.ok) return { text: body?.message || `Video Studio trả lỗi ${res.status}.`, isError: true };
-  return { text: String(body?.text ?? ''), isError: !!body?.isError };
+  return { text: String(body?.text ?? ''), isError: !!body?.isError, images: Array.isArray(body?.images) ? body.images : [] };
 }
 
 // Xử lý 1 bản tin JSON-RPC; trả object trả lời, hoặc null với notification.
@@ -94,7 +141,7 @@ export async function handle(msg, { url, key, fetchFn } = {}) {
         return reply(text(r.text, r.isError));
       }
       const r = await forward({ url, key, tool: name, args, fetchFn });
-      return reply(text(r.text, r.isError));
+      return reply(text(r.text, r.isError, r.images));
     }
     default:
       if (typeof msg?.method === 'string' && msg.method.startsWith('notifications/')) return null;

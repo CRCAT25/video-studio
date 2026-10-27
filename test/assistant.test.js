@@ -83,7 +83,7 @@ test('MCP: initialize giữ protocolVersion, tools/list, ping, method lạ, noti
   assert.equal(init.result.serverInfo.name, 'studio');
   assert.equal((await handle({ id: 2, method: 'initialize' })).result.protocolVersion, '2024-11-05');
   const list = await handle({ id: 3, method: 'tools/list' });
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait']);
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait', 'project_images', 'view_images', 'make_short']);
   assert.deepEqual((await handle({ id: 4, method: 'ping' })).result, {});
   assert.equal((await handle({ id: 5, method: 'bogus' })).error.code, -32601);
   assert.equal(await handle({ method: 'notifications/initialized' }), null);
@@ -126,7 +126,7 @@ test('MCP serve: đọc từng dòng, JSON lỗi → -32700, trả lời theo id
   await until(() => lines.length === 3, 2000);
   assert.deepEqual(lines.find((l) => l.id === 1).result, {});
   assert.equal(lines.find((l) => l.id === null).error.code, -32700);
-  assert.equal(lines.find((l) => l.id === 2).result.tools.length, 5);
+  assert.equal(lines.find((l) => l.id === 2).result.tools.length, 8);
 });
 
 // ---------- tham số + vòng đời lượt
@@ -137,7 +137,7 @@ test('buildAssistantArgs: chỉ tool studio, không --model khi mặc định, r
   assert.equal(a[a.indexOf('--tools') + 1], '');
   assert.ok(a.includes('--strict-mcp-config'));
   assert.equal(a[a.indexOf('--mcp-config') + 1], '/c.json');
-  assert.equal(a[a.indexOf('--allowedTools') + 1], 'mcp__studio__read_page,mcp__studio__click,mcp__studio__fill,mcp__studio__navigate,mcp__studio__wait');
+  assert.equal(a[a.indexOf('--allowedTools') + 1], 'mcp__studio__read_page,mcp__studio__click,mcp__studio__fill,mcp__studio__navigate,mcp__studio__wait,mcp__studio__project_images,mcp__studio__view_images,mcp__studio__make_short');
   assert.ok(!a.includes('--model'));
   const b = buildAssistantArgs({ sessionId: 's1', resume: true, mcpConfig: '/c.json', model: 'opus' });
   assert.equal(b[b.indexOf('--resume') + 1], 's1');
@@ -343,7 +343,7 @@ test('ảnh đính kèm: gửi qua stream-json base64, kiểm loại/số lượ
   const png = Buffer.from('xx').toString('base64');
   assert.throws(() => assistant.send('x', { images: [{ name: 'a', mime: 'text/html', data: png }] }), { status: 400 });
   assert.throws(() => assistant.send('x', { images: [{ name: 'a', mime: 'image/png', data: '<script>' }] }), { status: 400 });
-  assert.throws(() => assistant.send('x', { images: Array(5).fill({ name: 'a', mime: 'image/png', data: png }) }), { status: 400 });
+  assert.throws(() => assistant.send('x', { images: Array(9).fill({ name: 'a', mime: 'image/png', data: png }) }), { status: 400 });
   assert.throws(() => assistant.send('x', { images: [{ name: 'a', mime: 'image/png', data: 'A'.repeat(4 * 1024 * 1024 + 4) }] }), { status: 400 });
   assistant.send('mô tả ảnh này', { images: [{ name: 'a.jpg', mime: 'image/jpeg', data: png }] });
   await until(() => !assistant.state().busy);
@@ -360,7 +360,7 @@ test('tệp chữ + video: chèn nội dung vào lời gửi, khung hình đi nh
   assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url });
   fakeBrowser(assistant);
   assert.throws(() => assistant.send('x', { files: [{ name: 'a.txt' }] }), { status: 400 });
-  assert.throws(() => assistant.send('x', { files: Array(5).fill({ name: 'a', text: 'b' }) }), { status: 400 });
+  assert.throws(() => assistant.send('x', { files: Array(9).fill({ name: 'a', text: 'b' }) }), { status: 400 });
   assistant.send('đọc giúp', {
     files: [{ name: 'k.srt', text: 'xin chào' }],
     videos: [{ name: 'v.mp4', info: 'v.mp4: 3s', frames: [{ name: 'v.mp4 @1s', mime: 'image/jpeg', data: Buffer.from('f').toString('base64') }] }],

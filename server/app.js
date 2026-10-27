@@ -9,7 +9,7 @@ import { runDoctor } from './doctor.js';
 import { mediaHandler, resolveMediaPath } from './media.js';
 import { extractFrames } from './frames.js';
 import { isInside, safeJoin } from './paths.js';
-import { deletePipeline, formatCatalog, savePipeline, suggestPipeline, validateGrantRule } from './pipeline.js';
+import { deletePipeline, formatCatalog, readDefaultModel, savePipeline, suggestPipeline, validateGrantRule, writeDefaultModel } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
 import { createSkills } from './skills.js';
 import { HttpError } from './projects.js';
@@ -917,6 +917,24 @@ export async function buildApp({
     const r = pipelineCall(() => projects.grantPermission(req.params.id, b.tool, { scope: b.scope }));
     presets.invalidate?.();
     return r;
+  });
+
+  // Model riêng của một bước trong dự án ('' = mặc định).
+  app.put('/api/projects/:id/steps/:key/model', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.model !== 'string') throw badBody('Cần gửi JSON {model}.');
+    const r = pipelineCall(() => projects.setStepModel(req.params.id, req.params.key, b.model));
+    presets.invalidate?.();
+    sse.broadcast('change', { projectId: req.params.id });
+    return r;
+  });
+
+  // Model mặc định của app cho bước chưa chọn model.
+  app.get('/api/settings/model', async () => ({ model: readDefaultModel(home) }));
+  app.put('/api/settings/model', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.model !== 'string') throw badBody('Cần gửi JSON {model}.');
+    return { model: pipelineCall(() => writeDefaultModel(home, b.model)) };
   });
 
   app.post('/api/runs/:id/stop', async (req) => {

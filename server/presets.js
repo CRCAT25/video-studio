@@ -16,7 +16,7 @@ const PLACEHOLDER_RE = /(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)*)\}
 const BASE_PLACEHOLDERS = new Set(['slug', 'title', 'feedback', 'skill', 'prev.summary']);
 const FEEDBACK_PREFIX = '\n\nGóp ý của người dùng cho lượt này:\n';
 
-const STEP_KEYS = new Set(['id', 'name', 'prompt', 'outputs', 'checks', 'gate', 'cost', 'resources', 'manual', 'timeout', 'timeout_ms']);
+const STEP_KEYS = new Set(['id', 'name', 'prompt', 'outputs', 'checks', 'gate', 'cost', 'resources', 'manual', 'timeout', 'timeout_ms', 'model']);
 const PRESET_KEYS = new Set(['id', 'name', 'channel', 'format', 'project_dir', 'skills', 'vars', 'permissions', 'defaults', 'steps', 'file', 'yaml']);
 
 // Danh sách thư mục preset theo thứ tự ưu tiên tăng dần: <repo>/presets rồi <home>/presets.
@@ -209,7 +209,8 @@ export function validatePreset(raw, file) {
   const defaults = { gate: { mode: 'manual' }, timeout_ms: DEFAULT_TIMEOUT_MS };
   if (!isObj(rawDefaults)) bad('Trường "defaults" phải là object {gate, timeout}.');
   else {
-    Object.assign(defaults, pick(rawDefaults, new Set(['gate', 'timeout', 'timeout_ms'])));
+    Object.assign(defaults, pick(rawDefaults, new Set(['gate', 'timeout', 'timeout_ms', 'session'])));
+    if (rawDefaults.session != null && !['step', 'project'].includes(rawDefaults.session)) bad('defaults.session phải là "step" hoặc "project".');
     const g = normalizeGate(rawDefaults.gate, 'defaults', bad);
     if (g) defaults.gate = g;
     const to = rawDefaults.timeout ?? rawDefaults.timeout_ms;
@@ -325,9 +326,16 @@ export function validatePreset(raw, file) {
         }
       }
 
+      // model: opus | sonnet | haiku (alias) hoặc tên đầy đủ; trống = theo mặc định của máy.
+      let model;
+      if (s.model != null && s.model !== '') {
+        if (typeof s.model === 'string' && /^[A-Za-z0-9._\[\]-]{1,64}$/.test(s.model)) model = s.model;
+        else bad(`${label}: model ${show(s.model)} không hợp lệ (ví dụ opus, sonnet, haiku).`);
+      }
       steps.push({
         ...pick(s, STEP_KEYS),
         key, name, ord: i, prompt, outputs, checks, gate, cost, resources, manual, timeout_ms,
+        ...(model ? { model } : {}),
       });
     });
   }

@@ -15,9 +15,9 @@ export const TOOL_TIMEOUT_MS = 60_000; // trang không trả lời (tab đóng) 
 export const HOLD_TIMEOUT_MS = 240_000; // đang chờ người dùng bấm Cho phép / Không
 export const MAX_MESSAGES = 200;
 export const MAX_INPUT = 4000;
-export const MAX_IMAGES = 4;
+export const MAX_IMAGES = 8;
 export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-export const MAX_FILES = 4;
+export const MAX_FILES = 8;
 export const MAX_FILE_CHARS = 100000;
 const IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
@@ -47,7 +47,9 @@ Quy tắc:
 - Ô chọn (combobox) phải click để mở rồi click lựa chọn. Ô số: fill đúng số trong khoảng cho phép.
 - Việc nhạy cảm (xóa, đăng xuất, cập nhật, dừng, chạy bước…) sẽ hiện thẻ để người dùng Cho phép / Không. Bị từ chối thì dừng và báo lại.
 - Nút xác nhận chi phí (tốn tiền thật) bị chặn: mở tới hộp đó rồi nhờ người dùng tự bấm.
-- Không đọc/ghi file, không chạy lệnh; chỉ làm qua trang. Việc trang không làm được thì nói rõ.
+- Không đọc/ghi file, không chạy lệnh; chỉ làm qua trang và các tool dưới đây. Việc trang không làm được thì nói rõ.
+Tạo Short từ ảnh dự án: project_images (liệt kê ảnh + trích storyboard/script; bỏ projectId để xem dự án), view_images (xem tối đa 4 ảnh), make_short (dựng Short 9:16).
+Trước khi gọi make_short PHẢI hỏi người dùng (trong chat, chờ trả lời): (1) Short dài bao nhiêu giây và làm mấy Short; (2) có giọng đọc không — không giọng, hoặc giọng máy miễn phí (Linh); giọng ElevenLabs tốn tiền thì không tự dùng, nhờ người dùng duyệt chi phí riêng; (3) có phụ đề không; (4) có hiệu ứng vẽ dần từ giấy trắng không (reveal=draw cho từng cảnh; mặc định cả ảnh hiện ngay). Không tự đề nghị tạo dự án mới chỉ để có hiệu ứng vẽ. Chọn ảnh theo nội dung (xem bằng view_images), chia thời lượng cảnh cho khớp tổng, rồi báo file; luôn ghi NGUYÊN đường dẫn /media/… (không rút gọn, không bọc dấu nháy) để người dùng bấm nút xem ngay.
 - Trả lời tiếng Việt, ngắn gọn; xong việc thì báo kết quả trong 1–2 câu.`;
 
 // Tham số dòng lệnh cho một lượt: phiên mới dùng --session-id, lượt sau --resume.
@@ -90,6 +92,7 @@ export function createAssistant({
   model = null,
   env = {},
   usage = null, // createUsage(): nhận % mức dùng + token của mỗi lượt
+  serverTools = {}, // {tên: async (args) → {text, isError, images}} chạy ngay trên server
   toolTimeoutMs = TOOL_TIMEOUT_MS,
   holdTimeoutMs = HOLD_TIMEOUT_MS,
   killGraceMs = KILL_GRACE_MS,
@@ -447,6 +450,15 @@ export function createAssistant({
     const t = turn;
     if (!t || !safeEq(key, t.key)) throw new HttpError(403, 'forbidden', 'Mã lượt không hợp lệ.');
     if (!TOOLS.some((x) => x.name === tool) || tool === 'wait') throw new HttpError(400, 'invalid_body', 'Tool không hợp lệ.');
+    if (serverTools[tool]) {
+      return Promise.resolve(serverTools[tool](args && typeof args === 'object' ? args : {})).then(
+        (r) => {
+          push('action', `${tool}${r.isError ? ' (lỗi)' : ''}`, r.isError ? { failed: true } : {});
+          return r;
+        },
+        (e) => ({ text: `Lỗi: ${e?.message || e}`, isError: true }),
+      );
+    }
     const id = crypto.randomUUID();
     return new Promise((resolve) => {
       const timeout = (ms) =>

@@ -148,7 +148,19 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
       ) : null}
       {groups.map(([kind, arr]) => (
         <section key={kind} className="out-group card pad">
-          <h2>
+          <h2
+            {...(kind === 'image'
+              ? {
+                  draggable: true,
+                  title: t('Kéo cả thư mục ảnh này vào khung chat Trợ lý'),
+                  onDragStart: (e) => {
+                    const dirs = arr.map((x) => x.path.split('/').slice(0, -1).join('/'));
+                    const dir = dirs.every((d) => d === dirs[0]) ? dirs[0] : '';
+                    dragItem(e, { kind: 'pfolder', projectId, dir: dir || '.', name: dir ? baseName(dir) : t('Ảnh'), count: arr.length });
+                  },
+                }
+              : {})}
+          >
             {KIND_LABEL[kind] || kind} <span className="num dim">{arr.length}</span>
           </h2>
           {kind === 'video'

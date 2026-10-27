@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildApp } from './app.js';
 import { createAssistant } from './assistant.js';
+import { createShortTools } from './shorts.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
 import { createSkillSearch } from './skill-search.js';
@@ -245,7 +246,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   // Mức dùng gói Claude: bắt % từ mọi lượt claude -p; Kiểm tra hỏi API như /usage (token Claude Code chỉ đọc lúc kiểm tra),
   // lỗi thì chạy 1 câu ngắn. VS_CLAUDE_CREDENTIALS / VS_CLAUDE_API_BASE: file token + API giả khi test.
   const usage = createUsage({ home, store, claudeBin, env: authEnv, planApi: createPlanApi({ env }) });
-  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage });
+  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage, serverTools: createShortTools({ store }) });
   try {
     const projects = createProjects({ store, presets, channels, home });
     const fixed = projects.recoverOnStartup();

@@ -1,8 +1,9 @@
 // Sidebar Trợ lý AI: chat với claude (tài khoản đang đăng nhập), trợ lý thao tác trên trang qua pageAgent.
 // Hook useAssistant đặt ở Shell để lệnh từ trợ lý vẫn chạy khi sidebar đang đóng.
-import { DRAG_TYPE, MAX_IMAGES, fromUrl, isTextFile, textAttachment, textFromUrl, toAttachment } from '../lib/chatImages.js';
+import { DRAG_TYPE, MAX_IMAGES, SEND_MAX_FILES, SEND_MAX_IMAGES, droppedFolders, folderAttachment, fromUrl, isTextFile, textAttachment, textFromUrl, toAttachment } from '../lib/chatImages.js';
 import { useFocus } from '../lib/focus.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
 import { runTool } from '../lib/pageAgent.js';
@@ -153,7 +154,43 @@ function Msg({ m }) {
   if (m.role === 'action') return <div className={`ai-msg ai-act${m.failed ? ' bad' : ''}`}>{m.text}</div>;
   if (m.role === 'note') return <div className="ai-msg ai-note">{tr(m.text)}</div>;
   if (m.role === 'error') return <div className="ai-msg ai-err">{tr(m.text)}</div>;
-  return <div className="ai-msg ai-bot">{m.text}</div>;
+  return <BotMsg text={m.text} />;
+}
+
+// Video trong tin nhắn (đường dẫn /media/…mp4) → nút bấm mở xem ngay, khỏi tìm file.
+const VIDEO_RE = /\/media\/[^\s`'"()<>]+?\.(?:mp4|mov|webm|m4v)/gi;
+function BotMsg({ text }) {
+  const t = useT();
+  const [open, setOpen] = useState(null);
+  const vids = [...new Set(String(text || '').match(VIDEO_RE) || [])];
+  return (
+    <div className="ai-msg ai-bot">
+      {text}
+      {vids.length ? (
+        <div className="ai-vids">
+          {vids.map((u) => (
+            <button key={u} type="button" className="btn sm" onClick={() => setOpen(u)}>
+              ▶ {t('Xem')} {decodeURIComponent(u.split('/').pop())}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {open
+        ? createPortal(
+            <div className="ai-vidbox" onClick={() => setOpen(null)}>
+              <div onClick={(e) => e.stopPropagation()}>
+                <video controls autoPlay src={open} />
+                <div className="ai-vidbar">
+                  <a href={open} target="_blank" rel="noreferrer">{t('Mở ở tab mới')}</a>
+                  <button type="button" className="btn sm" onClick={() => setOpen(null)}>{t('Đóng')}</button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
 }
 
 const MODEL_OPTS = [
@@ -248,7 +285,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const addFiles = (files) => {
     const list = [...files];
     const jobs = list.flatMap((f) => (/^image\//.test(f.type) ? [() => toAttachment(f, f.name)] : isTextFile(f) ? [() => textAttachment(f, f.name)] : []));
-    if (list.length && !jobs.length) setErr(t('Chỉ đính kèm được ảnh, tệp chữ hoặc video kéo từ Đầu ra.'));
+    if (list.length && !jobs.length) setErr(t('Chỉ đính kèm được ảnh, tệp chữ, thư mục hoặc video kéo từ Đầu ra.'));
     return addImages(jobs);
   };
   const onDrop = (e) => {
@@ -258,13 +295,19 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
     if (raw) {
       try {
         const it = JSON.parse(raw);
-        if (it.kind === 'video') addImages([async () => ({ kind: 'video', name: it.name, projectId: it.projectId, path: it.path })]);
+        if (it.kind === 'pfolder') addImages([async () => it]);
+        else if (it.kind === 'video') addImages([async () => ({ kind: 'video', name: it.name, projectId: it.projectId, path: it.path })]);
         else if (it.kind === 'text') addImages([() => textFromUrl(it.src, it.name)]);
         else addImages([() => fromUrl(it.src, it.name)]);
         return;
       } catch {
         /* rơi xuống nhánh file */
       }
+    }
+    const dirs = droppedFolders(e.dataTransfer);
+    if (dirs.length) {
+      addImages(dirs.slice(0, 1).map((d) => () => folderAttachment(d)));
+      return;
     }
     addFiles(e.dataTransfer.files);
   };
@@ -274,13 +317,15 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
     const typed = text.trim();
     if ((!typed && !imgs.length) || busy || sending) return;
     const q0 = typed || t('Xem tệp đính kèm.');
-    const q = focus ? `[${t('Ảnh đang chọn')}: ${focus.name} — ${t('dự án')} ${focus.projectId}, ${t('đường dẫn')} ${focus.path}]\n${q0}` : q0;
+    const pf = imgs.filter((i) => i.kind === 'pfolder').map((f) => `[${t('Thư mục dự án')} ${f.projectId}: ${f.dir} — ${f.count} ${t('ảnh')}; ${t('xem bằng project_images và view_images')}]`);
+    const q1 = [...pf, q0].join('\n');
+    const q = focus ? `[${t('Ảnh đang chọn')}: ${focus.name} — ${t('dự án')} ${focus.projectId}, ${t('đường dẫn')} ${focus.path}]\n${q1}` : q1;
     setSending(true);
     setErr(null);
     try {
       await a.send(q, {
-        images: imgs.filter((i) => i.kind === 'image').map(({ name, mime, data }) => ({ name, mime, data })),
-        files: imgs.filter((i) => i.kind === 'text').map(({ name, text }) => ({ name, text })),
+        images: imgs.flatMap((i) => (i.kind === 'folder' ? i.images : i.kind === 'image' ? [i] : [])).slice(0, SEND_MAX_IMAGES).map(({ name, mime, data }) => ({ name, mime, data })),
+        files: imgs.flatMap((i) => (i.kind === 'folder' ? i.files : i.kind === 'text' ? [i] : [])).slice(0, SEND_MAX_FILES).map(({ name, text }) => ({ name, text })),
         videos: imgs.filter((i) => i.kind === 'video').map(({ projectId, path }) => ({ projectId, path })),
       });
       setText('');
@@ -511,7 +556,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
             <div className="ai-atts">
               {imgs.map((im, i) => (
                 <span key={i} className="ai-att" title={im.name}>
-                  {im.url ? <img src={im.url} alt={im.name} /> : <span className="ai-kind">{im.kind === 'video' ? '🎬' : '📄'}<i>{im.name}</i></span>}
+                  {im.url ? <img src={im.url} alt={im.name} /> : <span className="ai-kind">{im.kind === 'video' ? '🎬' : im.kind === 'text' ? '📄' : '📁'}<i>{im.kind === 'folder' ? `${im.name} (${im.nImages} ${t('ảnh')}, ${im.nTexts} ${t('tệp chữ')})` : im.kind === 'pfolder' ? `${im.name} (${im.count} ${t('ảnh')})` : im.name}</i></span>}
                   <button type="button" aria-label={t('Bỏ ảnh')} onClick={() => setImgs((v) => v.filter((_, j) => j !== i))}>
                     ×
                   </button>

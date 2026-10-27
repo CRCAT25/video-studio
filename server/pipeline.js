@@ -27,7 +27,7 @@ export const LENGTHS = {
 };
 
 const DEFAULT_PERMISSIONS = {
-  allow: ['Edit', 'Write', 'Read', 'Bash(ffmpeg *)', 'Bash(ffprobe *)', 'Bash(python3 *)'],
+  allow: ['Edit', 'Write', 'Read', 'Bash(ffmpeg *)', 'Bash(ffprobe *)', 'Bash(python3 *)', 'Bash(sed *)', 'Bash(head *)', 'Bash(tail *)', 'Bash(grep *)', 'Bash(wc *)'],
   ask: ['Bash(rm *)', 'Bash(curl *)'],
   deny: ['Bash(git push*)', 'Bash(sudo *)'],
 };
@@ -37,62 +37,62 @@ const COST_NOTE = 'Trước khi gọi dịch vụ trả phí: gọi studio_cost_
 // Thư viện bước. Mỗi bước: id, name, prompt, outputs, gate, (cost, checks, manual, enabled).
 const S = {
   research: {
-    id: 'nghien-cuu', name: 'Nghiên cứu & dàn ý',
+    id: 'nghien-cuu', name: 'Nghiên cứu & dàn ý', model: 'opus',
     prompt: 'Tìm hiểu chủ đề "{title}": khán giả, góc nhìn riêng, 5–7 ý chính có nguồn. Viết dàn ý theo chương vào outline.md. {feedback}',
     outputs: ['outline.md'], gate: { mode: 'manual' },
   },
   idea: {
-    id: 'kich-ban', name: 'Ý tưởng & kịch bản',
+    id: 'kich-ban', name: 'Ý tưởng & kịch bản', model: 'opus',
     prompt: 'Từ ý tưởng "{title}": chọn 1 lời hứa cho khán giả, viết 3 hook, chọn hook mạnh nhất. ' +
       'Viết lời đọc dài khoảng {vars.duration_label} vào script.md, câu ngắn, dễ nghe. {feedback}',
     outputs: ['script.md'], gate: { mode: 'manual' },
   },
   script: {
-    id: 'kich-ban', name: 'Kịch bản',
+    id: 'kich-ban', name: 'Kịch bản', model: 'opus',
     prompt: 'Viết lời đọc đầy đủ theo outline.md, dài khoảng {vars.duration_label}: mở đầu giữ chân trong 30 giây, ' +
       'mỗi chương một ý, kết có lời kêu gọi. Ghi vào script.md. {feedback}',
     outputs: ['script.md'], gate: { mode: 'manual' },
   },
   storyboard: {
-    id: 'phan-canh', name: 'Phân cảnh',
+    id: 'phan-canh', name: 'Phân cảnh', model: 'sonnet',
     prompt: 'Chia script.md thành các cảnh khung {vars.aspect} ({vars.orientation_label}). Mỗi cảnh: lời đọc, hình ảnh, chuyển động, thời lượng. ' +
       'Ghi storyboard.md và project.json (mảng "scenes"). {feedback}',
     outputs: ['storyboard.md', 'project.json'], checks: [OUTPUT_CHECK], gate: { mode: 'auto_if_checks' },
   },
   visuals: {
-    id: 'hinh-anh', name: 'Hình ảnh & cảnh quay',
+    id: 'hinh-anh', name: 'Hình ảnh & cảnh quay', model: 'sonnet',
     prompt: 'Dựng hình cho từng cảnh trong project.json bằng code chạy trên máy (canvas/SVG/three.js, biểu đồ, chữ, số, ffmpeg) và tài nguyên miễn phí CC0 nếu cần. Xuất PNG đúng khung {vars.resolution} vào images/, tên theo mã cảnh. Giữ màu và phông thống nhất, không logo hay người thật. Không gọi dịch vụ sinh ảnh trả phí. {feedback}',
     outputs: ['images/*'], gate: { mode: 'manual' },
   },
   voice: {
-    id: 'giong-doc', name: 'Giọng đọc',
+    id: 'giong-doc', name: 'Giọng đọc', model: 'haiku',
     prompt: 'Thu giọng đọc từ script.md đã duyệt, nhịp tự nhiên, xuất audio/voice.wav. ' + COST_NOTE + ' {feedback}',
     outputs: ['audio/*'], cost: { service: 'Giọng đọc AI', estimate: 'chars(script.md)', always_ask: true }, gate: { mode: 'manual' },
   },
   subtitles: {
-    id: 'phu-de', name: 'Phụ đề',
+    id: 'phu-de', name: 'Phụ đề', model: 'haiku',
     prompt: 'Tạo phụ đề subtitles.srt khớp giọng đọc, mỗi dòng ngắn, đặt trong vùng an toàn của khung {vars.aspect}. {feedback}',
     outputs: ['subtitles.srt'], checks: [OUTPUT_CHECK], gate: { mode: 'auto_if_checks' },
   },
   edit: {
-    id: 'dung-video', name: 'Dựng & nhạc',
+    id: 'dung-video', name: 'Dựng & nhạc', model: 'haiku',
     prompt: 'Ghép hình, giọng, phụ đề và nhạc nền thành exports/video.mp4, {vars.resolution}, dài khoảng {vars.duration_label}. ' +
       'Kiểm 2 giây đầu, nhịp cắt, cân âm lượng giọng/nhạc. {feedback}',
     outputs: ['exports/*.mp4'], resources: ['render'], gate: { mode: 'manual' },
   },
   review: { id: 'xem-lai', name: 'Xem lại toàn bộ', manual: true, outputs: [], gate: { mode: 'manual' } },
   thumbnail: {
-    id: 'thumbnail', name: 'Thumbnail',
+    id: 'thumbnail', name: 'Thumbnail', model: 'haiku',
     prompt: 'Thiết kế 2 phương án thumbnail 1280x720: chữ ít, tương phản cao, khớp hook. Lưu thumbnails/. {feedback}',
     outputs: ['thumbnails/*'], gate: { mode: 'manual' },
   },
   shorts: {
-    id: 'cat-shorts', name: 'Cắt Shorts', enabled: false,
+    id: 'cat-shorts', name: 'Cắt Shorts', model: 'haiku', enabled: false,
     prompt: 'Chọn 2–3 đoạn hay nhất (dưới 60 giây) từ exports/video.mp4, cắt sang khung dọc 1080x1920 kèm phụ đề, lưu shorts/. {feedback}',
     outputs: ['shorts/*.mp4'], resources: ['render'], gate: { mode: 'manual' },
   },
   deliver: {
-    id: 'goi-dang', name: 'Gói đăng',
+    id: 'goi-dang', name: 'Gói đăng', model: 'haiku',
     prompt: 'Chuẩn bị publish.md: tiêu đề, mô tả, hashtag, chương (nếu có), ghi chú nội dung AI. Liệt kê file cần đăng. {feedback}',
     outputs: ['publish.md'], checks: [OUTPUT_CHECK], gate: { mode: 'auto_if_checks' },
   },
@@ -159,7 +159,7 @@ export function suggestPipeline(input = {}) {
       duration_label: durationLabel(f.duration),
     },
     permissions: clone(DEFAULT_PERMISSIONS),
-    defaults: { gate: { mode: 'manual' }, timeout: '1h' },
+    defaults: { gate: { mode: 'manual' }, timeout: '1h', session: 'step' },
     steps: flow.map((k) => ({ enabled: true, ...clone(S[k]) })),
   };
 }
@@ -359,4 +359,30 @@ export function addGlobalAllow(home, rule) {
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(path.join(home, 'global-permissions.json'), `${JSON.stringify({ allow: [...list, rule] }, null, 2)}\n`);
   return true;
+}
+
+// Model mặc định của app cho bước chưa chọn model: <home>/settings.json {default_model}.
+const MODEL_RE = /^[A-Za-z0-9._[\]-]{1,64}$/;
+export function readDefaultModel(home) {
+  if (!home) return '';
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8'))?.default_model;
+    return typeof m === 'string' && MODEL_RE.test(m) ? m : '';
+  } catch {
+    return '';
+  }
+}
+
+export function writeDefaultModel(home, model) {
+  const m = String(model ?? '').trim();
+  if (m && !MODEL_RE.test(m)) throw formatError('Tên model không hợp lệ.');
+  let cur = {};
+  try {
+    cur = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8')) || {};
+  } catch {
+    /* chưa có */
+  }
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'settings.json'), `${JSON.stringify({ ...cur, default_model: m }, null, 2)}\n`);
+  return m;
 }

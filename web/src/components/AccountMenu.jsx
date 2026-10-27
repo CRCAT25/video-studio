@@ -1,5 +1,6 @@
 // Menu tài khoản ở đầu trang: mở bảng Claude, chọn ngôn ngữ, giao diện sáng/tối và đăng xuất — gom lại cho đầu trang gọn.
 import { useEffect, useId, useRef, useState } from 'react';
+import { api } from '../api.js';
 import { Sk } from './Skeleton.jsx';
 import { LANGS, useLang, useT } from '../lib/i18n.jsx';
 
@@ -20,6 +21,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
   const btn = useRef(null);
   const menu = useRef(null);
   const id = useId();
+  const [model, setModel] = useState(null);
 
   const close = (focus = true) => {
     setOpen(false);
@@ -29,6 +31,7 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
   // Bấm ra ngoài → đóng; mở menu → focus mục đầu.
   useEffect(() => {
     if (!open) return undefined;
+    api.defaultModel().then((r) => setModel(r.model || '')).catch(() => {});
     const onDown = (e) => {
       if (!wrap.current?.contains(e.target)) close(false);
     };
@@ -99,6 +102,19 @@ export default function AccountMenu({ st, theme, onTheme, onAccount, canLogout, 
             <button key={l.value} type="button" role="menuitemradio" aria-checked={lang === l.value} className="menu-it" onClick={pick(() => setLang(l.value))}>
               <span className="menu-lb">{l.label}</span>
               {lang === l.value ? <Tick /> : null}
+            </button>
+          ))}
+          <div className="menu-sep" role="separator" />
+          <div className="menu-grp" role="presentation" title={t('Dùng cho bước chưa chọn model riêng')}>{t('Model mặc định cho các bước')}</div>
+          {[
+            ['', t('Mặc định của máy')],
+            ['opus', 'Opus'],
+            ['sonnet', 'Sonnet'],
+            ['haiku', 'Haiku'],
+          ].map(([v, label]) => (
+            <button key={v} type="button" role="menuitemradio" aria-checked={model === v} className="menu-it" onClick={pick(() => api.setDefaultModel(v).then((r) => setModel(r.model)).catch(() => {}))}>
+              <span className="menu-lb">{label}</span>
+              {model === v ? <Tick /> : null}
             </button>
           ))}
           <div className="menu-sep" role="separator" />

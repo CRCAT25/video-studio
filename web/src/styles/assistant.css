@@ -107,3 +107,11 @@ body.ai-resizing,body.ai-open{transition:none}
 .ai-imgnames{display:flex;flex-direction:column;gap:2px;margin-bottom:4px;font-size:var(--fs-xs);color:var(--muted);overflow-wrap:anywhere}
 .ai-kind{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:2px;font-size:18px;text-align:center}
 .ai-kind i{font-style:normal;font-size:9px;line-height:1.1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+
+/* ===== Video trong tin nhắn Trợ lý ===== */
+.ai-vids{display:flex;flex-direction:column;gap:6px;margin-top:8px;align-items:flex-start}
+.ai-vids .btn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-vidbox{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.72)}
+.ai-vidbox video{display:block;max-width:min(92vw,520px);max-height:80vh;border-radius:8px;background:#000}
+.ai-vidbar{display:flex;justify-content:space-between;align-items:center;margin-top:8px;color:#fff}
+.ai-vidbar a{color:#fff;font-size:var(--fs-sm)}

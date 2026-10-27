@@ -161,6 +161,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
       gate_mode: ps?.gate?.mode ?? 'manual',
       has_cost: !!ps?.cost,
       manual: !!ps?.manual,
+      model: ps?.model ?? '',
     };
     if (withOutputs) out.outputs = (ps?.outputs ?? []).map((o) => renderTemplate(o, tplCtx(p, preset)));
     out.run = runSummary(store.latestRunByStep(s.id));
@@ -712,6 +713,37 @@ export function createProjects({ store, presets, channels, home } = {}) {
     return { ok: true, changed, savedUpdated };
   }
 
+  // Đổi model của một bước trong bản chụp quy trình của dự án ('' = dùng model mặc định).
+  function setStepModel(id, key, model) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    let raw = null;
+    try {
+      raw = p.pipeline ? JSON.parse(p.pipeline) : null;
+    } catch {
+      raw = null;
+    }
+    if (!raw) {
+      const preset = presetFor(p);
+      if (!preset) throw new HttpError(409, 'preset_not_found', 'Dự án không còn quy trình để đổi model.');
+      raw = JSON.parse(JSON.stringify(preset));
+      delete raw.yaml;
+      delete raw.file;
+    }
+    const st = (raw.steps ?? []).find((x) => (x.id ?? x.key) === key);
+    if (!st) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${key}" trong quy trình.`);
+    const m = String(model ?? '').trim();
+    if (m) st.model = m;
+    else delete st.model;
+    try {
+      validatePreset(raw);
+    } catch (e) {
+      throw new HttpError(400, 'invalid_model', e.message);
+    }
+    store.updateProject(id, { pipeline: JSON.stringify(raw) });
+    return { ok: true, model: m };
+  }
+
   // Dữ liệu cho lượt tạo skill. scope 'step': một bước đã xong. scope 'project': mọi bước đã xong từ bước đầu tới bước `key`
   // (prompt mẫu, file đầu ra gộp mọi lượt, góp ý) — dùng để tạo/cập nhật skill cả dự án.
   function distillSource(id, key, scope = 'step') {
@@ -855,6 +887,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     writeSnapshot,
     presetOf,
     grantPermission,
+    setStepModel,
     distillSource,
     attachSkill,
     estimateCost,

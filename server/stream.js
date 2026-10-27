@@ -243,7 +243,7 @@ export function normalizeLine(obj, ctx = {}) {
     case 'rate_limit_event': {
       const info = isObj(obj.rate_limit_info) ? obj.rate_limit_info : {};
       const status = info.status ?? obj.status ?? null;
-      if (status === 'allowed' || status == null) return [];
+      if (status === 'allowed' || status === 'allowed_warning' || status == null) return []; // chỉ báo khi thật sự bị chặn
       const resetsAt = info.resetsAt ?? null;
       let text = `Giới hạn sử dụng: ${status}`;
       if (typeof resetsAt === 'number' && Number.isFinite(resetsAt)) {

@@ -142,6 +142,9 @@ export const api = {
   createProject: (body) => request('POST', '/api/projects', body),
   project: (id, opts) => request('GET', `/api/projects/${enc(id)}`, undefined, opts),
   step: (id, key, opts) => request('GET', stepPath(id, key), undefined, opts),
+  setStepModel: (id, key, model) => request('PUT', `${stepPath(id, key)}/model`, { model }),
+  defaultModel: () => request('GET', '/api/settings/model'),
+  setDefaultModel: (model) => request('PUT', '/api/settings/model', { model }),
   runStep: (id, key, { feedback, allowPaid, allowOnce } = {}) => {
     const body = {};
     if (feedback) body.feedback = feedback;

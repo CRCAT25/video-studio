@@ -771,3 +771,22 @@ test('buildPrompt: có .studio/reference.md → thêm dòng Tham khảo; không 
   fs.writeFileSync(path.join(dir, '.studio', 'reference.md'), 'x');
   assert.ok(mk().includes('.studio/reference.md'));
 });
+
+test('buildArgs: model của bước ưu tiên hơn model của app', () => {
+  const project = { dir: '/p' };
+  const at = (a) => a[a.indexOf('--model') + 1];
+  assert.equal(at(buildArgs({ project, preset: {}, step: { model: 'opus' }, model: 'haiku' })), 'opus');
+  assert.equal(at(buildArgs({ project, preset: {}, step: {}, model: 'haiku' })), 'haiku');
+  assert.ok(!buildArgs({ project, preset: {}, step: {} }).includes('--model'));
+});
+
+test('buildArgs: phiên riêng của bước thay cho phiên dự án', () => {
+  const project = { dir: '/p', claude_session_id: 'proj-sid', session_started: 1 };
+  const at = (a, f) => a[a.indexOf(f) + 1];
+  const fresh = buildArgs({ project, preset: {}, step: {}, session: { id: 'step-sid', resume: false } });
+  assert.equal(at(fresh, '--session-id'), 'step-sid');
+  assert.ok(!fresh.includes('--resume'));
+  const again = buildArgs({ project, preset: {}, step: {}, session: { id: 'step-sid', resume: true } });
+  assert.equal(at(again, '--resume'), 'step-sid');
+  assert.equal(at(buildArgs({ project, preset: {}, step: {} }), '--resume'), 'proj-sid');
+});

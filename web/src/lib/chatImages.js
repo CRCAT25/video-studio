@@ -2,12 +2,17 @@
 export const MAX_IMAGES = 4; // tổng số mục đính kèm (ảnh + tệp chữ + video)
 export const DRAG_TYPE = 'application/x-vs-image';
 const MAX_SIDE = 1568;
+export const SEND_MAX_IMAGES = 8; // server nhận tối đa ngần này ảnh / tệp chữ mỗi tin
+export const SEND_MAX_FILES = 8;
+const FOLDER_IMAGES = 6; // thư mục: lấy mẫu đều ngần này ảnh
+const FOLDER_TEXTS = 4; // + 1 tệp danh sách
+const FOLDER_SCAN = 400;
 
 // Blob/File ảnh → {name, mime, data(base64), url(xem trước)}.
-export async function toAttachment(blob, name) {
+export async function toAttachment(blob, name, maxSide = MAX_SIDE) {
   if (!/^image\//.test(blob.type)) throw new Error('not_image');
   const bmp = await createImageBitmap(blob);
-  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(bmp.width * k));
   c.height = Math.max(1, Math.round(bmp.height * k));
@@ -47,4 +52,65 @@ export async function textFromUrl(src, name) {
   const r = await fetch(src, { credentials: 'same-origin', headers: { range: 'bytes=0-199999' } });
   if (!r.ok) throw new Error('fetch_failed');
   return textAttachment(await r.blob(), name);
+}
+
+// ---- Thư mục kéo từ Finder: đọc đệ quy (webkitGetAsEntry), lấy mẫu ảnh + tệp chữ, kèm tệp danh sách.
+const readEntries = (reader) => new Promise((res, rej) => reader.readEntries(res, rej));
+const fileOf = (entry) => new Promise((res, rej) => entry.file(res, rej));
+
+async function walk(entry, out, depth) {
+  if (out.length >= FOLDER_SCAN || /^\./.test(entry.name) || entry.name === 'node_modules') return;
+  if (entry.isFile) {
+    out.push(entry);
+    return;
+  }
+  if (!entry.isDirectory || depth > 4) return;
+  const reader = entry.createReader();
+  for (;;) {
+    const batch = await readEntries(reader);
+    if (!batch.length) break;
+    for (const e of batch) await walk(e, out, depth + 1);
+  }
+}
+
+const pickEven = (arr, n) => (arr.length <= n ? arr : Array.from({ length: n }, (_, i) => arr[Math.floor(((i + 0.5) * arr.length) / n)]));
+
+// DirectoryEntry → {kind:'folder', name, images:[…], files:[…], total, nImages, nTexts}
+export async function folderAttachment(dir) {
+  const entries = [];
+  await walk(dir, entries, 0);
+  entries.sort((a, b) => a.fullPath.localeCompare(b.fullPath, undefined, { numeric: true }));
+  const rel = (e) => e.fullPath.replace(/^\/[^/]+\//, '');
+  const isImg = (e) => /\.(png|jpe?g|webp|gif)$/i.test(e.name);
+  const isTxt = (e) => isTextFile({ name: e.name, type: '' });
+  const imgs = entries.filter(isImg);
+  const txts = entries.filter(isTxt);
+  const images = [];
+  for (const e of pickEven(imgs, FOLDER_IMAGES)) {
+    try {
+      images.push(await toAttachment(await fileOf(e), rel(e), 1024));
+    } catch {
+      /* bỏ ảnh hỏng */
+    }
+  }
+  const files = [];
+  for (const e of txts.slice(0, FOLDER_TEXTS)) {
+    try {
+      files.push(await textAttachment(await fileOf(e), rel(e)));
+    } catch {
+      /* bỏ tệp nhị phân */
+    }
+  }
+  const list = entries.map((e) => rel(e)).join('\n');
+  files.unshift({
+    kind: 'text',
+    name: `${dir.name}-danh-sach.txt`.slice(0, 80),
+    text: `Thư mục ${dir.name}: ${entries.length} tệp (${imgs.length} ảnh, ${txts.length} tệp chữ).\nGửi kèm ${images.length} ảnh lấy mẫu đều (${images.map((i) => i.name).join(', ')}) và ${files.length} tệp chữ đầu.\n\n${list}`.slice(0, 100000),
+  });
+  return { kind: 'folder', name: dir.name, images, files, nImages: imgs.length, nTexts: txts.length, total: entries.length };
+}
+
+// Các thư mục trong lần thả (gọi đồng bộ trong onDrop — dataTransfer.items hết hạn sau await).
+export function droppedFolders(dt) {
+  return [...(dt.items || [])].map((it) => (it.kind === 'file' ? it.webkitGetAsEntry?.() : null)).filter((e) => e?.isDirectory);
 }

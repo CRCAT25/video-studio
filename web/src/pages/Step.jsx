@@ -1,6 +1,8 @@
 // Trang chi tiết bước: tiêu đề + nút theo §5, sơ đồ bước, tab Nhật ký/Đầu ra/Kiểm tra/Prompt/Chi tiết (các lượt, chi phí).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import Select from '../components/Select.jsx';
+import { MODELS } from '../components/StepEditor.jsx';
 import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
 import DistillModal from '../components/DistillModal.jsx';
@@ -641,7 +643,25 @@ function StepPage({ projectId, stepKey }) {
             ) : null}
           </div>
         </div>
-        <div className="acts">{buttons}</div>
+        <div className="acts">
+          {!step.manual && st !== 'running' ? (
+            <Select
+              size="sm"
+              value={step.model || ''}
+              options={[...MODELS, ...(!step.model || MODELS.some(([v]) => v === step.model) ? [] : [[step.model, step.model]])].map(([value, label]) => ({ value, label: t(label) }))}
+              onChange={async (m) => {
+                try {
+                  await api.setStepModel(projectId, stepKey, m);
+                  load();
+                } catch (e) {
+                  setActionErr(e.message);
+                }
+              }}
+              label={t('Model của bước này')}
+            />
+          ) : null}
+          {buttons}
+        </div>
       </div>
 
       {showWarn ? (
