@@ -1,9 +1,12 @@
 // Sidebar Trợ lý AI: chat với claude (tài khoản đang đăng nhập), trợ lý thao tác trên trang qua pageAgent.
 // Hook useAssistant đặt ở Shell để lệnh từ trợ lý vẫn chạy khi sidebar đang đóng.
+import { DRAG_TYPE, MAX_IMAGES, fromUrl, isTextFile, textAttachment, textFromUrl, toAttachment } from '../lib/chatImages.js';
+import { useFocus } from '../lib/focus.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
 import { runTool } from '../lib/pageAgent.js';
+import Progress from './Progress.jsx';
 import Select from './Select.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
 import { T, getLang, intlLocale, tr, useT } from '../lib/i18n.jsx';
@@ -18,6 +21,28 @@ function readOpen() {
     return false;
   }
 }
+const W_KEY = 'vs-ai-w';
+const W_MIN = 350;
+const W_DEF = 380;
+const clampW = (w) => Math.max(W_MIN, Math.min(Math.round(w) || W_DEF, Math.max(W_MIN, Math.floor(window.innerWidth * 0.7))));
+function readW() {
+  try {
+    return clampW(Number(window.localStorage.getItem(W_KEY)) || W_DEF);
+  } catch {
+    return W_DEF;
+  }
+}
+function storeW(w) {
+  try {
+    window.localStorage.setItem(W_KEY, String(w));
+  } catch {
+    /* storage bị chặn — chỉ không nhớ */
+  }
+}
+function applyW(w) {
+  document.documentElement.style.setProperty('--ai-w', `${w}px`);
+}
+
 function storeOpen(v) {
   try {
     window.localStorage.setItem(OPEN_KEY, v ? '1' : '0');
@@ -97,7 +122,7 @@ export function useAssistant() {
     if (!busy && ask) ask.resolve(false);
   }, [busy, ask]);
 
-  const send = (text) => api.assistantSend(text, TAB_ID, getLang()).then(apply);
+  const send = (text, extra) => api.assistantSend(text, TAB_ID, getLang(), extra).then(apply);
   const stop = () => api.assistantStop().then(apply);
   const reset = () => {
     ask?.resolve(false);
@@ -119,7 +144,12 @@ export function useAssistant() {
 
 // Một dòng trong cuộc chat.
 function Msg({ m }) {
-  if (m.role === 'user') return <div className="ai-msg ai-user">{m.text}</div>;
+  if (m.role === 'user') return (
+      <div className="ai-msg ai-user">
+        {m.images?.length ? <div className="ai-imgnames">{m.images.map((n, i) => <span key={i}>📎 {n}</span>)}</div> : null}
+        {m.text}
+      </div>
+    );
   if (m.role === 'action') return <div className={`ai-msg ai-act${m.failed ? ' bad' : ''}`}>{m.text}</div>;
   if (m.role === 'note') return <div className="ai-msg ai-note">{tr(m.text)}</div>;
   if (m.role === 'error') return <div className="ai-msg ai-err">{tr(m.text)}</div>;
@@ -142,7 +172,43 @@ const EXAMPLES = [T('Tạo dự án mới, video dài 60 giây'), T('Mở trang 
 // Sidebar bên phải; loggedIn=false → hướng dẫn đăng nhập Claude (onAccount mở bảng Tài khoản).
 export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const t = useT();
+  const focus = useFocus();
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    applyW(readW());
+    const onWin = () => applyW(readW());
+    window.addEventListener('resize', onWin);
+    return () => window.removeEventListener('resize', onWin);
+  }, []);
+  // Kéo mép trái: sang trái = rộng hơn, sang phải = hẹp lại (tối thiểu 350px); thả chuột thì nhớ độ rộng.
+  const startResize = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = clampW(parseFloat(document.documentElement.style.getPropertyValue('--ai-w')) || W_DEF);
+    let w = startW;
+    setDragging(true);
+    document.body.classList.add('ai-resizing');
+    const move = (ev) => {
+      w = clampW(startW + (startX - ev.clientX));
+      applyW(w);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      document.body.classList.remove('ai-resizing');
+      setDragging(false);
+      storeW(w);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
   const [text, setText] = useState('');
+  const [imgs, setImgs] = useState([]); // ảnh đính kèm chờ gửi
+  const [over, setOver] = useState(false);
+  const fileIn = useRef(null);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState(null);
   const list = useRef(null);
@@ -152,6 +218,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const { data, error, ask } = a;
   const busy = !!data?.busy;
   const msgs = data?.messages || [];
+  const compacting = busy && msgs[msgs.length - 1]?.role === 'note' && msgs[msgs.length - 1]?.text === 'Đang nén cuộc trò chuyện…';
 
   // Tin mới / thẻ hỏi → cuộn xuống cuối.
   useEffect(() => {
@@ -163,15 +230,61 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
     input.current?.focus();
   }, []);
 
+  // Thêm ảnh (từ máy, dán, thả hoặc kéo từ Đầu ra); quá số lượng thì báo.
+  const addImages = async (jobs) => {
+    setErr(null);
+    const room = MAX_IMAGES - imgs.length;
+    if (jobs.length > room) setErr(t('Tối đa {n} ảnh mỗi tin.', { n: MAX_IMAGES }));
+    const got = [];
+    for (const job of jobs.slice(0, Math.max(0, room))) {
+      try {
+        got.push(await job());
+      } catch {
+        setErr(t('Không đọc được ảnh này.'));
+      }
+    }
+    if (got.length) setImgs((v) => [...v, ...got].slice(0, MAX_IMAGES));
+  };
+  const addFiles = (files) => {
+    const list = [...files];
+    const jobs = list.flatMap((f) => (/^image\//.test(f.type) ? [() => toAttachment(f, f.name)] : isTextFile(f) ? [() => textAttachment(f, f.name)] : []));
+    if (list.length && !jobs.length) setErr(t('Chỉ đính kèm được ảnh, tệp chữ hoặc video kéo từ Đầu ra.'));
+    return addImages(jobs);
+  };
+  const onDrop = (e) => {
+    e.preventDefault();
+    setOver(false);
+    const raw = e.dataTransfer.getData(DRAG_TYPE);
+    if (raw) {
+      try {
+        const it = JSON.parse(raw);
+        if (it.kind === 'video') addImages([async () => ({ kind: 'video', name: it.name, projectId: it.projectId, path: it.path })]);
+        else if (it.kind === 'text') addImages([() => textFromUrl(it.src, it.name)]);
+        else addImages([() => fromUrl(it.src, it.name)]);
+        return;
+      } catch {
+        /* rơi xuống nhánh file */
+      }
+    }
+    addFiles(e.dataTransfer.files);
+  };
+
   const submit = async (e) => {
     e?.preventDefault();
-    const q = text.trim();
-    if (!q || busy || sending) return;
+    const typed = text.trim();
+    if ((!typed && !imgs.length) || busy || sending) return;
+    const q0 = typed || t('Xem tệp đính kèm.');
+    const q = focus ? `[${t('Ảnh đang chọn')}: ${focus.name} — ${t('dự án')} ${focus.projectId}, ${t('đường dẫn')} ${focus.path}]\n${q0}` : q0;
     setSending(true);
     setErr(null);
     try {
-      await a.send(q);
+      await a.send(q, {
+        images: imgs.filter((i) => i.kind === 'image').map(({ name, mime, data }) => ({ name, mime, data })),
+        files: imgs.filter((i) => i.kind === 'text').map(({ name, text }) => ({ name, text })),
+        videos: imgs.filter((i) => i.kind === 'video').map(({ projectId, path }) => ({ projectId, path })),
+      });
       setText('');
+      setImgs([]);
     } catch (x) {
       setErr(x.message);
     } finally {
@@ -259,9 +372,13 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
           msgs.map((m) => <Msg key={m.id} m={m} />)
         )}
         {busy && !ask ? (
-          <div className="ai-msg ai-note ai-wait">
-            <span className="spinner" aria-hidden="true" /> {t('Đang làm…')}
-          </div>
+          compacting ? (
+            <div className="ai-msg ai-note"><Progress label={t('Đang nén cuộc trò chuyện…')} /></div>
+          ) : (
+            <div className="ai-msg ai-note ai-wait">
+              <span className="spinner" aria-hidden="true" /> {t('Đang làm…')}
+            </div>
+          )
         ) : null}
         {ask ? (
           <div className="ai-ask" role="alertdialog" aria-label={t('Trợ lý xin phép')}>
@@ -285,6 +402,17 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const ready = data?.available;
   return (
     <aside className={`ai-panel${a.open ? '' : ' closing'}`} aria-label={t('Trợ lý AI')} onKeyDown={onKey}>
+      <div
+        className={`ai-resize${dragging ? ' drag' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('Kéo để đổi độ rộng')}
+        onPointerDown={startResize}
+        onDoubleClick={() => {
+          applyW(W_DEF);
+          storeW(W_DEF);
+        }}
+      />
       <div className="ai-head">
         <div className="ai-head-acts">
           {ready ? (
@@ -359,8 +487,38 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
         body
       )}
       {err ? <div className="ai-msg ai-err ai-fe">{err}</div> : null}
-      <form className="ai-form" onSubmit={submit}>
+      <form
+        className={`ai-form${over ? ' over' : ''}`}
+        onSubmit={submit}
+        onDragOver={(e) => {
+          if (loggedIn === false) return;
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setOver(false);
+        }}
+        onDrop={onDrop}
+      >
         <div className="ai-box">
+          {focus ? (
+            <div className="ai-focus" title={focus.path}>
+              <img src={focus.src} alt="" />
+              <span>{t('Đang chọn')}: <b>{focus.name}</b></span>
+            </div>
+          ) : null}
+          {imgs.length ? (
+            <div className="ai-atts">
+              {imgs.map((im, i) => (
+                <span key={i} className="ai-att" title={im.name}>
+                  {im.url ? <img src={im.url} alt={im.name} /> : <span className="ai-kind">{im.kind === 'video' ? '🎬' : '📄'}<i>{im.name}</i></span>}
+                  <button type="button" aria-label={t('Bỏ ảnh')} onClick={() => setImgs((v) => v.filter((_, j) => j !== i))}>
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <textarea
             ref={input}
             rows={2}
@@ -370,12 +528,25 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
             aria-label={t('Tin nhắn cho trợ lý')}
             disabled={!ready || loggedIn === false}
             onChange={(e) => setText(e.target.value)}
+            onPaste={(e) => {
+              const fs = [...e.clipboardData.files].filter((f) => /^image\//.test(f.type));
+              if (fs.length) {
+                e.preventDefault();
+                addFiles(fs);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) submit(e);
             }}
           />
           <div className="ai-box-row">
             <div className="ai-opts">
+            <input ref={fileIn} type="file" accept="image/*,text/*,.md,.json,.srt,.vtt,.csv,.log,.yaml,.yml" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+            <button type="button" className="ai-clip" aria-label={t('Đính kèm ảnh hoặc tệp chữ')} title={t('Đính kèm ảnh hoặc tệp chữ')} disabled={!ready || busy || loggedIn === false || imgs.length >= MAX_IMAGES} onClick={() => fileIn.current?.click()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 11.5l-7.8 7.8a5 5 0 01-7-7L13 4.5a3.3 3.3 0 014.7 4.7L9.9 17a1.7 1.7 0 01-2.4-2.4l7.4-7.4" />
+              </svg>
+            </button>
               <Select size="sm" value={data?.model || ''} options={MODEL_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Model')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ model: v || null }))} />
               <Select size="sm" value={data?.effort || ''} options={EFFORT_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Effort')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ effort: v || null }))} />
             </div>
@@ -386,7 +557,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
                 </svg>
               </button>
             ) : (
-              <button type="submit" className="ai-send" disabled={!ready || !text.trim() || sending || loggedIn === false} aria-label={t('Gửi')} title={t('Gửi')}>
+              <button type="submit" className="ai-send" disabled={!ready || (!text.trim() && !imgs.length) || sending || loggedIn === false} aria-label={t('Gửi')} title={t('Gửi')}>
                 {sending ? (
                   <span className="spinner" aria-hidden="true" />
                 ) : (

@@ -517,17 +517,19 @@ function StepPage({ projectId, stepKey }) {
     );
   }
   const nextStep = idx >= 0 ? (project.steps || [])[idx + 1] : null;
+  let nextBtn = null;
   if (st === 'done' && nextStep) {
-    buttons.push(
-      <button key="next" type="button" className="btn primary" onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Kết quả ổn — mở bước "{n}"', { n: nextStep.name })}>
+    nextBtn = (
+      <button key="next" type="button" className="btn primary tab-next" onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Kết quả ổn — mở bước "{n}"', { n: nextStep.name })}>
         {t('Duyệt · sang bước tiếp →')}
-      </button>,
+      </button>
     );
   }
-  if (st === 'done') {
+  const doneUpto = (project.steps || []).slice(0, Math.max(0, idx) + 1).filter((x) => x.state === 'done').length;
+  if (st === 'done' || doneUpto > 0) {
     buttons.push(
-      <button key="distill" type="button" className="btn" onClick={() => setDistillOpen(true)} title={t('Claude đúc kết cách làm của bước này thành skill cá nhân để dùng lại ở video sau')}>
-        {t('Đúc kết thành skill')}
+      <button key="distill" type="button" className="btn" onClick={() => setDistillOpen(true)} title={t('Claude đúc kết cách làm của bước này hoặc cả dự án thành skill cá nhân để dùng lại ở video sau')}>
+        {t('Tạo skill')}
       </button>,
     );
   }
@@ -620,8 +622,14 @@ function StepPage({ projectId, stepKey }) {
             <span className="ro">
               <i>{t('Thời gian chạy')}</i> <b>{selRun ? fmtElapsed(runElapsed(selRun, now)) : '—'}</b>
             </span>
-            <span className="ro">
-              <i>Token</i> <b title={tokens ? fmtNum(tokens) : ''}>{tokens ? fmtTokens(tokens) : '—'}</b>
+            <span className="ro" title={t('Token của lượt đang chọn')}>
+              <i>{t('Token lượt')}</i> <b title={tokens ? fmtNum(tokens) : ''}>{tokens ? fmtTokens(tokens) : '—'}</b>
+            </span>
+            <span className="ro" title={t('Cộng mọi lượt của bước này')}>
+              <i>{t('Tổng bước')}</i> <b title={fmtNum(stepTotal)}>{stepTotal ? fmtTokens(stepTotal) : '—'}</b>
+            </span>
+            <span className="ro" title={t('Cộng mọi lượt của mọi bước trong dự án')}>
+              <i>{t('Tổng dự án')}</i> <b title={fmtNum(projectTotal)}>{projectTotal ? fmtTokens(projectTotal) : '—'}</b>
             </span>
             <span className="ro" title={t('Chỉ hiển thị, chưa tự chạy bước sau')}>
               <i>{t('Cổng')}</i> <b>{gateLabel(step.gate_mode)}</b>
@@ -673,6 +681,7 @@ function StepPage({ projectId, stepKey }) {
             {n ? <span className="n">{n}</span> : null}
           </button>
         ))}
+        {nextBtn}
       </div>
 
       {decide ? (
@@ -773,7 +782,7 @@ function StepPage({ projectId, stepKey }) {
 
       </div>
 
-      {distillOpen ? <DistillModal projectId={projectId} stepKey={stepKey} stepName={step.name} onClose={() => setDistillOpen(false)} /> : null}
+      {distillOpen ? <DistillModal projectId={projectId} stepKey={stepKey} stepName={step.name} stepDone={st === 'done'} doneCount={doneUpto} onClose={() => setDistillOpen(false)} /> : null}
       {costAsk ? (
         <CostModal
           stepName={step.name}

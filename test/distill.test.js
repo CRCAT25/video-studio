@@ -159,3 +159,35 @@ test('API distill + save: bản nháp không ghi gì; lưu vào thư viện, ch�
   assert.equal(JSON.parse(store.getProject('meo').pipeline).skills.length, 1);
   assert.equal((await call('POST', '/api/projects/meo/steps/hook/distill/save', { name: 'x' })).statusCode, 400);
 });
+
+test('scope project: buildPrompt liệt kê từng bước + hậu tố -project; sanitizeDraft ép hậu tố; distillSource bỏ bước chưa xong', async () => {
+  const p = buildPrompt({ scope: 'project', stepName: 'B2', stepKey: 'b2', dir: tmp, artifacts: [], existing: [], steps: [{ stepKey: 'b1', stepName: 'Bước Một', promptTemplate: 'PROMPT1', feedbacks: ['GOPY1'], artifacts: [] }, { stepKey: 'b2', stepName: 'Bước Hai', promptTemplate: 'PROMPT2', feedbacks: [], artifacts: [] }] });
+  for (const s of ['CẢ QUY TRÌNH', 'Bước Một', 'PROMPT1', 'GOPY1', 'PROMPT2', '-project']) assert.ok(p.includes(s), s);
+  assert.equal(sanitizeDraft(DRAFT, { scope: 'project' }).name, 've-nguoi-que-project');
+  assert.equal(sanitizeDraft({ ...DRAFT, name: 'x-project' }, { scope: 'project' }).name, 'x-project');
+  await projectWithOutputs();
+  const none = await call('POST', '/api/projects/meo/steps/hook/distill', { scope: 'project' });
+  assert.equal(none.statusCode, 409);
+  assert.equal((await call('POST', '/api/projects/meo/steps/hook/complete')).statusCode, 200);
+  const src = projects.distillSource('meo', 'hook', 'project');
+  assert.equal(src.scope, 'project');
+  assert.equal(src.steps.length, 1);
+  assert.equal(src.steps[0].stepKey, 'hook');
+  process.env.FAKE_SKILL_SEARCH = JSON.stringify(DRAFT);
+  const d = await call('POST', '/api/projects/meo/steps/hook/distill', { scope: 'project' });
+  assert.equal(d.statusCode, 200, d.body);
+  assert.equal(d.json().name, 've-nguoi-que-project');
+  const s = await call('POST', '/api/projects/meo/steps/hook/distill/save', { scope: 'project', name: d.json().name, files: d.json().files, samples: [] });
+  assert.equal(s.statusCode, 201, s.body);
+  // Lần sau: skill -project đang gắn được đưa vào prompt để cập nhật; skill bước thì không.
+  assert.deepEqual(projects.distillSource('meo', 'hook', 'project').existing.map((x) => x.name), ['ve-nguoi-que-project']);
+  assert.deepEqual(projects.distillSource('meo', 'hook', 'step').existing, []);
+});
+
+test('distill-progress: không có lượt nào chạy → phase null', async () => {
+  await makeApp(null);
+  await call('POST', '/api/projects', { presetId: 'e2e-short', title: 'Mèo' });
+  const r = await call('GET', '/api/projects/meo/distill-progress');
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.json().phase, null);
+});

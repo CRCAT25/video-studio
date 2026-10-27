@@ -149,7 +149,8 @@ export const api = {
     if (allowOnce?.length) body.allowOnce = allowOnce;
     return request('POST', `${stepPath(id, key)}/run`, body);
   },
-  distillStep: (id, key, { signal } = {}) => request('POST', `${stepPath(id, key)}/distill`, {}, { signal }),
+  distillStep: (id, key, { signal, scope } = {}) => request('POST', `${stepPath(id, key)}/distill`, scope ? { scope } : {}, { signal }),
+  distillProgress: (id, opts) => request('GET', `/api/projects/${enc(id)}/distill-progress`, undefined, opts),
   saveDistill: (id, key, body) => request('POST', `${stepPath(id, key)}/distill/save`, body),
   grantPermission: (id, tool, scope = 'project') => request('POST', `/api/projects/${enc(id)}/permissions`, { tool, scope }),
   stopRun: (runId) => request('POST', `/api/runs/${enc(runId)}/stop`, {}),
@@ -186,7 +187,7 @@ export const api = {
   ytVideoStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/video-stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytVideos: (id, refresh = false) => request('GET', `/api/youtube/channels/${enc(id)}/videos${refresh ? '?refresh=1' : ''}`),
   assistant: () => request('GET', '/api/assistant'),
-  assistantSend: (text, tabId, lang) => request('POST', '/api/assistant/message', { text, tabId, lang }),
+  assistantSend: (text, tabId, lang, extra = {}) => request('POST', '/api/assistant/message', { text, tabId, lang, ...extra }),
   assistantStop: () => request('POST', '/api/assistant/stop', {}),
   assistantReset: () => request('POST', '/api/assistant/reset', {}),
   assistantChats: () => request('GET', '/api/assistant/chats'),

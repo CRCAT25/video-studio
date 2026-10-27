@@ -1,4 +1,5 @@
 // Tab Đầu ra (video/âm thanh/ảnh/chữ từ /media, không render HTML) và tab Kiểm tra (Đạt / Trượt / Bỏ qua).
+import { dragImage, dragItem } from '../lib/chatImages.js';
 import { useEffect, useState } from 'react';
 import { fetchText, mediaUrl } from '../api.js';
 import { KIND_LABEL, fmtBytes, fmtDateTime, fmtDuration } from '../lib/format.js';
@@ -73,7 +74,7 @@ function TextPreview({ projectId, a, auto }) {
 
   return (
     <div className="text-out">
-      <div className="hd">
+      <div className="hd" draggable onDragStart={(e) => dragItem(e, { kind: 'text', src, name: a.label || baseName(a.path) })}>
         <div style={{ minWidth: 0 }}>
           <b>{a.label || baseName(a.path)}</b>
           <div className="mono">{a.path}</div>
@@ -160,7 +161,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
                       {runN ? ` · ${t('lượt {n}', { n: runN })}` : ''}
                     </div>
                   </div>
-                  <div className="out-row">
+                  <div className="out-row" draggable onDragStart={(e) => dragItem(e, { kind: 'video', name: a.label || baseName(a.path), projectId, path: a.path })}>
                     <div className="lbl">
                       <b>{a.label || baseName(a.path)}</b>
                       <span className="mono">{a.path}</span>
@@ -188,6 +189,8 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
                 <a
                   key={a.id ?? a.path}
                   href={srcOf(projectId, a.path)}
+                  draggable
+                  onDragStart={(e) => dragImage(e, srcOf(projectId, a.path), a.label || baseName(a.path))}
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; // giữ ⌘/Ctrl-click mở tab mới
                     e.preventDefault();
@@ -201,7 +204,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
               ))}
               {viewIdx != null && arr[viewIdx] ? (
                 <Lightbox
-                  items={arr.map((a) => ({ src: srcOf(projectId, a.path), name: a.label || baseName(a.path), file: baseName(a.path) }))}
+                  items={arr.map((a) => ({ src: srcOf(projectId, a.path), name: a.label || baseName(a.path), file: baseName(a.path), path: a.path, projectId }))}
                   index={viewIdx}
                   onIndex={setViewIdx}
                   onClose={() => setViewIdx(null)}

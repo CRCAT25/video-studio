@@ -15,6 +15,24 @@ export const TOOL_TIMEOUT_MS = 60_000; // trang không trả lời (tab đóng) 
 export const HOLD_TIMEOUT_MS = 240_000; // đang chờ người dùng bấm Cho phép / Không
 export const MAX_MESSAGES = 200;
 export const MAX_INPUT = 4000;
+export const MAX_IMAGES = 4;
+export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+export const MAX_FILES = 4;
+export const MAX_FILE_CHARS = 100000;
+const IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
+// Kiểm ảnh đính kèm → [{name, mime, data(base64)}]; sai loại/quá lớn/quá nhiều → 400.
+export function cleanImages(list) {
+  if (list == null) return [];
+  if (!Array.isArray(list) || list.length > MAX_IMAGES) throw new HttpError(400, 'invalid_body', `Tối đa ${MAX_IMAGES} ảnh mỗi tin.`);
+  return list.map((im) => {
+    const mime = String(im?.mime || '');
+    const data = String(im?.data || '');
+    if (!IMAGE_MIME.has(mime) || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new HttpError(400, 'invalid_body', 'Chỉ nhận ảnh PNG, JPG, WebP hoặc GIF.');
+    if (Math.floor((data.length * 3) / 4) > MAX_IMAGE_BYTES) throw new HttpError(400, 'invalid_body', 'Ảnh quá lớn (tối đa 3 MB mỗi ảnh).');
+    return { name: String(im.name || 'image').replace(/[\r\n]/g, ' ').slice(0, 80), mime, data };
+  });
+}
 export const KILL_GRACE_MS = 3000;
 export const MAX_CHATS = 30;
 export const MODELS = ['opus', 'sonnet', 'haiku']; // alias → luôn bản mới nhất
@@ -33,8 +51,20 @@ Quy tắc:
 - Trả lời tiếng Việt, ngắn gọn; xong việc thì báo kết quả trong 1–2 câu.`;
 
 // Tham số dòng lệnh cho một lượt: phiên mới dùng --session-id, lượt sau --resume.
-export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model = null, effort = null }) {
+// Tệp chữ đính kèm → [{name, text}] (cắt ở MAX_FILE_CHARS).
+export function cleanFiles(list) {
+  if (list == null) return [];
+  if (!Array.isArray(list) || list.length > MAX_FILES) throw new HttpError(400, 'invalid_body', `Tối đa ${MAX_FILES} tệp mỗi tin.`);
+  return list.map((f) => {
+    if (typeof f?.text !== 'string') throw new HttpError(400, 'invalid_body', 'Tệp đính kèm không hợp lệ.');
+    const cut = f.text.length > MAX_FILE_CHARS;
+    return { name: String(f.name || 'file').replace(/[\r\n]/g, ' ').slice(0, 80), text: f.text.slice(0, MAX_FILE_CHARS), cut };
+  });
+}
+
+export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model = null, effort = null, images = false }) {
   const args = ['-p', '--output-format', 'stream-json', '--verbose'];
+  if (images) args.push('--input-format', 'stream-json'); // ảnh đi qua khối base64, model không cần quyền đọc file
   args.push(resume ? '--resume' : '--session-id', sessionId);
   args.push('--tools', '', '--strict-mcp-config', '--mcp-config', mcpConfig);
   args.push('--allowedTools', ALLOWED.join(','));
@@ -164,20 +194,29 @@ export function createAssistant({
   }
 
   // Gửi một câu cho trợ lý; tabId = tab trình duyệt sẽ làm thao tác.
-  function send(text, { tabId = null, lang = 'vi' } = {}) {
+  function send(text, { tabId = null, lang = 'vi', images = [], files = [], videos = [] } = {}) {
     const msg = String(text ?? '').trim();
+    // videos = [{name, info, frames}] do server tự lấy từ file trong dự án (đã tin cậy)
+    const imgs = cleanImages(images).concat(videos.flatMap((v) => v.frames));
+    const docs = cleanFiles(files);
     if (!msg) throw new HttpError(400, 'invalid_body', 'Nhập nội dung cần trợ lý làm.');
     if (msg.length > MAX_INPUT) throw new HttpError(400, 'invalid_body', `Tin nhắn tối đa ${MAX_INPUT} ký tự.`);
     if (turn) throw new HttpError(409, 'assistant_busy', 'Trợ lý đang làm — chờ xong hoặc bấm Dừng.');
     const url = baseUrl();
     if (!url) throw new HttpError(503, 'assistant_unavailable', 'Trợ lý chưa sẵn sàng.');
-    push('user', msg);
+    const names = [...cleanImages(images).map((i) => i.name), ...videos.map((v) => v.name), ...docs.map((d) => d.name)];
+    push('user', msg, names.length ? { images: names } : {});
+    const ctx = [
+      ...docs.map((d) => `[Tệp đính kèm: ${d.name}${d.cut ? ' (đã cắt bớt)' : ''}]\n\`\`\`\n${d.text}\n\`\`\``),
+      ...videos.map((v) => `[Video đính kèm — ${v.info}; các ảnh kèm theo là khung hình của video này]`),
+    ];
+    const full = ctx.length ? `${ctx.join('\n\n')}\n\n${msg}` : msg;
     // giao diện tiếng Anh → nhắc trả lời tiếng Anh (chỉ trong lời gửi cho model, tin hiển thị giữ nguyên)
-    start(lang === 'en' ? `[Reply in English.]\n${msg}` : msg, url, String(tabId || ''), false);
+    start(lang === 'en' ? `[Reply in English.]\n${full}` : full, url, String(tabId || ''), false, imgs);
     return state();
   }
 
-  function start(prompt, url, tabId, retried) {
+  function start(prompt, url, tabId, retried, imgs = []) {
     const resume = chat.started && !!chat.sessionId;
     if (!resume) chat.sessionId = crypto.randomUUID();
     const key = crypto.randomBytes(24).toString('hex');
@@ -193,7 +232,7 @@ export function createAssistant({
     const t = { key, tabId, child: null, stopped: false, finished: false, cfgFile, gotResult: false, stderr: '', resume };
     turn = t;
     const isScript = /\.(mjs|cjs|js)$/i.test(bin);
-    const argv = buildAssistantArgs({ sessionId: chat.sessionId, resume, mcpConfig: cfgFile, model: chat.model || model, effort: chat.effort });
+    const argv = buildAssistantArgs({ sessionId: chat.sessionId, resume, mcpConfig: cfgFile, model: chat.model || model, effort: chat.effort, images: imgs.length > 0 });
     let child;
     try {
       child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...argv] : argv, {
@@ -219,9 +258,16 @@ export function createAssistant({
       out.end();
       // Phiên cũ không còn (claude đã dọn) → chạy lại một lần với phiên mới.
       const lost = !retried && resume && /no conversation found/i.test(t.stderr);
-      finish(t, code, null, lost ? () => start(prompt, url, tabId, true) : null);
+      finish(t, code, null, lost ? () => start(prompt, url, tabId, true, imgs) : null);
     });
-    child.stdin.end(prompt);
+    child.stdin.end(
+      imgs.length
+        ? JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: [...imgs.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.data } })), { type: 'text', text: prompt }] },
+          }) + '\n'
+        : prompt,
+    );
     changed();
   }
 

@@ -4,8 +4,11 @@ import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useToast } from './Toast.jsx';
 import { useT } from '../lib/i18n.jsx';
+import Progress from './Progress.jsx';
 
-export default function DistillModal({ projectId, stepKey, stepName, onClose }) {
+const PHASES = ['Đọc thành quả của bước', 'Viết skill', 'Kiểm tra kết quả'];
+
+export default function DistillModal({ projectId, stepKey, stepName, stepDone = true, doneCount = 1, onClose }) {
   const t = useT();
   const toast = useToast();
   const [draft, setDraft] = useState(null);
@@ -15,14 +18,18 @@ export default function DistillModal({ projectId, stepKey, stepName, onClose }) 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(null);
   const [tries, setTries] = useState(0);
+  const [scope, setScope] = useState(stepDone ? 'step' : 'project');
+  const [started, setStarted] = useState(false);
+  const [phase, setPhase] = useState(0);
 
   // Gọi Claude (có thể mất 1–3 phút); đóng hộp thoại giữa chừng thì bỏ kết quả.
   useEffect(() => {
+    if (!started) return undefined;
     const ac = new AbortController();
     setDraft(null);
     setErr(null);
     api
-      .distillStep(projectId, stepKey, { signal: ac.signal })
+      .distillStep(projectId, stepKey, { signal: ac.signal, scope })
       .then((d) => {
         setDraft(d);
         setName(d.name);
@@ -32,7 +39,24 @@ export default function DistillModal({ projectId, stepKey, stepName, onClose }) 
         if (e.name !== 'AbortError') setErr(e.message);
       });
     return () => ac.abort();
-  }, [projectId, stepKey, tries]);
+  }, [projectId, stepKey, tries, started, scope]);
+
+  // Hỏi giai đoạn của lượt đang chạy (server suy ra từ sự kiện stream của claude) để vẽ thanh tiến độ.
+  useEffect(() => {
+    if (!started || draft || err) return undefined;
+    setPhase(0);
+    let live = true;
+    const id = setInterval(() => {
+      api.distillProgress(projectId).then((r) => {
+        const i = ['read', 'write', 'check'].indexOf(r?.phase);
+        if (live && i >= 0) setPhase((p) => Math.max(p, i));
+      }).catch(() => {});
+    }, 1500);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [started, draft, err, projectId, tries]);
 
   const setContent = (path, content) => setDraft((d) => ({ ...d, files: d.files.map((f) => (f.path === path ? { ...f, content } : f)) }));
   const dropFile = (path) => {
@@ -43,7 +67,7 @@ export default function DistillModal({ projectId, stepKey, stepName, onClose }) 
   const save = async (rename = false) => {
     setSaving(true);
     try {
-      const r = await api.saveDistill(projectId, stepKey, { name, files: draft.files, samples: draft.samples, overwrite: !!draft.updates && name === draft.updates, rename });
+      const r = await api.saveDistill(projectId, stepKey, { scope, name, files: draft.files, samples: draft.samples, overwrite: !!draft.updates && name === draft.updates, rename });
       setSaved(r);
     } catch (e) {
       if (e.code === 'skill_exists') toast(t('Đã có skill tên "{n}" — đổi tên rồi lưu lại.', { n: name }), 'err');
@@ -66,9 +90,31 @@ export default function DistillModal({ projectId, stepKey, stepName, onClose }) 
     );
   }
 
+  if (!started) {
+    return (
+      <Modal title={t('Tạo skill')} lead={t('Chọn phạm vi — Claude viết bản nháp, bạn xem rồi mới lưu.')} onClose={onClose}>
+        <div className="dst-scope" role="radiogroup">
+          <label className={`dst-opt${stepDone ? '' : ' off'}`}>
+            <input type="radio" name="scope" checked={scope === 'step'} disabled={!stepDone} onChange={() => setScope('step')} />
+            <span><b>{t('Chỉ bước này')}</b><br />{stepDone ? t('Bước "{n}"', { n: stepName }) : t('Bước này chưa xong')}</span>
+          </label>
+          <label className="dst-opt">
+            <input type="radio" name="scope" checked={scope === 'project'} onChange={() => setScope('project')} />
+            <span><b>{t('Cả dự án')}</b><br />{t('Gom {c} bước đã xong, từ bước đầu tới bước hiện tại. Bấm lại về sau để cập nhật skill này cho đầy đủ hơn.', { c: doneCount })}</span>
+          </label>
+        </div>
+        <p className="note">{t('Tốn token gói Claude, có thể mất vài phút.')}</p>
+        <div className="modal-acts">
+          <button type="button" className="btn" onClick={onClose}>{t('Hủy')}</button>
+          <button type="button" className="btn primary" onClick={() => setStarted(true)}>{t('Bắt đầu')}</button>
+        </div>
+      </Modal>
+    );
+  }
+
   const file = draft?.files.find((f) => f.path === sel);
   return (
-    <Modal title={t('Đúc kết thành skill')} lead={t('Bước "{n}" — Claude viết bản nháp, bạn xem rồi mới lưu.', { n: stepName })} onClose={onClose} busy={saving} xwide>
+    <Modal title={t('Tạo skill')} lead={scope === 'project' ? t('Cả dự án — Claude viết bản nháp, bạn xem rồi mới lưu.') : t('Bước "{n}" — Claude viết bản nháp, bạn xem rồi mới lưu.', { n: stepName })} onClose={onClose} busy={saving} xwide>
       {err ? (
         <>
           <p className="err-note" role="alert">{err}</p>
@@ -78,7 +124,10 @@ export default function DistillModal({ projectId, stepKey, stepName, onClose }) 
           </div>
         </>
       ) : !draft ? (
-        <p className="note"><span className="spinner" aria-hidden="true" /> {t('Claude đang đọc thành quả của bước và viết skill… (có thể mất vài phút, tốn token gói Claude)')}</p>
+        <>
+          <Progress value={((phase + 0.5) / PHASES.length) * 100} label={t('Bước {i}/{n}: {s}', { i: phase + 1, n: PHASES.length, s: t(PHASES[phase]) })} />
+          <p className="note">{t('Claude đang làm việc — có thể mất vài phút, tốn token gói Claude. Phần trăm chỉ là ước lượng theo giai đoạn.')}</p>
+        </>
       ) : (
         <>
           {draft.summary ? <p>{draft.summary}</p> : null}

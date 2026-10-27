@@ -335,3 +335,58 @@ test('compact: cần phiên đã bắt đầu; gửi /compact bằng --resume v�
   const notes = assistant.state().messages.filter((m) => m.role === 'note').map((m) => m.text);
   assert.ok(notes.includes('Đã nén cuộc trò chuyện.'));
 });
+
+test('ảnh đính kèm: gửi qua stream-json base64, kiểm loại/số lượng/kích thước', async () => {
+  const url = await startHttp();
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url });
+  fakeBrowser(assistant);
+  const png = Buffer.from('xx').toString('base64');
+  assert.throws(() => assistant.send('x', { images: [{ name: 'a', mime: 'text/html', data: png }] }), { status: 400 });
+  assert.throws(() => assistant.send('x', { images: [{ name: 'a', mime: 'image/png', data: '<script>' }] }), { status: 400 });
+  assert.throws(() => assistant.send('x', { images: Array(5).fill({ name: 'a', mime: 'image/png', data: png }) }), { status: 400 });
+  assert.throws(() => assistant.send('x', { images: [{ name: 'a', mime: 'image/png', data: 'A'.repeat(4 * 1024 * 1024 + 4) }] }), { status: 400 });
+  assistant.send('mô tả ảnh này', { images: [{ name: 'a.jpg', mime: 'image/jpeg', data: png }] });
+  await until(() => !assistant.state().busy);
+  assert.deepEqual(assistant.state().messages.find((m) => m.role === 'user').images, ['a.jpg']);
+  const log = fs.readFileSync(path.join(home, 'assistant', '.fake-assist.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(log[0].argv.includes('--input-format'));
+  const sent = JSON.parse(log[0].prompt);
+  assert.equal(sent.message.content[0].source.data, png);
+  assert.equal(sent.message.content[1].text, 'mô tả ảnh này');
+});
+
+test('tệp chữ + video: chèn nội dung vào lời gửi, khung hình đi như ảnh, kiểm giới hạn', async () => {
+  const url = await startHttp();
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url });
+  fakeBrowser(assistant);
+  assert.throws(() => assistant.send('x', { files: [{ name: 'a.txt' }] }), { status: 400 });
+  assert.throws(() => assistant.send('x', { files: Array(5).fill({ name: 'a', text: 'b' }) }), { status: 400 });
+  assistant.send('đọc giúp', {
+    files: [{ name: 'k.srt', text: 'xin chào' }],
+    videos: [{ name: 'v.mp4', info: 'v.mp4: 3s', frames: [{ name: 'v.mp4 @1s', mime: 'image/jpeg', data: Buffer.from('f').toString('base64') }] }],
+  });
+  await until(() => !assistant.state().busy);
+  assert.deepEqual(assistant.state().messages.find((m) => m.role === 'user').images, ['v.mp4', 'k.srt']);
+  assert.equal(assistant.state().messages.find((m) => m.role === 'user').text, 'đọc giúp');
+  const log = fs.readFileSync(path.join(home, 'assistant', '.fake-assist.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const sent = JSON.parse(log[0].prompt);
+  assert.equal(sent.message.content.length, 2);
+  assert.match(sent.message.content[1].text, /k\.srt[\s\S]*xin chào[\s\S]*Video đính kèm[\s\S]*đọc giúp/);
+});
+
+test('extractFrames: lấy đủ khung hình từ video thật (cần ffmpeg)', async (t) => {
+  const { execFileSync } = await import('node:child_process');
+  const { extractFrames } = await import('../server/frames.js');
+  const f = path.join(home, 'v.mp4');
+  try {
+    execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=10:duration=3', '-pix_fmt', 'yuv420p', '-y', f]);
+  } catch {
+    return t.skip('không có ffmpeg');
+  }
+  const r = await extractFrames(f, 'v.mp4', { count: 3 });
+  assert.equal(r.frames.length, 3);
+  assert.match(r.info, /3\.0s, 320x240/);
+  assert.equal(Buffer.from(r.frames[0].data, 'base64').subarray(0, 2).toString('hex'), 'ffd8');
+  fs.writeFileSync(path.join(home, 'bad.mp4'), 'nope');
+  await assert.rejects(extractFrames(path.join(home, 'bad.mp4'), 'bad.mp4'), { status: 400 });
+});

@@ -712,37 +712,56 @@ export function createProjects({ store, presets, channels, home } = {}) {
     return { ok: true, changed, savedUpdated };
   }
 
-  // Dữ liệu cho lượt đúc kết skill của một bước đã xong: prompt mẫu, file đầu ra (gộp mọi lượt), góp ý, skill đang gắn.
-  function distillSource(id, key) {
+  // Dữ liệu cho lượt tạo skill. scope 'step': một bước đã xong. scope 'project': mọi bước đã xong từ bước đầu tới bước `key`
+  // (prompt mẫu, file đầu ra gộp mọi lượt, góp ý) — dùng để tạo/cập nhật skill cả dự án.
+  function distillSource(id, key, scope = 'step') {
     const p = store.getProject(id);
     const s = p ? store.getStep(id, key) : null;
     if (!s) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${key}" trong dự án "${id}".`);
-    if (s.state !== 'done') throw new HttpError(409, 'step_not_done', 'Chỉ đúc kết skill khi bước đã xong.');
+    const project = scope === 'project';
+    if (!project && s.state !== 'done') throw new HttpError(409, 'step_not_done', 'Chỉ tạo skill cho bước khi bước đã xong.');
     const preset = presetFor(p);
-    const ps = presetStepOf(preset, key);
-    const runs = store.listRunsByStep(s.id);
     const seen = new Set();
     const artifacts = [];
-    for (const r of runs) {
-      for (const a of store.listArtifacts(r.id)) {
-        if (!seen.has(a.path)) {
-          seen.add(a.path);
-          artifacts.push({ path: a.path, kind: a.kind });
+    const gather = (st) => {
+      const ps = presetStepOf(preset, st.key);
+      const runs = store.listRunsByStep(st.id);
+      const own = [];
+      for (const r of runs) {
+        for (const a of store.listArtifacts(r.id)) {
+          if (!seen.has(a.path)) {
+            seen.add(a.path);
+            const o = { path: a.path, kind: a.kind };
+            artifacts.push(o);
+            own.push(o);
+          }
         }
       }
+      const feedbacks = runs.map((r) => (typeof r.feedback === 'string' ? r.feedback.trim() : '')).filter(Boolean).slice(-10);
+      return { stepKey: st.key, stepName: st.name, promptTemplate: ps?.prompt ?? '', artifacts: own, feedbacks };
+    };
+    let steps;
+    if (project) {
+      const upto = store.listSteps(id).filter((x) => x.ord <= s.ord && x.state === 'done');
+      if (!upto.length) throw new HttpError(409, 'step_not_done', 'Chưa có bước nào xong để tạo skill cho dự án.');
+      steps = upto.map(gather);
+    } else {
+      steps = [gather(s)];
     }
-    const feedbacks = runs.map((r) => (typeof r.feedback === 'string' ? r.feedback.trim() : '')).filter(Boolean).slice(-10);
     const libRoot = path.join(homeDir(), 'skills');
     const existing = [];
     for (const d of Array.isArray(preset?.skills) ? preset.skills : []) {
       if (path.dirname(path.resolve(String(d))) !== libRoot) continue;
+      // Skill cả dự án có hậu tố -project; chỉ cập nhật đúng loại đang tạo.
+      if (path.basename(d).endsWith('-project') !== project) continue;
       try {
         existing.push({ name: path.basename(d), content: fs.readFileSync(path.join(d, 'SKILL.md'), 'utf8') });
       } catch {
         /* skill đã bị xóa */
       }
     }
-    return { stepKey: key, stepName: s.name, promptTemplate: ps?.prompt ?? '', dir: p.dir, artifacts, feedbacks, existing, channelId: p.channel_id };
+    const last = steps[steps.length - 1];
+    return { scope: project ? 'project' : 'step', stepKey: key, stepName: s.name, promptTemplate: steps[steps.length - 1].promptTemplate, dir: p.dir, artifacts, feedbacks: last.feedbacks, steps, existing, channelId: p.channel_id };
   }
 
   // Gắn thư mục skill vào quy trình của dự án (bản chụp) và quy trình đã lưu nếu có.

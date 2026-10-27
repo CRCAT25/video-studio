@@ -6,7 +6,8 @@ import path from 'node:path';
 import Fastify from 'fastify';
 import { clearTokenCookie, htmlPage, isPagePath, loginPage, parseCookies, registerAuth, splitUrl } from './auth.js';
 import { runDoctor } from './doctor.js';
-import { mediaHandler } from './media.js';
+import { mediaHandler, resolveMediaPath } from './media.js';
+import { extractFrames } from './frames.js';
 import { isInside, safeJoin } from './paths.js';
 import { deletePipeline, formatCatalog, savePipeline, suggestPipeline, validateGrantRule } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
@@ -347,10 +348,23 @@ export async function buildApp({
     return assistant;
   };
   app.get('/api/assistant', async () => (assistant ? { available: true, ...assistant.state() } : { available: false, busy: false, messages: [] }));
-  app.post('/api/assistant/message', async (req) => {
+  app.post('/api/assistant/message', { bodyLimit: 20 * 1024 * 1024 }, async (req) => {
     const b = req.body || {};
     if (typeof b.text !== 'string') throw new HttpError(400, 'invalid_body', 'Thiếu nội dung tin nhắn.');
-    return needAssistant().send(b.text, { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null, lang: b.lang === 'en' ? 'en' : 'vi' });
+    const a = needAssistant();
+    // video: chỉ nhận tham chiếu {projectId, path} trong thư mục dự án; server tự lấy khung hình bằng ffmpeg
+    const refs = b.videos == null ? [] : b.videos;
+    if (!Array.isArray(refs) || refs.length > 2) throw new HttpError(400, 'invalid_body', 'Tối đa 2 video mỗi tin.');
+    const videos = [];
+    for (const r of refs) {
+      const project = store.getProject(String(r?.projectId || ''));
+      if (!project) throw new HttpError(404, 'not_found', 'Không tìm thấy dự án của video.');
+      const { abs } = resolveMediaPath(project.dir, String(r?.path || ''), { studio: String(r?.path || '').startsWith('.studio/runs/') });
+      if (!/\.(mp4|m4v|mov|webm|mkv)$/i.test(abs)) throw new HttpError(400, 'invalid_body', 'Chỉ nhận video mp4, mov, webm hoặc mkv.');
+      const name = path.basename(abs);
+      videos.push({ name, ...(await extractFrames(abs, name)) });
+    }
+    return a.send(b.text, { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null, lang: b.lang === 'en' ? 'en' : 'vi', images: b.images, files: b.files, videos });
   });
   app.post('/api/assistant/stop', async () => needAssistant().stop());
   app.post('/api/assistant/reset', async () => needAssistant().reset());
@@ -691,20 +705,31 @@ export async function buildApp({
   app.put('/api/skills/:name/scope', async (req) => skillCall((l) => l.setScope(req.params.name, skillBody(req))));
   app.delete('/api/skills/:name', async (req) => skillCall((l) => l.remove(req.params.name)));
 
+  // Giai đoạn đang chạy của lượt tạo skill theo dự án, cho thanh tiến độ ở giao diện (hỏi lại định kỳ).
+  const distillPhase = new Map();
+  app.get('/api/projects/:id/distill-progress', async (req) => distillPhase.get(req.params.id) ?? { phase: null });
+  const scopeOf = (req) => (req.body?.scope === 'project' ? 'project' : 'step');
   // Đúc kết skill từ bước đã xong (tốn token Claude): /distill trả bản nháp (không ghi gì); /distill/save lưu vào thư viện và gắn vào quy trình dự án.
   app.post('/api/projects/:id/steps/:key/distill', async (req) => {
     if (!distill) throw new HttpError(503, 'skills_unavailable', 'Đúc kết skill chưa bật trên server này.');
-    const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key));
+    const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key, scopeOf(req)));
     const ch = src.channelId ? (callList(channels) ?? []).find((c) => c && c.id === src.channelId) : null;
     try {
-      return await distill.draft(src, ch?.name || '');
+      distillPhase.set(req.params.id, { phase: 'read' });
+      return await distill.draft(src, ch?.name || '', (phase) => {
+        const cur = distillPhase.get(req.params.id)?.phase;
+        const rank = { read: 0, write: 1, check: 2 };
+        if (rank[phase] >= (rank[cur] ?? -1)) distillPhase.set(req.params.id, { phase });
+      });
     } catch (e) {
       throw pipelineError(e);
+    } finally {
+      distillPhase.delete(req.params.id);
     }
   });
   app.post('/api/projects/:id/steps/:key/distill/save', async (req, reply) => {
     const b = skillBody(req);
-    const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key));
+    const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key, scopeOf(req)));
     if (!Array.isArray(b.files)) throw badBody('Cần gửi JSON {name, files, samples?, overwrite?}.');
     const have = new Set(src.artifacts.map((a) => a.path));
     const files = b.files.filter(isObject).map((f) => ({ path: f.path, content: f.content }));

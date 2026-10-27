@@ -3,14 +3,25 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { DownloadIcon } from './icons.jsx';
 import { useT } from '../lib/i18n.jsx';
+import { clearFocus, setFocus } from '../lib/focus.js';
 
 export default function Lightbox({ items, index, onIndex, onClose }) {
   const t = useT();
   const n = items.length;
   const cur = items[index];
 
+  // Báo cho Trợ lý AI biết đang xem ảnh nào (để người dùng góp ý trên ảnh đó).
+  useEffect(() => {
+    if (!cur?.path) return undefined;
+    const f = { kind: 'image', projectId: cur.projectId, path: cur.path, name: cur.name, src: cur.src };
+    setFocus(f);
+    return () => clearFocus(f);
+  }, [cur?.path, cur?.projectId, cur?.name]);
+
   useEffect(() => {
     const onKey = (e) => {
+      const el = e.target;
+      if (e.key !== 'Escape' && (el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT' || el?.isContentEditable)) return; // đang gõ ở khung chat
       if (e.key === 'Escape') {
         e.stopPropagation();
         onClose();
