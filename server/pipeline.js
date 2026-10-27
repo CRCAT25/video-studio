@@ -93,7 +93,9 @@ const S = {
   },
   deliver: {
     id: 'goi-dang', name: 'Gói đăng', model: 'haiku',
-    prompt: 'Chuẩn bị publish.md: tiêu đề, mô tả, hashtag, chương (nếu có), ghi chú nội dung AI. Liệt kê file cần đăng. {feedback}',
+    prompt: 'Chuẩn bị publish.md: 3 tiêu đề (đánh dấu 1 đề xuất), mô tả có chương (nếu có), hashtag, bình luận ghim, ghi chú nội dung AI. Không thêm mục ghi công. ' +
+      'Tên thư mục giao hàng lấy từ tiêu đề đề xuất (tiếng Việt có dấu, không ngày, không slug; thay ":" bằng " - ", bỏ / ? * " < > |). ' +
+      'Chép (không di chuyển) mp4, phụ đề .srt, thumbnail và publish.md vào videos/<Tiêu đề>/ rồi kiểm từng file bằng cmp; hỏi trước khi ghi đè bản đã giao. Liệt kê file cần đăng. {feedback}',
     outputs: ['publish.md'], checks: [OUTPUT_CHECK], gate: { mode: 'auto_if_checks' },
   },
 };

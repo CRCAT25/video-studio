@@ -46,7 +46,9 @@ export const STUDIO_PROTOCOL = [
   '4. Lệnh bị chặn quyền thì không tìm đường vòng; ghi lại trong summary.',
   '5. Không chạy dịch vụ tốn tiền (ElevenLabs, sinh ảnh/video trả phí, upload) trừ khi tin nhắn ghi "ĐÃ DUYỆT CHI PHÍ".',
   '6. Tiết kiệm token: khi cần xem ảnh để kiểm tra, chỉ xem tối đa 3 ảnh mẫu (thu nhỏ trước khi xem, vd 800px), không xem lại từng ảnh sau mỗi lần sửa; kiểm hàng loạt bằng code (kích thước, màu, tệp có đủ).',
-  '7. Kết thúc bằng kết quả có cấu trúc: status, summary 1–3 câu tiếng Việt, artifacts (đường dẫn tương đối), questions, notes_for_next_step.',
+  '7. Không render bản cuối (độ phân giải cao, chậm) khi người dùng chưa duyệt bản nháp; làm nháp thấp trước, có giọng càng sớm càng tốt.',
+  '8. Mọi âm thanh, nhạc, ảnh, video lấy từ ngoài phải thuộc loại dùng được thương mại và không bắt buộc ghi công; ghi nguồn + giấy phép vào LICENSES.md trong thư mục dự án.',
+  '9. Kết thúc bằng kết quả có cấu trúc: status, summary 1–3 câu tiếng Việt, artifacts (đường dẫn tương đối), questions, notes_for_next_step.',
 ].join('\n');
 
 export const KILL_GRACE_MS = 5000;
