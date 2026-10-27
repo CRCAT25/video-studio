@@ -142,6 +142,8 @@ test('buildAssistantArgs: chỉ tool studio, không --model khi mặc định, r
   const b = buildAssistantArgs({ sessionId: 's1', resume: true, mcpConfig: '/c.json', model: 'opus' });
   assert.equal(b[b.indexOf('--resume') + 1], 's1');
   assert.equal(b[b.indexOf('--model') + 1], 'opus');
+  assert.ok(!a.includes('--effort'));
+  assert.equal(buildAssistantArgs({ sessionId: 's1', mcpConfig: '/c.json', effort: 'low' }).at(-1), 'low');
 });
 
 test('lượt chat thật qua fake-claude → MCP (env từ file cấu hình) → trình duyệt giả: mở modal, nhập 60', async () => {
@@ -267,4 +269,69 @@ test('lỗi: chưa đăng nhập → thông báo đăng nhập; không tìm th�
 
   assistant = createAssistant({ home, claudeBin: FAKE });
   assert.throws(() => assistant.send('chào'), { status: 503 });
+});
+
+const readLog = () => fs.readFileSync(path.join(home, 'assistant', '.fake-assist.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+const arg = (log, flag) => log.argv[log.argv.indexOf(flag) + 1];
+
+test('chat.json cũ (một cuộc) tự nâng cấp thành cuộc đầu; tiêu đề lấy từ tin đầu', () => {
+  fs.mkdirSync(path.join(home, 'assistant'));
+  fs.writeFileSync(path.join(home, 'assistant', 'chat.json'), JSON.stringify({ sessionId: 's9', started: true, messages: [{ id: 'a', role: 'user', text: 'Mở  trang\nQuy trình', at: 'x' }] }));
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => null });
+  const l = assistant.list();
+  assert.equal(l.length, 1);
+  assert.equal(l[0].title, 'Mở trang Quy trình');
+  assert.equal(assistant.state().messages.length, 1);
+});
+
+test('lịch sử: Cuộc mới giữ cuộc cũ, mở lại, xóa; model/effort theo cuộc và vào đối số claude', async () => {
+  const url = await startHttp();
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url });
+  fakeBrowser(assistant);
+  assert.throws(() => assistant.settings({ model: 'gpt' }), /không hợp lệ/);
+  assert.throws(() => assistant.settings({ effort: 'ultra' }), /không hợp lệ/);
+  assistant.settings({ model: 'haiku', effort: 'low' });
+  assistant.send('câu một', { tabId: 't' });
+  assert.throws(() => assistant.settings({ model: 'opus' }), /đang làm/);
+  assert.throws(() => assistant.open('x'), /đang làm/);
+  await until(() => !assistant.state().busy);
+  const first = assistant.state().chatId;
+  const log = readLog()[0];
+  assert.equal(arg(log, '--model'), 'haiku');
+  assert.equal(arg(log, '--effort'), 'low');
+  const r = assistant.reset();
+  assert.deepEqual(r.messages, []);
+  assert.notEqual(r.chatId, first);
+  assert.equal(r.model, 'haiku', 'cuộc mới giữ model/effort đang chọn');
+  assert.equal(assistant.list().length, 2);
+  assistant.settings({ model: null });
+  const o = assistant.open(first);
+  assert.equal(o.messages[0].text, 'câu một');
+  assert.equal(o.model, 'haiku');
+  // lưu và nạp lại
+  assistant.dispose();
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url });
+  assert.equal(assistant.state().chatId, first);
+  assert.throws(() => assistant.open('khong-co'), /Không tìm/);
+  assistant.remove(first);
+  assert.ok(!assistant.list().some((c) => c.id === first));
+  assert.deepEqual(assistant.state().messages, []);
+});
+
+test('compact: cần phiên đã bắt đầu; gửi /compact bằng --resume và ghi chú trong chat', async () => {
+  const url = await startHttp();
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => url });
+  fakeBrowser(assistant);
+  assert.throws(() => assistant.compact(), /Chưa có gì để nén/);
+  assistant.send('chào', { tabId: 't' });
+  assert.throws(() => assistant.compact(), /đang làm/);
+  await until(() => !assistant.state().busy);
+  assert.equal(assistant.state().canCompact, true);
+  assistant.compact();
+  await until(() => !assistant.state().busy);
+  const log = readLog();
+  assert.ok(log[1].argv.includes('--resume'));
+  assert.equal(log[1].stdin ?? '/compact', '/compact');
+  const notes = assistant.state().messages.filter((m) => m.role === 'note').map((m) => m.text);
+  assert.ok(notes.includes('Đã nén cuộc trò chuyện.'));
 });

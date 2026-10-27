@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Sk } from './Skeleton.jsx';
+import { useT } from '../lib/i18n.jsx';
 
 let catalogPromise = null;
 
@@ -107,6 +108,7 @@ const unitOf = (length) => (length === 'long' ? 60 : 1);
 
 // Bộ chọn định dạng; value = {orientation, aspect, length, duration (giây), hd4k}; onValidity(ok) báo thời lượng nhập có hợp lệ.
 export default function FormatPicker({ catalog, value, onChange, onValidity, disabled = false }) {
+  const t = useT();
   const f = value;
   const orient = catalog.orientations.find((o) => o.id === f.orientation) || catalog.orientations[0];
   const aspects = orient.aspects.map((id) => catalog.aspects.find((a) => a.id === id)).filter(Boolean);
@@ -126,19 +128,19 @@ export default function FormatPicker({ catalog, value, onChange, onValidity, dis
   return (
     <div className="fmt">
       <div className="fmt-row">
-        <span className="fld-l">Khung hình</span>
-        <div className="seg" role="radiogroup" aria-label="Khung hình">
+        <span className="fld-l">{t('Khung hình')}</span>
+        <div className="seg" role="radiogroup" aria-label={t('Khung hình')}>
           {catalog.orientations.map((o) => (
             <button key={o.id} type="button" role="radio" aria-checked={o.id === orient.id} className={o.id === orient.id ? 'on' : ''} onClick={() => pickOrient(o)} disabled={disabled}>
               <Frame w={ORIENT_ICON[o.id]?.[0] || 16} h={ORIENT_ICON[o.id]?.[1] || 16} />
-              {o.label}
+              {t(o.label)}
             </button>
           ))}
         </div>
       </div>
       <div className="fmt-row">
-        <span className="fld-l">Tỷ lệ</span>
-        <div className="seg" role="radiogroup" aria-label="Tỷ lệ">
+        <span className="fld-l">{t('Tỷ lệ')}</span>
+        <div className="seg" role="radiogroup" aria-label={t('Tỷ lệ')}>
           {aspects.map((a) => (
             <button key={a.id} type="button" role="radio" aria-checked={a.id === f.aspect} className={a.id === f.aspect ? 'on' : ''} onClick={() => set({ aspect: a.id, hd4k: false })} disabled={disabled}>
               {a.id}
@@ -147,25 +149,25 @@ export default function FormatPicker({ catalog, value, onChange, onValidity, dis
         </div>
         {aspect ? (
           <span className="hint">
-            {f.hd4k ? '3840×2160' : `${aspect.width}×${aspect.height}`} · {aspect.use}
+            {f.hd4k ? '3840×2160' : `${aspect.width}×${aspect.height}`} · {t(aspect.use)}
           </span>
         ) : null}
         {aspect?.hd4k ? (
           <label className="chk">
             <input type="checkbox" checked={!!f.hd4k} onChange={(e) => set({ hd4k: e.target.checked })} disabled={disabled} />
-            <span>Xuất 4K</span>
+            <span>{t('Xuất 4K')}</span>
           </label>
         ) : null}
       </div>
       <div className="fmt-row">
-        <span className="fld-l">Độ dài</span>
-        <div className="fmt-len" role="radiogroup" aria-label="Độ dài">
+        <span className="fld-l">{t('Độ dài')}</span>
+        <div className="fmt-len" role="radiogroup" aria-label={t('Độ dài')}>
           {catalog.lengths.map((l) => {
             const u = unitOf(l.id);
-            const range = u === 60 ? `${l.min / 60}–${l.max / 60} phút` : `${l.min}–${l.max} giây`;
+            const range = u === 60 ? t('{a}–{b} phút', { a: l.min / 60, b: l.max / 60 }) : t('{a}–{b} giây', { a: l.min, b: l.max });
             return (
               <button key={l.id} type="button" role="radio" aria-checked={l.id === len.id} className={`fmt-card${l.id === len.id ? ' on' : ''}`} onClick={() => pickLength(l)} disabled={disabled}>
-                <b>{l.label}</b>
+                <b>{t(l.label)}</b>
                 <span>{range}</span>
               </button>
             );
@@ -173,7 +175,7 @@ export default function FormatPicker({ catalog, value, onChange, onValidity, dis
         </div>
       </div>
       <label className="fmt-row fmt-dur">
-        <span className="fld-l">Thời lượng</span>
+        <span className="fld-l">{t('Thời lượng')}</span>
         <span className="fmt-dur-in">
           <input
             type="number"
@@ -189,9 +191,9 @@ export default function FormatPicker({ catalog, value, onChange, onValidity, dis
               if (Number.isInteger(n) && n >= len.min && n <= len.max) set({ duration: n });
             }}
           />
-          <span className="muted">{unit === 60 ? 'phút' : 'giây'}</span>
+          <span className="muted">{unit === 60 ? t('phút') : t('giây')}</span>
         </span>
-        {durBad ? <span className="hint bad">Từ {len.min / unit} đến {len.max / unit} {unit === 60 ? 'phút' : 'giây'}.</span> : null}
+        {durBad ? <span className="hint bad">{t('Từ {a} đến {b} {u}.', { a: len.min / unit, b: len.max / unit, u: unit === 60 ? t('phút') : t('giây') })}</span> : null}
       </label>
     </div>
   );
@@ -199,28 +201,29 @@ export default function FormatPicker({ catalog, value, onChange, onValidity, dis
 
 // Khung chờ bộ chọn định dạng khi danh mục chưa tải xong (nhãn là chữ cố định nên hiện luôn); người gọi bọc SkZone.
 export function FormatPickerSkeleton() {
+  const t = useT();
   return (
     <div className="fmt">
       <div className="fmt-row">
-        <span className="fld-l">Khung hình</span>
+        <span className="fld-l">{t('Khung hình')}</span>
         <Sk block w={250} h={36} />
       </div>
       <div className="fmt-row">
-        <span className="fld-l">Tỷ lệ</span>
+        <span className="fld-l">{t('Tỷ lệ')}</span>
         <Sk block w={170} h={36} />
         <span className="hint">
           <Sk w="11em" />
         </span>
       </div>
       <div className="fmt-row">
-        <span className="fld-l">Độ dài</span>
+        <span className="fld-l">{t('Độ dài')}</span>
         <div className="fmt-len">
           <Sk block h={64} />
           <Sk block h={64} />
         </div>
       </div>
       <div className="fmt-row">
-        <span className="fld-l">Thời lượng</span>
+        <span className="fld-l">{t('Thời lượng')}</span>
         <Sk block w={96} h={36} />
       </div>
     </div>

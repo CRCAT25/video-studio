@@ -89,8 +89,11 @@ details > summary{cursor:pointer}
 .sk.sk-box{width:128px;height:72px;flex:none}
 .flow.lg .sk.sk-box{width:148px;height:76px}
 
+/* show-m: chỉ hiện ở màn hẹp (cặp với hide-m) */
+.show-m{display:none}
 @media (max-width:880px){
   .hide-m{display:none!important}
+  .show-m{display:inline}
   h1{font-size:var(--fs-xl)}
   main{padding:20px 16px 60px}
 }

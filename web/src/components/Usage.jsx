@@ -5,16 +5,17 @@ import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
 import { useToast } from './Toast.jsx';
 import { Sk, SkZone } from './Skeleton.jsx';
+import { T, intlLocale, tr, useT } from '../lib/i18n.jsx';
 
 const WARN_AT = 0.8;
 const WINDOWS = [
-  { key: 'five_hour', label: 'Phiên 5 giờ', short: '5h' },
-  { key: 'seven_day', label: 'Tuần', short: 'Tuần' },
+  { key: 'five_hour', label: T('Phiên 5 giờ'), short: '5h' },
+  { key: 'seven_day', label: T('Tuần'), short: T('Tuần') },
 ];
 const SOURCES = [
-  { key: 'steps', label: 'Bước video' },
-  { key: 'assistant', label: 'Trợ lý AI' },
-  { key: 'check', label: 'Kiểm tra' },
+  { key: 'steps', label: T('Bước video') },
+  { key: 'assistant', label: T('Trợ lý AI') },
+  { key: 'check', label: T('Kiểm tra') },
 ];
 
 const pct = (u) => Math.round((u || 0) * 100);
@@ -32,18 +33,18 @@ export function usageLevel(limits) {
 export function resetLabel(sec, now = new Date()) {
   if (!sec) return null;
   const d = new Date(sec * 1000);
-  const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const hm = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return hm;
-  return `${d.toLocaleDateString('vi-VN', { weekday: 'short' })} ${hm}`;
+  return `${d.toLocaleDateString(intlLocale(), { weekday: 'short' })} ${hm}`;
 }
 
 // Khoảng cách tới / từ một mốc (ms) → "3 giờ", "2 ngày", "5 phút", "vài giây".
 export function spanLabel(ms) {
   const m = Math.round(Math.abs(ms) / 60000);
-  if (m < 1) return 'vài giây';
-  if (m < 60) return `${m} phút`;
+  if (m < 1) return tr('vài giây');
+  if (m < 60) return tr('{n} phút', { n: m });
   const h = Math.round(m / 60);
-  return h < 24 ? `${h} giờ` : `${Math.round(h / 24)} ngày`;
+  return h < 24 ? tr('{n} giờ', { n: h }) : tr('{n} ngày', { n: Math.round(h / 24) });
 }
 
 // Số token gọn: 950, 12,3K, 4,5M.
@@ -51,7 +52,7 @@ export function fmtTokens(n) {
   const v = n || 0;
   if (v < 1000) return String(v);
   const [d, unit] = v < 1e6 ? [1e3, 'K'] : [1e6, 'M'];
-  return `${(v / d).toLocaleString('vi-VN', { maximumFractionDigits: v / d < 100 ? 1 : 0 })}${unit}`;
+  return `${(v / d).toLocaleString(intlLocale(), { maximumFractionDigits: v / d < 100 ? 1 : 0 })}${unit}`;
 }
 
 // Tải + nghe SSE 'usage'; chạm giới hạn → toast một lần cho mỗi giờ mở lại.
@@ -88,7 +89,7 @@ export function useUsage() {
     if (warned.current === key) return;
     warned.current = key;
     const at = resetLabel(limits.resetsAt);
-    toast(`Đã chạm giới hạn gói Claude${at ? ` — mở lại lúc ${at}` : ''}.`, 'err', 8000);
+    toast(at ? tr('Đã chạm giới hạn gói Claude — mở lại lúc {at}.', { at }) : tr('Đã chạm giới hạn gói Claude.'), 'err', 8000);
   }, [limits, toast]);
 
   // Khóa nút tới mốc server cho phép (10 s sau lần hỏi API, 1 phút sau lần hỏi claude); tới mốc thì vẽ lại.
@@ -107,7 +108,7 @@ export function useUsage() {
       const { apiError, ...s } = await api.claudeUsageCheck(auto ? { auto: true } : {});
       setData(s);
       setError(null);
-      if (apiError) toast(`${apiError} — đã hỏi Claude thay (tốn vài nghìn token).`, 'info', 6000);
+      if (apiError) toast(tr('{e} — đã hỏi Claude thay (tốn vài nghìn token).', { e: apiError }), 'info', 6000);
     } catch (e) {
       if (e.status === 503) setOff(true);
       else if (!auto) toast(e.message, 'err');
@@ -119,6 +120,7 @@ export function useUsage() {
 
 // Nút nhỏ ở đầu trang: "5h 54%"; bấm mở bảng Tài khoản. Màn hẹp chỉ hiện số %.
 export function UsageMeter({ usage, onClick }) {
+  const t = useT();
   if (usage.off) return null;
   const { data } = usage;
   const limits = data?.limits;
@@ -126,8 +128,8 @@ export function UsageMeter({ usage, onClick }) {
   const week = limits?.windows?.seven_day;
   const level = usageLevel(limits);
   const title = limits
-    ? `Mức dùng gói Claude — 5 giờ: ${five ? `${pct(five.utilization)}%` : '—'} · tuần: ${week ? `${pct(week.utilization)}%` : '—'}`
-    : 'Mức dùng gói Claude — chưa có số liệu';
+    ? t('Mức dùng gói Claude — 5 giờ: {a} · tuần: {b}', { a: five ? `${pct(five.utilization)}%` : '—', b: week ? `${pct(week.utilization)}%` : '—' })
+    : t('Mức dùng gói Claude — chưa có số liệu');
   return (
     <button type="button" className={`use-btn${level ? ` ${level}` : ''}`} onClick={onClick} title={title} aria-label={title}>
       <span className="hide-s use-k">5h</span>
@@ -140,6 +142,7 @@ export function UsageMeter({ usage, onClick }) {
 
 // Một dòng: nhãn bên trái, "69% · mở lại sau 3 giờ" bên phải, thanh % bên dưới.
 function Bar({ label, w }) {
+  const t = useT();
   const u = w?.utilization;
   const level = u == null ? null : u >= 1 ? 'bad' : u >= WARN_AT ? 'warn' : null;
   const left = w?.resetsAt ? w.resetsAt * 1000 - Date.now() : null;
@@ -147,9 +150,9 @@ function Bar({ label, w }) {
     <div className={`use-row${level ? ` ${level}` : ''}`}>
       <div className="use-row-h">
         <span>{label}</span>
-        <span className="use-row-v" title={w?.resetsAt ? `Mở lại ${resetLabel(w.resetsAt)}` : undefined}>
+        <span className="use-row-v" title={w?.resetsAt ? t('Mở lại {at}', { at: resetLabel(w.resetsAt) }) : undefined}>
           <b>{u == null ? '—' : `${pct(u)}%`}</b>
-          {left != null && left > 0 ? ` · mở lại sau ${spanLabel(left)}` : ''}
+          {left != null && left > 0 ? ` · ${t('mở lại sau {s}', { s: spanLabel(left) })}` : ''}
         </span>
       </div>
       <div className="use-bar" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={u == null ? undefined : pct(u)}>
@@ -161,6 +164,7 @@ function Bar({ label, w }) {
 
 // Mục "Mức dùng" trong bảng Tài khoản Claude.
 export function UsagePanel({ usage }) {
+  const t = useT();
   const { data, error } = usage;
   useEffect(() => {
     usage.check({ auto: true }); // lấy % mới (không tốn token) + token bước video vừa ghi
@@ -170,11 +174,11 @@ export function UsagePanel({ usage }) {
   const limits = data?.limits;
   const tokens = data?.tokens;
   const checking = !!data?.checking;
-  const status = limits?.status === 'rejected' ? 'Đang bị giới hạn' : null;
+  const status = limits?.status === 'rejected' ? t('Đang bị giới hạn') : null;
   return (
-    <section className="use-box" aria-label="Mức dùng">
+    <section className="use-box" aria-label={t('Mức dùng')}>
       <div className="use-head">
-        <span>Giới hạn gói Claude</span>
+        <span>{t('Giới hạn gói Claude')}</span>
         {status ? <span className="use-flag">{status}</span> : null}
       </div>
       {!data ? (
@@ -191,35 +195,35 @@ export function UsagePanel({ usage }) {
           {limits && Object.keys(limits.windows || {}).length ? (
             <div className="use-bars">
               {WINDOWS.map((w) => (
-                <Bar key={w.key} label={w.label} w={limits.windows[w.key]} />
+                <Bar key={w.key} label={t(w.label)} w={limits.windows[w.key]} />
               ))}
             </div>
           ) : (
-            <p className="note">Chưa có số liệu — chạy một bước hoặc bấm Kiểm tra ngay.</p>
+            <p className="note">{t('Chưa có số liệu — chạy một bước hoặc bấm Kiểm tra ngay.')}</p>
           )}
           <div className="use-foot">
-            <button type="button" className="use-refresh" onClick={() => usage.check()} disabled={checking || usage.cool} title={usage.cool && !checking ? 'Vừa kiểm tra — thử lại sau ít giây' : 'Lấy số mới như /usage (không tốn token)'}>
+            <button type="button" className="use-refresh" onClick={() => usage.check()} disabled={checking || usage.cool} title={usage.cool && !checking ? t('Vừa kiểm tra — thử lại sau ít giây') : t('Lấy số mới như /usage (không tốn token)')}>
               {checking ? <span className="spinner" aria-hidden="true" /> : null}
-              Kiểm tra ngay
+              {t('Kiểm tra ngay')}
             </button>
-            <span className="use-at" title="% tính cho cả tài khoản Claude">
-              {checking ? 'Đang kiểm tra…' : limits?.at ? `Cập nhật ${spanLabel(Date.now() - Date.parse(limits.at))} trước` : 'Chưa cập nhật'}
+            <span className="use-at" title={t('% tính cho cả tài khoản Claude')}>
+              {checking ? t('Đang kiểm tra…') : limits?.at ? t('Cập nhật {s} trước', { s: spanLabel(Date.now() - Date.parse(limits.at)) }) : t('Chưa cập nhật')}
             </span>
           </div>
           {tokens ? (
             <table className="use-tbl">
-              <caption className="sr-only">Token app đã dùng</caption>
+              <caption className="sr-only">{t('Token app đã dùng')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Token của app</th>
-                  <th scope="col">Hôm nay</th>
-                  <th scope="col">7 ngày</th>
+                  <th scope="col">{t('Token của app')}</th>
+                  <th scope="col">{t('Hôm nay')}</th>
+                  <th scope="col">{t('7 ngày')}</th>
                 </tr>
               </thead>
               <tbody>
                 {SOURCES.filter((s) => s.key !== 'check' || tokens.today?.check?.total || tokens.week?.check?.total).map((s) => ( // Kiểm tra chỉ hiện khi từng tốn token (dự phòng claude -p)
                   <tr key={s.key}>
-                    <th scope="row">{s.label}</th>
+                    <th scope="row">{t(s.label)}</th>
                     <td>{fmtTokens(tokens.today?.[s.key]?.total)}</td>
                     <td>{fmtTokens(tokens.week?.[s.key]?.total)}</td>
                   </tr>

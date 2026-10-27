@@ -1,5 +1,6 @@
 // Hộp thoại có vạch cảnh báo: Esc / bấm nền để đóng, tự focus phần tử đầu, giữ Tab trong hộp, phần còn lại inert, trả focus khi đóng.
 import { useEffect, useId, useRef } from 'react';
+import { useT } from '../lib/i18n.jsx';
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
@@ -24,6 +25,7 @@ export default function Modal({ title, lead, onClose, wide = false, paid = false
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const titleId = useId();
+  const t = useT();
 
   useEffect(() => {
     const prev = document.activeElement;
@@ -75,7 +77,7 @@ export default function Modal({ title, lead, onClose, wide = false, paid = false
       }}
     >
       <div ref={ref} className={`modal card pad${wide ? ' wide' : ''}${paid ? ' paid-m' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <button type="button" className="x" aria-label="Đóng" title="Đóng (Esc)" onClick={() => !busy && onClose?.()}>
+        <button type="button" className="x" aria-label={t('Đóng')} title={t('Đóng (Esc)')} onClick={() => !busy && onClose?.()}>
           ✕
         </button>
         <h2 id={titleId}>{title}</h2>

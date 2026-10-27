@@ -1,6 +1,8 @@
 // Tay chân của Trợ lý AI trên trang: đọc phần tử thao tác được (gắn số ref), bấm, gõ, chuyển trang.
 // Kiểm an toàn ở đây: data-ai="block" (cấm hẳn), data-ai="confirm" hoặc chữ nhạy cảm → hỏi người dùng trước.
 
+import { tr } from './i18n.jsx';
+
 const PANEL = '.ai-panel';
 const INTERACTIVE = [
   'a[href]',
@@ -17,7 +19,7 @@ const INTERACTIVE = [
   '[role=combobox]',
   '[role=menuitem]',
 ].join(',');
-const CONFIRM_RE = /(^|[\s"'(])(xóa|xoá|đăng xuất|cập nhật|khởi động lại|dừng|ngắt kết nối|thu hồi|chạy|hủy kết nối)/i;
+const CONFIRM_RE = /(^|[\s"'(])(xóa|xoá|đăng xuất|cập nhật|khởi động lại|dừng|ngắt kết nối|thu hồi|chạy|hủy kết nối|delete|remove|sign out|log out|update|restart|stop|disconnect|revoke|run)/i;
 const TEXT_MAX = 3000;
 const NAME_MAX = 80;
 export const PAGES = { overview: '#/', pipelines: '#/quy-trinh', channels: '#/channels' };
@@ -185,8 +187,8 @@ export async function runTool({ tool, args = {} }, { confirm }) {
     if (!hash) return fail('Trang không hợp lệ (overview, pipelines, channels).');
     if (document.querySelector('[role=dialog][aria-modal=true]')) return fail('Đang có hộp thoại mở — đóng hộp thoại trước (nút Đóng/Hủy).');
     location.hash = hash;
-    const label = { overview: 'Tổng quan', pipelines: 'Quy trình', channels: 'Kênh' }[args.page];
-    return { text: await settle(`Đã chuyển tới ${label}.`), isError: false, label: `Mở trang ${label}` };
+    const label = { overview: tr('Tổng quan'), pipelines: tr('Quy trình'), channels: tr('Kênh') }[args.page];
+    return { text: await settle(`Đã chuyển tới ${label}.`), isError: false, label: tr('Mở trang {p}', { p: label }) };
   }
   if (tool !== 'click' && tool !== 'fill') return fail(`Không có tool ${tool}.`);
   const el = refs.get(Number(args.ref));
@@ -194,20 +196,20 @@ export async function runTool({ tool, args = {} }, { confirm }) {
   const name = nameOf(el) || roleOf(el);
   const level = sensitivity(el, tool);
   if (level === 'block') {
-    return fail(`"${name}" bị chặn với trợ lý (tốn tiền hoặc bí mật). Nhờ người dùng tự làm.`, `Bị chặn: "${name}"`);
+    return fail(`"${name}" bị chặn với trợ lý (tốn tiền hoặc bí mật). Nhờ người dùng tự làm.`, tr('Bị chặn: "{n}"', { n: name }));
   }
   if (el.disabled || el.getAttribute('aria-disabled') === 'true') return fail(`"${name}" đang bị khóa (disabled).`);
-  const desc = tool === 'click' ? `Bấm "${name}"` : `Gõ "${squash(args.value, 60)}" vào "${name}"`;
+  const desc = tool === 'click' ? tr('Bấm "{n}"', { n: name }) : tr('Gõ "{v}" vào "{n}"', { v: squash(args.value, 60), n: name });
   if (level === 'confirm') {
     const ok = await confirm(desc);
-    if (!ok) return fail(`Người dùng không cho phép: ${desc}. Dừng lại và hỏi người dùng muốn làm gì.`, `Không cho phép: ${desc}`);
+    if (!ok) return fail(`Người dùng không cho phép: ${desc}. Dừng lại và hỏi người dùng muốn làm gì.`, tr('Không cho phép: {d}', { d: desc }));
     if (!el.isConnected) return fail('Trang đã đổi trong lúc chờ — gọi read_page lại.');
   }
   el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   flash(el);
   if (tool === 'click') {
     el.click();
-    return { text: await settle(`Đã bấm "${name}".`), isError: false, label: `Đã bấm "${name}"` };
+    return { text: await settle(`Đã bấm "${name}".`), isError: false, label: tr('Đã bấm "{n}"', { n: name }) };
   }
   if (!(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') || el.type === 'checkbox' || el.type === 'radio') {
     return fail(`"${name}" không phải ô nhập — dùng click.`);
@@ -215,5 +217,5 @@ export async function runTool({ tool, args = {} }, { confirm }) {
   if (el.readOnly) return fail(`"${name}" chỉ đọc.`);
   el.focus();
   setValue(el, String(args.value ?? ''));
-  return { text: await settle(`Đã gõ vào "${name}".`), isError: false, label: `Đã nhập "${squash(args.value, 40)}" vào "${name}"` };
+  return { text: await settle(`Đã gõ vào "${name}".`), isError: false, label: tr('Đã nhập "{v}" vào "{n}"', { v: squash(args.value, 40), n: name }) };
 }

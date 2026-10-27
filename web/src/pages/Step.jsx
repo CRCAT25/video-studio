@@ -24,6 +24,7 @@ import {
   usageTokens,
 } from '../lib/format.js';
 import { stepHref } from '../lib/router.js';
+import { tr, useT } from '../lib/i18n.jsx';
 
 const FEEDBACK_MAX = 20000;
 const RUNNABLE = new Set(['ready', 'done', 'failed', 'needs_input', 'stale']);
@@ -36,6 +37,7 @@ export default function Step({ projectId, stepKey }) {
 }
 
 function StepRedirect({ projectId }) {
+  const t = useT();
   const [err, setErr] = useState(null);
   useEffect(() => {
     const ac = new AbortController();
@@ -44,15 +46,15 @@ function StepRedirect({ projectId }) {
       .then((p) => {
         const key = p?.current?.key || p?.steps?.[0]?.key;
         if (key) window.location.replace(stepHref(projectId, key));
-        else setErr(new Error('Dự án chưa có bước nào.'));
+        else setErr(new Error(t('Dự án chưa có bước nào.')));
       })
       .catch((e) => {
         if (e?.name !== 'AbortError') setErr(e);
       });
     return () => ac.abort();
   }, [projectId]);
-  if (err) return <NotFound message={err.status === 404 ? `Không tìm thấy dự án "${projectId}".` : err.message} />;
-  return <StepSkeleton label="Đang mở dự án" />;
+  if (err) return <NotFound message={err.status === 404 ? t('Không tìm thấy dự án "{n}".', { n: projectId }) : err.message} />;
+  return <StepSkeleton label={t('Đang mở dự án')} />;
 }
 
 // Khung chờ trang bước: đường dẫn, tiêu đề + thông số, dải bước lớn, tab, nội dung + cột phải.
@@ -111,11 +113,12 @@ function StepSkeleton({ label }) {
 }
 
 function NotFound({ message }) {
+  const t = useT();
   return (
     <div className="card pad empty">
       <b>{message}</b>
       <p className="note">
-        <a href="#/">Về Tổng quan</a>
+        <a href="#/">{t('Về Tổng quan')}</a>
       </p>
     </div>
   );
@@ -149,17 +152,18 @@ function runTokens(run, costs) {
 
 // Thân kết quả lượt: lỗi, tóm tắt, câu hỏi, ghi chú cho bước sau, các lần bị chặn quyền.
 function ResultBody({ run, live = false }) {
+  const t = useT();
   const r = run.result || {};
   const questions = Array.isArray(r.questions) ? r.questions.filter(Boolean) : [];
   const denials = Array.isArray(run.denials) ? run.denials : [];
-  const summary = r.summary || run.summary;
+  const summary = tr(r.summary || run.summary || '') || null;
   return (
     <div className="result">
-      {run.error ? <div className="err-note">{run.error}</div> : null}
-      {summary ? <p>{summary}</p> : !live && !run.error ? <p className="muted">Lượt này không có tóm tắt.</p> : null}
+      {run.error ? <div className="err-note">{tr(run.error)}</div> : null}
+      {summary ? <p>{summary}</p> : !live && !run.error ? <p className="muted">{t('Lượt này không có tóm tắt.')}</p> : null}
       {questions.length ? (
         <>
-          <h3>Claude hỏi</h3>
+          <h3>{t('Claude hỏi')}</h3>
           <ul>
             {questions.map((q, i) => (
               <li key={i}>{String(q)}</li>
@@ -169,19 +173,19 @@ function ResultBody({ run, live = false }) {
       ) : null}
       {r.notes_for_next_step ? (
         <>
-          <h3>Ghi chú cho bước sau</h3>
+          <h3>{t('Ghi chú cho bước sau')}</h3>
           <p>{String(r.notes_for_next_step)}</p>
         </>
       ) : null}
       {denials.length ? (
         <>
-          <h3>Bị chặn quyền ({denials.length})</h3>
+          <h3>{t('Bị chặn quyền ({n})', { n: denials.length })}</h3>
           {denials.slice(0, 20).map((d, i) => (
             <div key={i} className="denial">
               ✕ {denialText(d)}
             </div>
           ))}
-          <p className="note">Thêm quyền vào mục permissions của quy trình nếu bước thật sự cần.</p>
+          <p className="note">{t('Thêm quyền vào mục permissions của quy trình nếu bước thật sự cần.')}</p>
         </>
       ) : null}
     </div>
@@ -190,12 +194,13 @@ function ResultBody({ run, live = false }) {
 
 // Thẻ kết quả lượt (kèm thanh tiến độ khi đang chạy).
 function ResultCard({ run, live }) {
+  const t = useT();
   if (!run) {
     return (
       <div className="card pad">
-        <h2>Kết quả</h2>
+        <h2>{t('Kết quả')}</h2>
         <p className="muted small" style={{ margin: 0 }}>
-          Chưa chạy lượt nào.
+          {t('Chưa chạy lượt nào.')}
         </p>
       </div>
     );
@@ -203,15 +208,15 @@ function ResultCard({ run, live }) {
   const pct = run.progress_pct != null ? Math.max(0, Math.min(100, Number(run.progress_pct))) : null;
   return (
     <div className="card pad">
-      <h2>Kết quả · lượt {run.n}</h2>
+      <h2>{t('Kết quả · lượt {n}', { n: run.n })}</h2>
       {live ? (
         <>
-          <div className="bar" title={pct != null ? `${Math.round(pct)}%` : 'Đang chạy'}>
+          <div className="bar" title={pct != null ? `${Math.round(pct)}%` : t('Đang chạy')}>
             <i style={{ width: `${pct != null ? Math.max(3, pct) : 100}%`, opacity: pct != null ? 1 : 0.5 }} />
           </div>
           <div className="prog-msg" style={{ marginBottom: 10 }}>
             {pct != null ? `${Math.round(pct)}% · ` : ''}
-            {run.progress_msg || 'Claude đang làm…'}
+            {run.progress_msg || t('Claude đang làm…')}
           </div>
         </>
       ) : null}
@@ -221,6 +226,7 @@ function ResultCard({ run, live }) {
 }
 
 function StepPage({ projectId, stepKey }) {
+  const t = useT();
   const toast = useToast();
   const [view, setView] = useState(null);
   const [err, setErr] = useState(null);
@@ -287,27 +293,27 @@ function StepPage({ projectId, stepKey }) {
   }, [view, tab]);
 
   useEffect(() => {
-    if (step && project) document.title = `${step.name} · ${project.title} · Video Studio`;
+    if (step && project) document.title = `${tr(step.name)} · ${project.title} · Video Studio`;
   }, [step?.name, project?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (err && !view) {
-    if (err.status === 404) return <NotFound message={err.message || 'Không tìm thấy bước này.'} />;
+    if (err.status === 404) return <NotFound message={err.message || t('Không tìm thấy bước này.')} />;
     return (
       <div className="card pad">
         <div className="err-note" role="alert">
-          Không tải được bước: {err.message}
+          {t('Không tải được bước:')} {err.message}
         </div>
         <p className="note">
           <button type="button" className="linkbtn" onClick={load}>
-            Thử lại
+            {t('Thử lại')}
           </button>{' '}
-          · <a href="#/">Về Tổng quan</a>
+          · <a href="#/">{t('Về Tổng quan')}</a>
         </p>
       </div>
     );
   }
   if (!view || !step || !project) {
-    return <StepSkeleton label="Đang tải bước" />;
+    return <StepSkeleton label={t('Đang tải bước')} />;
   }
 
   const st = step.state;
@@ -327,7 +333,7 @@ function StepPage({ projectId, stepKey }) {
       if (fb) setFeedback('');
       setSelRunId(null);
       setTab('log');
-      toast(`Đã bắt đầu chạy "${step.name}".`, 'ok');
+      toast(t('Đã bắt đầu chạy "{n}".', { n: step.name }), 'ok');
       await load();
     } catch (e) {
       if (e.status === 412) {
@@ -355,7 +361,7 @@ function StepPage({ projectId, stepKey }) {
   const runWithFeedback = () => {
     if (!fbTrim) {
       fbRef.current?.focus();
-      toast('Viết góp ý hoặc câu trả lời cho Claude trước đã.', 'info');
+      toast(t('Viết góp ý hoặc câu trả lời cho Claude trước đã.'), 'info');
       return;
     }
     requestRun(fbTrim);
@@ -368,7 +374,7 @@ function StepPage({ projectId, stepKey }) {
     setActionErr(null);
     try {
       await api.stopRun(rid);
-      toast('Đã gửi lệnh dừng.', 'info');
+      toast(t('Đã gửi lệnh dừng.'), 'info');
       await load();
     } catch (e) {
       setActionErr(e.message);
@@ -385,7 +391,7 @@ function StepPage({ projectId, stepKey }) {
       const v = await api.completeStep(projectId, stepKey);
       if (v && v.step) setView(v);
       else await load();
-      toast(`Đã đánh dấu xong "${step.name}".`, 'ok');
+      toast(t('Đã đánh dấu xong "{n}".', { n: step.name }), 'ok');
     } catch (e) {
       setActionErr(e.message);
       toast(e.message, 'err');
@@ -401,33 +407,33 @@ function StepPage({ projectId, stepKey }) {
       setCopied(true);
       clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 2000);
-      toast('Đã chép lệnh — dán vào terminal để làm tiếp phiên này.', 'ok');
+      toast(t('Đã chép lệnh — dán vào terminal để làm tiếp phiên này.'), 'ok');
     } else {
-      toast('Không chép được vào clipboard — chọn lệnh ở cột bên rồi tự chép.', 'err');
+      toast(t('Không chép được vào clipboard — chọn lệnh ở cột bên rồi tự chép.'), 'err');
     }
   };
 
   // Nút chính theo trạng thái (§5).
   const runDisabled = !!busy || !canRun.ok;
-  const runTitle = canRun.ok ? (paid ? 'Bước tốn tiền — sẽ hỏi xác nhận chi phí' : '') : canRun.message || 'Chưa chạy được';
+  const runTitle = canRun.ok ? (paid ? t('Bước tốn tiền — sẽ hỏi xác nhận chi phí') : '') : canRun.message || t('Chưa chạy được');
   const buttons = [];
   if (st === 'running') {
     buttons.push(
       <button key="stop" type="button" className="btn danger" onClick={doStop} disabled={!!busy}>
-        {busy === 'stop' ? <span className="spinner" aria-hidden="true" /> : null}Dừng
+        {busy === 'stop' ? <span className="spinner" aria-hidden="true" /> : null}{t('Dừng')}
       </button>,
     );
   } else if (st === 'needs_input') {
     buttons.push(
       <button key="fb" type="button" className={`btn ${paid ? 'paid' : 'primary'}`} onClick={runWithFeedback} disabled={runDisabled} title={runTitle}>
-        {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : paid ? '$ ' : ''}Chạy lại kèm góp ý
+        {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : paid ? '$ ' : ''}{t('Chạy lại kèm góp ý')}
       </button>,
     );
   } else if (RUNNABLE.has(st) && !step.manual) {
     buttons.push(
       <button key="run" type="button" className={`btn ${paid ? 'paid' : st === 'done' ? '' : 'primary'}`} onClick={() => requestRun('')} disabled={runDisabled} title={runTitle}>
         {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : null}
-        {paid ? `$ ${st === 'ready' ? 'Chạy' : 'Chạy lại'}` : st === 'ready' ? 'Chạy' : 'Chạy lại'}
+        {paid ? `$ ${st === 'ready' ? t('Chạy') : t('Chạy lại')}` : st === 'ready' ? t('Chạy') : t('Chạy lại')}
       </button>,
     );
   }
@@ -439,9 +445,9 @@ function StepPage({ projectId, stepKey }) {
         className={`btn${st === 'manual' ? ' primary' : ''}`}
         onClick={doComplete}
         disabled={!!busy || !prevOk}
-        title={prevOk ? 'Đánh dấu bước này đã xong (bước sau sẽ sẵn sàng)' : 'Các bước trước phải xong trước'}
+        title={prevOk ? t('Đánh dấu bước này đã xong (bước sau sẽ sẵn sàng)') : t('Các bước trước phải xong trước')}
       >
-        {busy === 'complete' ? <span className="spinner" aria-hidden="true" /> : null}Đánh dấu xong
+        {busy === 'complete' ? <span className="spinner" aria-hidden="true" /> : null}{t('Đánh dấu xong')}
       </button>,
     );
   }
@@ -452,9 +458,9 @@ function StepPage({ projectId, stepKey }) {
       className="btn"
       onClick={doCopy}
       disabled={!view.resume_cmd}
-      title={view.resume_cmd ? 'Chép lệnh mở phiên Claude này trong terminal để làm tay' : 'Chưa có phiên Claude — chạy một bước trước đã'}
+      title={view.resume_cmd ? t('Chép lệnh mở phiên Claude này trong terminal để làm tay') : t('Chưa có phiên Claude — chạy một bước trước đã')}
     >
-      {copied ? 'Đã chép lệnh' : 'Mở trong terminal'}
+      {copied ? t('Đã chép lệnh') : t('Mở trong terminal')}
     </button>,
   );
 
@@ -463,7 +469,7 @@ function StepPage({ projectId, stepKey }) {
   const checks = isLatest ? latest?.checks || [] : [];
   const curTab = tab || 'log';
   const costLine = step.cost
-    ? `${step.cost.service || 'dịch vụ'}${step.cost.estimate_value != null ? ` · ~${fmtNum(step.cost.estimate_value)} ${step.cost.unit || ''}` : ''}`
+    ? `${step.cost.service || t('dịch vụ')}${step.cost.estimate_value != null ? ` · ~${fmtNum(step.cost.estimate_value)} ${step.cost.unit || ''}` : ''}`
     : null;
   const u = selRun?.usage || null;
   const showWarn = !canRun.ok && canRun.message && !step.manual && st !== 'running' && st !== 'pending';
@@ -472,7 +478,7 @@ function StepPage({ projectId, stepKey }) {
   const feedbackBox = (
     <>
       <label className="sr-only" htmlFor="fb">
-        Góp ý cho lượt sau
+        {t('Góp ý cho lượt sau')}
       </label>
       <textarea
         id="fb"
@@ -480,7 +486,7 @@ function StepPage({ projectId, stepKey }) {
         value={feedback}
         maxLength={FEEDBACK_MAX}
         onChange={(e) => setFeedback(e.target.value)}
-        placeholder={decide ? 'Trả lời Claude hoặc góp ý…' : 'Vd: đoạn mở đầu ngắn lại, giọng ấm hơn'}
+        placeholder={decide ? t('Trả lời Claude hoặc góp ý…') : t('Vd: đoạn mở đầu ngắn lại, giọng ấm hơn')}
       />
       <div className="acts" style={{ marginTop: 8, justifyContent: 'space-between' }}>
         <span className="num small dim">
@@ -494,7 +500,7 @@ function StepPage({ projectId, stepKey }) {
           title={!canRun.ok ? canRun.message || '' : ''}
         >
           {paid ? '$ ' : ''}
-          {runs.length ? 'Chạy lại kèm góp ý' : 'Chạy kèm góp ý'}
+          {runs.length ? t('Chạy lại kèm góp ý') : t('Chạy kèm góp ý')}
         </button>
       </div>
     </>
@@ -503,38 +509,38 @@ function StepPage({ projectId, stepKey }) {
   return (
     <>
       <div className="crumb">
-        <a href="#/">Tổng quan</a> <span className="sep">/</span> <span>{project.title}</span> <span className="sep">/</span> <span>{step.name}</span>
+        <a href="#/">{t('Tổng quan')}</a> <span className="sep">/</span> <span>{project.title}</span> <span className="sep">/</span> <span>{tr(step.name)}</span>
       </div>
 
       <div className="step-head">
         <div>
           <h1>
-            {step.name}
+            {tr(step.name)}
             <span className={`state-tag s-${st}`}>
               {st === 'running' ? <span className="dot" /> : null}
               {STATE_LABEL[st] || st}
             </span>
-            {offline && st === 'running' ? <span className="state-tag s-stale" title="Mất kết nối tới Video Studio — trạng thái có thể đã cũ">mất kết nối</span> : null}
+            {offline && st === 'running' ? <span className="state-tag s-stale" title={t('Mất kết nối tới Video Studio — trạng thái có thể đã cũ')}>{t('mất kết nối')}</span> : null}
           </h1>
           <div className="meta">
             <span className="ro">
-              <i>Bước</i> <b>{idx + 1}/{total}</b>
+              <i>{t('Bước')}</i> <b>{idx + 1}/{total}</b>
             </span>
             <span className="ro">
-              <i>Lượt</i> <b>{selRun ? `${selRun.n}${isLatest ? '' : ` / ${runs[0].n}`}` : '—'}</b>
+              <i>{t('Lượt')}</i> <b>{selRun ? `${selRun.n}${isLatest ? '' : ` / ${runs[0].n}`}` : '—'}</b>
             </span>
             <span className="ro">
-              <i>Thời gian chạy</i> <b>{selRun ? fmtElapsed(runElapsed(selRun, now)) : '—'}</b>
+              <i>{t('Thời gian chạy')}</i> <b>{selRun ? fmtElapsed(runElapsed(selRun, now)) : '—'}</b>
             </span>
             <span className="ro">
               <i>Token</i> <b title={tokens ? fmtNum(tokens) : ''}>{tokens ? fmtTokens(tokens) : '—'}</b>
             </span>
-            <span className="ro" title="Chỉ hiển thị, chưa tự chạy bước sau">
-              <i>Cổng</i> <b>{gateLabel(step.gate_mode)}</b>
+            <span className="ro" title={t('Chỉ hiển thị, chưa tự chạy bước sau')}>
+              <i>{t('Cổng')}</i> <b>{gateLabel(step.gate_mode)}</b>
             </span>
             {costLine ? (
               <span className="ro paid">
-                <i>Tốn tiền</i> <b>{costLine}</b>
+                <i>{t('Tốn tiền')}</i> <b>{costLine}</b>
               </span>
             ) : null}
           </div>
@@ -548,10 +554,10 @@ function StepPage({ projectId, stepKey }) {
         </div>
       ) : null}
       {st === 'manual' ? (
-        <div className="warn-note can-run">Việc tay: làm trong thư mục dự án, xong thì bấm "Đánh dấu xong".</div>
+        <div className="warn-note can-run">{t('Việc tay: làm trong thư mục dự án, xong thì bấm "Đánh dấu xong".')}</div>
       ) : null}
-      {st === 'pending' ? <div className="warn-note can-run">Các bước trước phải xong trước.</div> : null}
-      {step.manual && st === 'done' ? <div className="note can-run">Việc tay đã đánh dấu xong.</div> : null}
+      {st === 'pending' ? <div className="warn-note can-run">{t('Các bước trước phải xong trước.')}</div> : null}
+      {step.manual && st === 'done' ? <div className="note can-run">{t('Việc tay đã đánh dấu xong.')}</div> : null}
       {actionErr ? (
         <div className="err-note can-run" role="alert">
           {actionErr}
@@ -559,18 +565,18 @@ function StepPage({ projectId, stepKey }) {
       ) : null}
 
       <div className="line-panel">
-        <Flow steps={project.steps || []} projectId={project.id} currentKey={step.key} large label={`Các bước của ${project.title}`} />
+        <Flow steps={project.steps || []} projectId={project.id} currentKey={step.key} large label={t('Các bước của {n}', { n: project.title })} />
       </div>
 
-      <div className="subtabs" role="group" aria-label="Nội dung bước">
+      <div className="subtabs" role="group" aria-label={t('Nội dung bước')}>
         {[
           [
             'log',
-            'Nhật ký',
+            t('Nhật ký'),
             null,
           ],
-          ['out', 'Đầu ra', artifacts.length],
-          ['checks', 'Kiểm tra', checks.length || step.checks?.length || 0],
+          ['out', t('Đầu ra'), artifacts.length],
+          ['checks', t('Kiểm tra'), checks.length || step.checks?.length || 0],
           ['prompt', 'Prompt', null],
         ].map(([k, label, n]) => (
           <button key={k} type="button" aria-pressed={curTab === k} className={curTab === k ? 'on' : ''} onClick={() => setTab(k)}>
@@ -586,7 +592,7 @@ function StepPage({ projectId, stepKey }) {
             selRun ? (
               <LogTerminal run={selRun} offline={offline} />
             ) : (
-              <div className="card empty">Chưa chạy lượt nào.</div>
+              <div className="card empty">{t('Chưa chạy lượt nào.')}</div>
             )
           ) : null}
           {curTab === 'out' ? (
@@ -594,7 +600,7 @@ function StepPage({ projectId, stepKey }) {
           ) : null}
           {curTab === 'checks' ? (
             <>
-              {!isLatest ? <div className="warn-note" style={{ marginBottom: 12 }}>Kết quả kiểm tra chỉ lưu cho lượt mới nhất (lượt {runs[0]?.n}).</div> : null}
+              {!isLatest ? <div className="warn-note" style={{ marginBottom: 12 }}>{t('Kết quả kiểm tra chỉ lưu cho lượt mới nhất (lượt {n}).', { n: runs[0]?.n })}</div> : null}
               <Checks checks={checks} configured={step.checks || []} running={live} hasRun={!!selRun} />
             </>
           ) : null}
@@ -602,19 +608,19 @@ function StepPage({ projectId, stepKey }) {
             <div className="card pad">
               {selRun?.feedback ? (
                 <>
-                  <h2>Góp ý kèm lượt {selRun.n}</h2>
+                  <h2>{t('Góp ý kèm lượt {n}', { n: selRun.n })}</h2>
                   <pre className="box-pre" style={{ marginBottom: 16 }}>{selRun.feedback}</pre>
                 </>
               ) : null}
-              <h2>{selRun ? `Prompt đã gửi · lượt ${selRun.n}` : 'Mẫu prompt (chưa gửi)'}</h2>
-              <pre className="box-pre">{selRun ? selRun.prompt || '(không lưu prompt)' : step.prompt_template || '(trống)'}</pre>
+              <h2>{selRun ? `Prompt đã gửi · lượt ${selRun.n}` : t('Mẫu prompt (chưa gửi)')}</h2>
+              <pre className="box-pre">{selRun ? selRun.prompt || t('(không lưu prompt)') : step.prompt_template || t('(trống)')}</pre>
               {selRun && step.prompt_template ? (
                 <details style={{ marginTop: 14 }}>
-                  <summary className="sum">Lời dặn trong quy trình</summary>
+                  <summary className="sum">{t('Lời dặn trong quy trình')}</summary>
                   <pre className="box-pre" style={{ marginTop: 8 }}>{step.prompt_template}</pre>
                 </details>
               ) : null}
-              {selRun?.allow_paid ? <p className="note">Lượt này đã được bạn cho phép dùng dịch vụ trả phí.</p> : null}
+              {selRun?.allow_paid ? <p className="note">{t('Lượt này đã được bạn cho phép dùng dịch vụ trả phí.')}</p> : null}
             </div>
           ) : null}
         </section>
@@ -622,7 +628,7 @@ function StepPage({ projectId, stepKey }) {
         <aside className="side">
           {decide ? (
             <div className="card pad decide ask">
-              <h2>Claude cần bạn trả lời</h2>
+              <h2>{t('Claude cần bạn trả lời')}</h2>
               <ResultBody run={selRun} />
               {feedbackBox}
             </div>
@@ -632,18 +638,18 @@ function StepPage({ projectId, stepKey }) {
 
           {!decide && !step.manual ? (
             <div className="card pad">
-              <h2>Góp ý</h2>
+              <h2>{t('Góp ý')}</h2>
               {feedbackBox}
             </div>
           ) : null}
 
           <details className="card pad more">
             <summary>
-              Chi tiết <span className="muted">· {runs.length} lượt</span>
+              {t('Chi tiết')} <span className="muted">· {t('{n} lượt', { n: runs.length })}</span>
             </summary>
-            <h3>Các lượt</h3>
+            <h3>{t('Các lượt')}</h3>
             {runs.length ? (
-              <div className="runs runs-wrap" role="group" aria-label="Chọn lượt để xem">
+              <div className="runs runs-wrap" role="group" aria-label={t('Chọn lượt để xem')}>
                 {runs.map((r) => (
                   <button
                     key={r.id}
@@ -651,12 +657,12 @@ function StepPage({ projectId, stepKey }) {
                     aria-pressed={r.id === selRun?.id}
                     className={`s-${r.state}${r.id === selRun?.id ? ' on' : ''}`}
                     onClick={() => setSelRunId(r.id === runs[0].id ? null : r.id)}
-                    title={r.summary || r.error || ''}
+                    title={tr(r.summary || r.error || '')}
                   >
                     <span className="rn">
                       <i className="lamp" />
-                      Lượt <span className="num">{r.n}</span>
-                      {r.feedback ? <span className="tag" title="Có góp ý">góp ý</span> : null}
+                      {t('Lượt')} <span className="num">{r.n}</span>
+                      {r.feedback ? <span className="tag" title={t('Có góp ý')}>{t('góp ý')}</span> : null}
                     </span>
                     <span className="rs">{RUN_LABEL[r.state] || r.state}</span>
                     <span className="rt">{fmtDateTime(r.started_at)}</span>
@@ -665,12 +671,12 @@ function StepPage({ projectId, stepKey }) {
               </div>
             ) : (
               <p className="muted small" style={{ margin: 0 }}>
-                Chưa có lượt nào.
+                {t('Chưa có lượt nào.')}
               </p>
             )}
-            <h3>Chi phí &amp; thông tin</h3>
+            <h3>{t('Chi phí &amp; thông tin')}</h3>
             <div className="row">
-              <span className="muted">Token vào</span>
+              <span className="muted">{t('Token vào')}</span>
               <b>{u ? fmtNum((Number(u.input_tokens) || 0)) : '—'}</b>
             </div>
             <div className="row">
@@ -678,7 +684,7 @@ function StepPage({ projectId, stepKey }) {
               <b>{u ? fmtNum(Number(u.output_tokens) || 0) : '—'}</b>
             </div>
             <div className="row">
-              <span className="muted">Cache đọc / ghi</span>
+              <span className="muted">{t('Cache đọc / ghi')}</span>
               <b>
                 {u ? `${fmtTokens(u.cache_read_input_tokens || 0)} / ${fmtTokens(u.cache_creation_input_tokens || 0)}` : '—'}
               </b>
@@ -690,25 +696,25 @@ function StepPage({ projectId, stepKey }) {
               </div>
             ) : null}
             <div className="row">
-              <span className="muted">Cả dự án</span>
+              <span className="muted">{t('Cả dự án')}</span>
               <b>
-                {fmtTokens(usageTokens(project.costs))} token · {fmtNum(project.costs?.runs ?? 0)} lượt
+                {fmtTokens(usageTokens(project.costs))} {t('token')} · {t('{n} lượt', { n: fmtNum(project.costs?.runs ?? 0) })}
               </b>
             </div>
             {step.timeout_ms ? (
               <div className="row">
-                <span className="muted">Giới hạn thời gian</span>
+                <span className="muted">{t('Giới hạn thời gian')}</span>
                 <b>{fmtDuration(step.timeout_ms)}</b>
               </div>
             ) : null}
             <div className="row">
-              <span className="muted">Thư mục</span>
+              <span className="muted">{t('Thư mục')}</span>
               <b className="wrap-any">{project.dir}</b>
             </div>
             {view.resume_cmd ? (
               <div style={{ marginTop: 10 }}>
                 <div className="muted small" style={{ marginBottom: 6 }}>
-                  Lệnh mở phiên
+                  {t('Lệnh mở phiên')}
                 </div>
                 <pre className="box-pre">{view.resume_cmd}</pre>
               </div>

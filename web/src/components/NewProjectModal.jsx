@@ -8,6 +8,7 @@ import { Sk, SkFlow, SkZone } from './Skeleton.jsx';
 import StepEditor, { stepProblem } from './StepEditor.jsx';
 import { api } from '../api.js';
 import { isValidSlug, slugify } from '../lib/slug.js';
+import { tr, useT } from '../lib/i18n.jsx';
 
 const TITLE_MAX = 200;
 
@@ -34,6 +35,7 @@ const FIELD_CODES = ['invalid_title', 'invalid_name', ...ADV_CODES];
 
 // Hiển thị modal; onCreated(project) sau khi tạo xong. Bước 1: chọn định dạng hoặc quy trình đã lưu. Bước 2: tiêu đề, kênh, sửa các bước.
 export default function NewProjectModal({ presetsData, channels, doctor, onClose, onCreated }) {
+  const t = useT();
   const saved = presetsData?.presets || [];
   const loadErrors = presetsData?.errors || [];
   const { catalog, error: catErr } = useCatalog();
@@ -77,7 +79,7 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   const saveBad = saveOn && (!saveNameT || saveNameT.length > 80);
   const canSubmit = !!draft && titleT.length > 0 && !titleBad && !slugBad && !stepsBad && !saveBad && (!useDir || (dirT && !dirBad)) && !busy;
   const fieldErr = (codes) => (err && codes.includes(err.code) ? err.message : null);
-  const chOptions = [{ value: '', label: 'Không gắn kênh' }, ...(channels || []).map((c) => ({ value: c.id, label: c.name || c.id }))];
+  const chOptions = [{ value: '', label: t('Không gắn kênh') }, ...(channels || []).map((c) => ({ value: c.id, label: c.name || c.id }))];
 
   // Sang bước 2: đổi nguồn thì làm nháp mới, giữ nguyên chỗ đã sửa nếu quay lại cùng nguồn.
   const next = () => {
@@ -117,14 +119,14 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
 
   if (stage === 1) {
     return (
-      <Modal title="Dự án mới" wide onClose={onClose}>
+      <Modal title={t('Dự án mới')} wide onClose={onClose}>
         {saved.length ? (
-          <div className="seg src-tabs" role="tablist" aria-label="Nguồn quy trình">
+          <div className="seg src-tabs" role="tablist" aria-label={t('Nguồn quy trình')}>
             <button type="button" role="tab" aria-selected={source === 'suggest'} className={source === 'suggest' ? 'on' : ''} onClick={() => setSource('suggest')}>
-              Gợi ý theo định dạng
+              {t('Gợi ý theo định dạng')}
             </button>
             <button type="button" role="tab" aria-selected={source === 'saved'} className={source === 'saved' ? 'on' : ''} onClick={() => setSource('saved')}>
-              Quy trình đã lưu <span className="muted">{saved.length}</span>
+              {t('Quy trình đã lưu')} <span className="muted">{saved.length}</span>
             </button>
           </div>
         ) : null}
@@ -134,17 +136,17 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
           ) : catErr ? (
             <div className="err-note" role="alert">{catErr.message}</div>
           ) : (
-            <SkZone label="Đang tải định dạng">
+            <SkZone label={t('Đang tải định dạng')}>
               <FormatPickerSkeleton />
             </SkZone>
           )
         ) : (
-          <div className="saved-list" role="radiogroup" aria-label="Quy trình đã lưu">
+          <div className="saved-list" role="radiogroup" aria-label={t('Quy trình đã lưu')}>
             {saved.map((p) => (
               <label key={p.id} className={`saved-item${p.id === savedId ? ' on' : ''}`}>
                 <input type="radio" name="saved" checked={p.id === savedId} onChange={() => setSavedId(p.id)} />
-                <span className="saved-name">{p.name}</span>
-                <span className="muted">{p.steps?.length || 0} bước</span>
+                <span className="saved-name">{tr(p.name)}</span>
+                <span className="muted">{t('{n} bước', { n: p.steps?.length || 0 })}</span>
               </label>
             ))}
           </div>
@@ -152,18 +154,18 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
         {chosen ? (
           <div className="fld prev">
             <span className="fld-l">
-              {source === 'saved' ? chosen.name : `Quy trình gợi ý · ${flowSteps(chosen.steps).length} bước`}
+              {source === 'saved' ? chosen.name : `${t('Quy trình gợi ý')} · ${t('{n} bước', { n: flowSteps(chosen.steps).length })}`}
               {sugg.loading && source === 'suggest' ? <span className="spinner" aria-hidden="true" /> : null}
             </span>
             <div className="prev-belt">
-              <Flow steps={flowSteps(chosen.steps)} staticMode label={`Các bước của ${chosen.name}`} />
+              <Flow steps={flowSteps(chosen.steps)} staticMode label={t('Các bước của {n}', { n: chosen.name })} />
             </div>
-            <span className="hint">Bước tốn tiền luôn hỏi trước khi chạy. Bước tiếp theo bạn có thể bật/tắt, đổi thứ tự và sửa từng bước.</span>
+            <span className="hint">{t('Bước tốn tiền luôn hỏi trước khi chạy. Bước tiếp theo bạn có thể bật/tắt, đổi thứ tự và sửa từng bước.')}</span>
           </div>
         ) : source === 'suggest' && sugg.error ? (
           <div className="err-note" role="alert">{sugg.error.message}</div>
         ) : source === 'suggest' ? (
-          <SkZone className="fld prev" label="Đang tải quy trình gợi ý">
+          <SkZone className="fld prev" label={t('Đang tải quy trình gợi ý')}>
             <span className="fld-l">
               <Sk w="14em" />
             </span>
@@ -178,10 +180,10 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
         {loadErrors.length ? <PresetErrors errors={loadErrors} /> : null}
         <div className="modal-acts">
           <button type="button" className="btn" onClick={onClose}>
-            Hủy
+            {t('Hủy')}
           </button>
           <button type="button" className="btn primary" onClick={next} disabled={!canNext}>
-            Tiếp tục
+            {t('Tiếp tục')}
           </button>
         </div>
       </Modal>
@@ -189,40 +191,40 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
   }
 
   return (
-    <Modal title="Dự án mới" wide onClose={onClose} busy={busy}>
+    <Modal title={t('Dự án mới')} wide onClose={onClose} busy={busy}>
       <form onSubmit={submit} noValidate>
-        <p className="lead">{draft?.name}</p>
+        <p className="lead">{draft?.name ? tr(draft.name) : draft?.name}</p>
         <label className="fld">
-          <span>Tiêu đề video</span>
-          <input type="text" value={title} maxLength={TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} placeholder="Vd: Mua vàng hay gửi tiết kiệm?" disabled={busy} data-autofocus />
-          {titleBad ? <span className="hint bad">Tiêu đề tối đa {TITLE_MAX} ký tự.</span> : null}
+          <span>{t('Tiêu đề video')}</span>
+          <input type="text" value={title} maxLength={TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} placeholder={t('Vd: Mua vàng hay gửi tiết kiệm?')} disabled={busy} data-autofocus />
+          {titleBad ? <span className="hint bad">{t('Tiêu đề tối đa {n} ký tự.', { n: TITLE_MAX })}</span> : null}
           {fieldErr(['invalid_title']) ? <span className="hint bad">{fieldErr(['invalid_title'])}</span> : null}
         </label>
         <div className="fld">
-          <span className="fld-l">Kênh</span>
-          <Select value={channelId} options={chOptions} onChange={setChannelId} disabled={busy} label="Kênh" />
+          <span className="fld-l">{t('Kênh')}</span>
+          <Select value={channelId} options={chOptions} onChange={setChannelId} disabled={busy} label={t('Kênh')} />
           {fieldErr(['channel_not_found']) ? <span className="hint bad">{fieldErr(['channel_not_found'])}</span> : null}
         </div>
         <div className="fld">
           <span className="fld-l">
-            Các bước <span className="muted">· {enabled.length} đang dùng</span>
+            {t('Các bước')} <span className="muted">· {t('{n} đang dùng', { n: enabled.length })}</span>
           </span>
           <StepEditor steps={draft?.steps || []} library={catalog?.steps || []} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
-          {!enabled.length ? <span className="hint bad">Cần ít nhất 1 bước.</span> : null}
+          {!enabled.length ? <span className="hint bad">{t('Cần ít nhất 1 bước.')}</span> : null}
         </div>
         <div className="fld">
           <label className="chk">
             <input type="checkbox" checked={saveOn} onChange={(e) => setSaveOn(e.target.checked)} disabled={busy} />
-            <span>Lưu làm quy trình của tôi (dùng lại cho dự án sau)</span>
+            <span>{t('Lưu làm quy trình của tôi (dùng lại cho dự án sau)')}</span>
           </label>
           {saveOn ? (
-            <input type="text" style={{ width: '100%', marginTop: 8 }} value={saveName} maxLength={80} onChange={(e) => setSaveName(e.target.value)} placeholder="Tên quy trình" disabled={busy} aria-label="Tên quy trình" aria-invalid={saveBad} />
+            <input type="text" style={{ width: '100%', marginTop: 8 }} value={saveName} maxLength={80} onChange={(e) => setSaveName(e.target.value)} placeholder={t('Tên quy trình')} disabled={busy} aria-label={t('Tên quy trình')} aria-invalid={saveBad} />
           ) : null}
-          {saveOn && !saveNameT ? <span className="hint bad">Đặt tên cho quy trình.</span> : null}
+          {saveOn && !saveNameT ? <span className="hint bad">{t('Đặt tên cho quy trình.')}</span> : null}
           {fieldErr(['invalid_name']) ? <span className="hint bad">{fieldErr(['invalid_name'])}</span> : null}
         </div>
         <details className="adv" open={adv} onToggle={(e) => setAdv(e.currentTarget.open)}>
-          <summary>Tùy chọn nâng cao</summary>
+          <summary>{t('Tùy chọn nâng cao')}</summary>
           <div className="fld">
             <span className="fld-l">Slug</span>
             <div className="acts" style={{ flexWrap: 'nowrap' }}>
@@ -241,30 +243,30 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
                 aria-label="Slug"
               />
               {slugEdited ? (
-                <button type="button" className="btn sm" onClick={() => setSlugEdited(false)} disabled={busy} title="Sinh lại slug từ tiêu đề">
-                  Theo tiêu đề
+                <button type="button" className="btn sm" onClick={() => setSlugEdited(false)} disabled={busy} title={t('Sinh lại slug từ tiêu đề')}>
+                  {t('Theo tiêu đề')}
                 </button>
               ) : null}
             </div>
             {slugBad ? (
-              <span className="hint bad">Chỉ a–z, 0–9 và "-", tối đa 64 ký tự.</span>
+              <span className="hint bad">{t('Chỉ a–z, 0–9 và "-", tối đa 64 ký tự.')}</span>
             ) : fieldErr(['invalid_slug', 'slug_taken']) ? (
               <span className="hint bad">{fieldErr(['invalid_slug', 'slug_taken'])}</span>
             ) : (
-              <span className="hint">Dùng làm tên thư mục.</span>
+              <span className="hint">{t('Dùng làm tên thư mục.')}</span>
             )}
           </div>
           <div className="fld">
-            <span className="fld-l">Thư mục dự án</span>
-            {shownDir ? <div className="dirprev">{shownDir}</div> : <div className="dirprev dim">Nhập đường dẫn bên dưới</div>}
+            <span className="fld-l">{t('Thư mục dự án')}</span>
+            {shownDir ? <div className="dirprev">{shownDir}</div> : <div className="dirprev dim">{t('Nhập đường dẫn bên dưới')}</div>}
             <label className="chk">
               <input type="checkbox" checked={useDir} onChange={(e) => setUseDir(e.target.checked)} disabled={busy} />
-              <span>Dùng thư mục khác (vd: dự án có sẵn)</span>
+              <span>{t('Dùng thư mục khác (vd: dự án có sẵn)')}</span>
             </label>
             {useDir ? (
-              <input type="text" className="mono-in" style={{ width: '100%', marginTop: 8 }} value={dir} onChange={(e) => setDir(e.target.value)} placeholder="~/Documents/Youtube/du-an-cu" disabled={busy} aria-label="Thư mục dự án" />
+              <input type="text" className="mono-in" style={{ width: '100%', marginTop: 8 }} value={dir} onChange={(e) => setDir(e.target.value)} placeholder="~/Documents/Youtube/du-an-cu" disabled={busy} aria-label={t('Thư mục dự án')} />
             ) : null}
-            {dirBad ? <span className="hint bad">Cần đường dẫn tuyệt đối (bắt đầu bằng / hoặc ~).</span> : null}
+            {dirBad ? <span className="hint bad">{t('Cần đường dẫn tuyệt đối (bắt đầu bằng / hoặc ~).')}</span> : null}
             {fieldErr(['invalid_dir', 'dir_taken']) ? <span className="hint bad">{fieldErr(['invalid_dir', 'dir_taken'])}</span> : null}
           </div>
         </details>
@@ -280,13 +282,13 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
         ) : null}
         <div className="modal-acts">
           <button type="button" className="btn" onClick={() => setStage(1)} disabled={busy} style={{ marginRight: 'auto' }}>
-            Quay lại
+            {t('Quay lại')}
           </button>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Hủy
+            {t('Hủy')}
           </button>
           <button type="submit" className="btn primary" disabled={!canSubmit}>
-            {busy ? <span className="spinner" aria-hidden="true" /> : null}Tạo dự án
+            {busy ? <span className="spinner" aria-hidden="true" /> : null}{t('Tạo dự án')}
           </button>
         </div>
       </form>
@@ -296,9 +298,10 @@ export default function NewProjectModal({ presetsData, channels, doctor, onClose
 
 // Danh sách file quy trình bị lỗi khi nạp.
 export function PresetErrors({ errors }) {
+  const t = useT();
   return (
     <div className="warn-note" style={{ marginTop: 10 }}>
-      <b>{errors.length} quy trình bị lỗi:</b>
+      <b>{t('{n} quy trình bị lỗi:', { n: errors.length })}</b>
       <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
         {errors.map((e, i) => (
           <li key={i}>

@@ -1,59 +1,61 @@
 // Lớp gọi API của Video Studio: fetch cùng origin (cookie token), lỗi ném Error có {status, code, message}.
 
+import { T, tr } from './lib/i18n.jsx';
+
 const DEFAULT_MSG = {
-  network: 'Không kết nối được tới Video Studio. Kiểm tra server còn chạy không.',
-  unauthorized: 'Phiên đăng nhập đã hết — tải lại trang để đăng nhập.',
-  forbidden_origin: 'Yêu cầu bị chặn vì đến từ trang lạ.',
-  forbidden_path: 'Đường dẫn nằm ngoài thư mục dự án.',
-  bad_host: 'Địa chỉ truy cập không hợp lệ — hãy mở bằng 127.0.0.1 hoặc localhost.',
-  not_found: 'Không tìm thấy.',
-  preset_not_found: 'Không tìm thấy quy trình.',
-  pipeline_not_found: 'Không tìm thấy quy trình.',
-  invalid_pipeline: 'Quy trình chưa hợp lệ.',
-  invalid_format: 'Định dạng video không hợp lệ.',
-  invalid_name: 'Tên quy trình phải có 1–80 ký tự.',
-  channel_not_found: 'Không tìm thấy kênh này.',
-  busy: 'Dự án đang có bước chạy. Chờ xong hoặc dừng lượt đó trước.',
-  locked: 'Thư mục dự án đang bị một tiến trình khác khóa.',
-  not_runnable: 'Bước này chưa chạy được.',
-  cost_confirm_required: 'Bước này tốn tiền thật — cần xác nhận chi phí trước khi chạy.',
-  slug_taken: 'Slug đã có dự án khác dùng.',
-  dir_taken: 'Thư mục đã thuộc một dự án khác.',
-  invalid_title: 'Tiêu đề không hợp lệ.',
-  invalid_slug: 'Slug không hợp lệ.',
-  invalid_dir: 'Thư mục không hợp lệ.',
-  invalid_body: 'Dữ liệu gửi lên không hợp lệ.',
-  account_busy: 'Đang có lệnh đăng nhập / đăng xuất chạy — đợi xong hoặc bấm Hủy.',
-  not_logging_in: 'Không có lượt đăng nhập nào đang chờ.',
-  invalid_profile: 'Không tìm thấy hồ sơ Chrome này. Chọn lại hồ sơ.',
-  runs_active: 'Đang có bước chạy — đợi xong hoặc bấm Dừng rồi mới đăng nhập / đăng xuất.',
-  account_unavailable: 'Chức năng tài khoản Claude chưa bật trên server này.',
-  youtube_unavailable: 'Chức năng YouTube chưa bật trên server này.',
-  invalid_client_secret: 'File client_secret.json không hợp lệ — cần client loại "Ứng dụng máy tính".',
-  yt_not_configured: 'Chưa thiết lập Google Cloud.',
-  yt_not_connected: 'Kênh này chưa kết nối YouTube.',
-  update_none: 'Đang là bản mới nhất.',
-  yt_has_channels: 'Xóa mọi kênh trước khi xóa thiết lập Google.',
-  yt_reauth: 'Google không còn chấp nhận quyền của app — bấm Kết nối lại.',
-  yt_quota: 'Hết hạn mức YouTube API hôm nay — thử lại sau 14:00–15:00 giờ Việt Nam.',
-  yt_api_disabled: 'API YouTube chưa bật trong dự án Google Cloud — xem Thiết lập Google, bước 2.',
-  yt_bad_client: 'Google từ chối client — kiểm tra lại file client_secret.json.',
-  yt_forbidden: 'Google từ chối truy cập kênh này.',
-  yt_network: 'Không kết nối được tới Google.',
-  yt_error: 'Google báo lỗi — thử lại sau.',
-  gc_busy: 'Đang thiết lập — đợi bước hiện tại xong hoặc bấm Hủy.',
-  gc_step: 'Bước này không còn khả dụng — tải lại trang.',
-  gc_no_file: 'Không còn file nào để xử lý.',
-  assistant_busy: 'Trợ lý đang làm — chờ xong hoặc bấm Dừng.',
-  assistant_unavailable: 'Trợ lý AI chưa bật trên server này.',
-  usage_cooldown: 'Vừa kiểm tra — thử lại sau ít phút.',
-  usage_timeout: 'Claude không trả lời kịp — thử lại sau.',
-  usage_unavailable: 'Chưa lấy được số liệu mức dùng.',
+  network: T('Không kết nối được tới Video Studio. Kiểm tra server còn chạy không.'),
+  unauthorized: T('Phiên đăng nhập đã hết — tải lại trang để đăng nhập.'),
+  forbidden_origin: T('Yêu cầu bị chặn vì đến từ trang lạ.'),
+  forbidden_path: T('Đường dẫn nằm ngoài thư mục dự án.'),
+  bad_host: T('Địa chỉ truy cập không hợp lệ — hãy mở bằng 127.0.0.1 hoặc localhost.'),
+  not_found: T('Không tìm thấy.'),
+  preset_not_found: T('Không tìm thấy quy trình.'),
+  pipeline_not_found: T('Không tìm thấy quy trình.'),
+  invalid_pipeline: T('Quy trình chưa hợp lệ.'),
+  invalid_format: T('Định dạng video không hợp lệ.'),
+  invalid_name: T('Tên quy trình phải có 1–80 ký tự.'),
+  channel_not_found: T('Không tìm thấy kênh này.'),
+  busy: T('Dự án đang có bước chạy. Chờ xong hoặc dừng lượt đó trước.'),
+  locked: T('Thư mục dự án đang bị một tiến trình khác khóa.'),
+  not_runnable: T('Bước này chưa chạy được.'),
+  cost_confirm_required: T('Bước này tốn tiền thật — cần xác nhận chi phí trước khi chạy.'),
+  slug_taken: T('Slug đã có dự án khác dùng.'),
+  dir_taken: T('Thư mục đã thuộc một dự án khác.'),
+  invalid_title: T('Tiêu đề không hợp lệ.'),
+  invalid_slug: T('Slug không hợp lệ.'),
+  invalid_dir: T('Thư mục không hợp lệ.'),
+  invalid_body: T('Dữ liệu gửi lên không hợp lệ.'),
+  account_busy: T('Đang có lệnh đăng nhập / đăng xuất chạy — đợi xong hoặc bấm Hủy.'),
+  not_logging_in: T('Không có lượt đăng nhập nào đang chờ.'),
+  invalid_profile: T('Không tìm thấy hồ sơ Chrome này. Chọn lại hồ sơ.'),
+  runs_active: T('Đang có bước chạy — đợi xong hoặc bấm Dừng rồi mới đăng nhập / đăng xuất.'),
+  account_unavailable: T('Chức năng tài khoản Claude chưa bật trên server này.'),
+  youtube_unavailable: T('Chức năng YouTube chưa bật trên server này.'),
+  invalid_client_secret: T('File client_secret.json không hợp lệ — cần client loại "Ứng dụng máy tính".'),
+  yt_not_configured: T('Chưa thiết lập Google Cloud.'),
+  yt_not_connected: T('Kênh này chưa kết nối YouTube.'),
+  update_none: T('Đang là bản mới nhất.'),
+  yt_has_channels: T('Xóa mọi kênh trước khi xóa thiết lập Google.'),
+  yt_reauth: T('Google không còn chấp nhận quyền của app — bấm Kết nối lại.'),
+  yt_quota: T('Hết hạn mức YouTube API hôm nay — thử lại sau 14:00–15:00 giờ Việt Nam.'),
+  yt_api_disabled: T('API YouTube chưa bật trong dự án Google Cloud — xem Thiết lập Google, bước 2.'),
+  yt_bad_client: T('Google từ chối client — kiểm tra lại file client_secret.json.'),
+  yt_forbidden: T('Google từ chối truy cập kênh này.'),
+  yt_network: T('Không kết nối được tới Google.'),
+  yt_error: T('Google báo lỗi — thử lại sau.'),
+  gc_busy: T('Đang thiết lập — đợi bước hiện tại xong hoặc bấm Hủy.'),
+  gc_step: T('Bước này không còn khả dụng — tải lại trang.'),
+  gc_no_file: T('Không còn file nào để xử lý.'),
+  assistant_busy: T('Trợ lý đang làm — chờ xong hoặc bấm Dừng.'),
+  assistant_unavailable: T('Trợ lý AI chưa bật trên server này.'),
+  usage_cooldown: T('Vừa kiểm tra — thử lại sau ít phút.'),
+  usage_timeout: T('Claude không trả lời kịp — thử lại sau.'),
+  usage_unavailable: T('Chưa lấy được số liệu mức dùng.'),
 };
 
 // Tạo Error mang status/code/message (+ data gốc từ server) để UI hiển thị.
 export function apiError(status, code, message, data = null) {
-  const err = new Error(message || DEFAULT_MSG[code] || `Lỗi máy chủ (${status}).`);
+  const err = new Error(tr(message || DEFAULT_MSG[code] || tr('Lỗi máy chủ ({n}).', { n: status })));
   err.status = status;
   err.code = code;
   err.data = data;
@@ -89,7 +91,7 @@ async function request(method, url, body, { signal } = {}) {
   }
   if (!res.ok) {
     const code = (data && typeof data.error === 'string' && data.error) || `http_${res.status}`;
-    const message = (data && typeof data.message === 'string' && data.message) || DEFAULT_MSG[code] || `Lỗi máy chủ (${res.status}).`;
+    const message = (data && typeof data.message === 'string' && data.message) || DEFAULT_MSG[code] || tr('Lỗi máy chủ ({n}).', { n: res.status });
     throw apiError(res.status, code, message, data);
   }
   return data;
@@ -165,9 +167,14 @@ export const api = {
   ytVideoStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/video-stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytVideos: (id, refresh = false) => request('GET', `/api/youtube/channels/${enc(id)}/videos${refresh ? '?refresh=1' : ''}`),
   assistant: () => request('GET', '/api/assistant'),
-  assistantSend: (text, tabId) => request('POST', '/api/assistant/message', { text, tabId }),
+  assistantSend: (text, tabId, lang) => request('POST', '/api/assistant/message', { text, tabId, lang }),
   assistantStop: () => request('POST', '/api/assistant/stop', {}),
   assistantReset: () => request('POST', '/api/assistant/reset', {}),
+  assistantChats: () => request('GET', '/api/assistant/chats'),
+  assistantOpen: (id) => request('POST', `/api/assistant/chats/${enc(id)}/open`, {}),
+  assistantRemove: (id) => request('DELETE', `/api/assistant/chats/${enc(id)}`),
+  assistantSettings: (body) => request('POST', '/api/assistant/settings', body),
+  assistantCompact: () => request('POST', '/api/assistant/compact', {}),
   assistantResult: (id, body) => request('POST', `/api/assistant/tool/${enc(id)}/result`, body),
   runEvents: (runId, after = 0, limit = 1000, opts) =>
     request('GET', `/api/runs/${enc(runId)}/events?after=${Number(after) || 0}&limit=${limit}`, undefined, opts),
@@ -197,7 +204,7 @@ export async function fetchText(url, { maxBytes = 262144, signal } = {}) {
       data = null;
     }
     const code = data?.error || `http_${res.status}`;
-    const msg = data?.message || (res.status === 404 ? 'Không tìm thấy file.' : DEFAULT_MSG[code] || `Không tải được file (${res.status}).`);
+    const msg = data?.message || (res.status === 404 ? tr('Không tìm thấy file.') : DEFAULT_MSG[code] || tr('Không tải được file ({n}).', { n: res.status }));
     throw apiError(res.status, code, msg, data);
   }
   const buf = await res.arrayBuffer();

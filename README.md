@@ -65,10 +65,11 @@ Click **Trợ lý AI** in the header to open a sidebar and ask Claude to work th
 e.g. "set the video length to 60". It reads the open page, clicks and types like you would, and shows each action in the chat.
 
 - It runs `claude` with the account you are signed in to, so it uses your plan's usage just like Claude Code in a terminal.
-  It uses your account's default model.
+  By default it uses your account's default model; pick **Opus / Sonnet / Haiku** and an **effort** level under the input box (saved per chat).
 - Before deleting, stopping, running or other risky clicks it asks you first (**Cho phép** / **Không**).
   Buttons that spend money or touch secrets are blocked; you click those yourself.
-- The chat is kept across reloads. **Cuộc mới** starts a fresh conversation; **Dừng** stops the current answer.
+- Chats are kept across reloads (last 30). The clock icon opens the history to reopen or delete a chat; **Cuộc mới** starts a fresh one and keeps the old one;
+  **Dừng** stops the current answer. The **⋯** menu has **compact**, which shrinks the conversation context (`/compact`) so a long chat can go on.
 
 ## Plan usage
 
@@ -83,6 +84,13 @@ Click it to see the 5-hour and weekly bars with their reset times, and how many 
   If it can't be read or the request fails, **Kiểm tra ngay** asks Claude instead (a few thousand tokens, once a minute at most) and says so.
 - The percentages cover your whole Claude account, including Claude Code in a terminal or the desktop app. Token counts cover only this app.
 - It needs a Claude plan sign-in (Pro / Max); with an API key there are no plan limits to show.
+
+## Language
+
+The interface is available in Vietnamese (default) and English. Open the account menu in the header (the **Claude** button),
+pick **Language**, and the choice is remembered in your browser. The same menu holds the light/dark theme, the Claude account and **Đăng xuất**, which keeps the header compact on small screens.
+
+Workflow step names, server error messages and the AI assistant's replies follow the chosen language. Prompts sent to Claude and names you type yourself stay as written.
 
 ## Update
 

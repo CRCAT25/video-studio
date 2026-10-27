@@ -1,44 +1,48 @@
-// Nhãn tiếng Việt và hàm định dạng số/thời gian dùng chung cho giao diện.
+// Nhãn và hàm định dạng số/thời gian dùng chung cho giao diện (dịch theo ngôn ngữ đang chọn).
+import { T, intlLocale, tr } from './i18n.jsx';
 
-export const STATE_LABEL = {
-  done: 'Xong',
-  running: 'Đang chạy',
-  needs_input: 'Cần trả lời',
-  failed: 'Lỗi',
-  pending: 'Chờ',
-  ready: 'Sẵn sàng',
-  stale: 'Cũ (cần chạy lại)',
-  manual: 'Việc tay',
-};
-export const BOX_LABEL = { stale: 'Chạy lại', ready: 'Sẵn sàng', manual: 'Việc tay' };
-export const RUN_LABEL = {
-  running: 'Đang chạy',
-  done: 'Xong',
-  failed: 'Lỗi',
-  needs_input: 'Cần trả lời',
-  stopped: 'Đã dừng',
-};
-export const GATE_LABEL = {
-  manual: 'Duyệt tay',
-  auto_if_checks: 'Tự duyệt nếu kiểm tra đạt',
-  auto_after: 'Tự duyệt sau hẹn giờ',
-  auto: 'Tự động',
-};
-export const GATE_SHORT = {
-  manual: 'Duyệt tay',
-  auto_if_checks: 'Tự nếu đạt',
-  auto_after: 'Tự hẹn giờ',
-  auto: 'Tự động',
-};
-export const KIND_LABEL = {
-  video: 'Video',
-  audio: 'Âm thanh',
-  image: 'Ảnh',
-  markdown: 'Markdown',
-  json: 'JSON',
-  text: 'Văn bản',
-  other: 'Khác',
-};
+// Bảng nhãn: giá trị là khóa tiếng Việt, đọc ra thì dịch theo ngôn ngữ hiện tại.
+const tx = (o) => new Proxy(o, { get: (t, k) => (typeof t[k] === 'string' ? tr(t[k]) : t[k]) });
+
+export const STATE_LABEL = tx({
+  done: T('Xong'),
+  running: T('Đang chạy'),
+  needs_input: T('Cần trả lời'),
+  failed: T('Lỗi'),
+  pending: T('Chờ'),
+  ready: T('Sẵn sàng'),
+  stale: T('Cũ (cần chạy lại)'),
+  manual: T('Việc tay'),
+});
+export const BOX_LABEL = tx({ stale: T('Chạy lại'), ready: T('Sẵn sàng'), manual: T('Việc tay') });
+export const RUN_LABEL = tx({
+  running: T('Đang chạy'),
+  done: T('Xong'),
+  failed: T('Lỗi'),
+  needs_input: T('Cần trả lời'),
+  stopped: T('Đã dừng'),
+});
+export const GATE_LABEL = tx({
+  manual: T('Duyệt tay'),
+  auto_if_checks: T('Tự duyệt nếu kiểm tra đạt'),
+  auto_after: T('Tự duyệt sau hẹn giờ'),
+  auto: T('Tự động'),
+});
+export const GATE_SHORT = tx({
+  manual: T('Duyệt tay'),
+  auto_if_checks: T('Tự nếu đạt'),
+  auto_after: T('Tự hẹn giờ'),
+  auto: T('Tự động'),
+});
+export const KIND_LABEL = tx({
+  video: T('Video'),
+  audio: T('Âm thanh'),
+  image: T('Ảnh'),
+  markdown: T('Markdown'),
+  json: T('JSON'),
+  text: T('Văn bản'),
+  other: T('Khác'),
+});
 // Lớp màu cho dây chuyền theo trạng thái bước hiện tại.
 export const LINE_CLASS = {
   running: 'L-run',
@@ -60,11 +64,10 @@ export function two(n) {
   return String(n).padStart(2, '0');
 }
 
-const nf = new Intl.NumberFormat('vi-VN');
-// Số đầy đủ kiểu Việt Nam: 12345 → "12.345".
+// Số đầy đủ theo ngôn ngữ: 12345 → "12.345" (vi) / "12,345" (en).
 export function fmtNum(n) {
   if (n == null || Number.isNaN(Number(n))) return '—';
-  return nf.format(Number(n));
+  return new Intl.NumberFormat(intlLocale()).format(Number(n));
 }
 
 // Số token gọn: 953 → "953", 12 300 → "12,3k", 1 250 000 → "1,25M".
@@ -76,7 +79,7 @@ export function fmtTokens(n) {
 }
 
 function trimDec(x, d) {
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: d }).format(x);
+  return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: d }).format(x);
 }
 
 // Dung lượng file: 1536 → "1,5 KB".
@@ -97,7 +100,7 @@ export function fmtBytes(b) {
 // Tiền USD (chỉ khi dùng API key): 0.1234 → "$0,123".
 export function fmtUsd(x) {
   if (x == null) return '—';
-  return `$${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3, minimumFractionDigits: 2 }).format(Number(x))}`;
+  return `$${new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 3, minimumFractionDigits: 2 }).format(Number(x))}`;
 }
 
 function toDate(iso) {
@@ -111,14 +114,14 @@ export function fmtRelative(iso, now = Date.now()) {
   const d = toDate(iso);
   if (!d) return '—';
   const s = Math.round((now - d.getTime()) / 1000);
-  if (s < 45) return 'vừa xong';
+  if (s < 45) return tr('vừa xong');
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} phút trước`;
+  if (m < 60) return tr('{n} phút trước', { n: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} giờ trước`;
+  if (h < 24) return tr('{n} giờ trước', { n: h });
   const days = Math.round(h / 24);
-  if (days === 1) return 'hôm qua';
-  if (days < 7) return `${days} ngày trước`;
+  if (days === 1) return tr('hôm qua');
+  if (days < 7) return tr('{n} ngày trước', { n: days });
   return fmtDate(iso);
 }
 
@@ -155,12 +158,12 @@ export function fmtElapsed(ms) {
 // Thời lượng chữ: 1 800 000 → "30 phút", 7 200 000 → "2 giờ".
 export function fmtDuration(ms) {
   const v = Number(ms) || 0;
-  if (v < 60000) return `${Math.round(v / 1000)} giây`;
+  if (v < 60000) return tr('{n} giây', { n: Math.round(v / 1000) });
   const m = Math.round(v / 60000);
-  if (m < 60) return `${m} phút`;
+  if (m < 60) return tr('{n} phút', { n: m });
   const h = Math.floor(m / 60);
   const r = m % 60;
-  return r ? `${h} giờ ${r} phút` : `${h} giờ`;
+  return r ? tr('{h} giờ {m} phút', { h, m: r }) : tr('{n} giờ', { n: h });
 }
 
 // Thời gian chạy của một lượt (đến hiện tại nếu chưa kết thúc).
@@ -181,6 +184,6 @@ export function usageTokens(u) {
 // Nhãn mô tả cổng duyệt (auto_after kèm thời gian nếu có).
 export function gateLabel(gate) {
   const mode = typeof gate === 'string' ? gate : gate?.mode;
-  if (mode === 'auto_after' && gate?.after_ms) return `Tự duyệt sau ${fmtDuration(gate.after_ms)}`;
+  if (mode === 'auto_after' && gate?.after_ms) return tr('Tự duyệt sau {d}', { d: fmtDuration(gate.after_ms) });
   return GATE_LABEL[mode] || mode || '—';
 }

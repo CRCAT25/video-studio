@@ -12,6 +12,7 @@ import { api } from '../api.js';
 import { navigate } from '../lib/router.js';
 import { useNow } from '../hooks/useNow.js';
 import { fmtDate, fmtNum, fmtRelative, two } from '../lib/format.js';
+import { T, intlLocale, tr, useT } from '../lib/i18n.jsx';
 
 // Giây → "11:30" / "1:02:03".
 export function fmtSecs(s) {
@@ -24,15 +25,15 @@ export function fmtSecs(s) {
 }
 
 // Phút xem → giờ, 1 chữ số lẻ.
-const fmtHours = (min) => (min == null ? '—' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(Number(min) / 60));
+const fmtHours = (min) => (min == null ? '—' : new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 1 }).format(Number(min) / 60));
 const signed = (n) => (n == null ? '—' : `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtNum(Math.abs(n))}`);
 const dm = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—');
 
 const AUTO_KEY = 'vs.yt.auto';
 const AUTO_MS = 5 * 60_000;
 const AUTO_OPTIONS = [
-  { value: 'off', label: 'Tự làm mới: tắt' },
-  { value: '5', label: 'Tự làm mới: 5 phút' },
+  { value: 'off', label: T('Tự làm mới: tắt') },
+  { value: '5', label: T('Tự làm mới: 5 phút') },
 ];
 const savedAuto = () => {
   try {
@@ -42,42 +43,43 @@ const savedAuto = () => {
   }
 };
 
-const QUOTA_TIP = 'Google tính điểm theo mỗi lệnh gọi, đặt lại lúc 14–15h giờ Việt Nam';
+const QUOTA_TIP = T('Google tính điểm theo mỗi lệnh gọi, đặt lại lúc 14–15h giờ Việt Nam');
 // Mốc màu theo % đã dùng: ≤25 xanh lá, >25 xanh dương, >50 cam, >75 đỏ.
 const quotaLevel = (pct) => (pct > 75 ? 'err' : pct > 50 ? 'wait' : pct > 25 ? 'run' : 'ok');
 
 // Thanh hạn mức YouTube hôm nay.
 function QuotaBar({ used, limit }) {
+  const t = useT();
   const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
   return (
-    <div className={`quota-bar q-${quotaLevel(pct)}`} role="progressbar" aria-label="Hạn mức YouTube hôm nay" aria-valuemin={0} aria-valuemax={limit} aria-valuenow={used}>
+    <div className={`quota-bar q-${quotaLevel(pct)}`} role="progressbar" aria-label={t('Hạn mức YouTube hôm nay')} aria-valuemin={0} aria-valuemax={limit} aria-valuenow={used}>
       <span style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-const PRIVACY = { public: 'Công khai', unlisted: 'Không công khai', private: 'Riêng tư' };
+const PRIVACY = { public: T('Công khai'), unlisted: T('Không công khai'), private: T('Riêng tư') };
 const METRICS = [
-  { id: 'views', label: 'Lượt xem', fmt: fmtNum },
-  { id: 'minutes', label: 'Phút xem', fmt: fmtNum },
-  { id: 'subsGained', label: 'Người đăng ký mới', fmt: fmtNum },
+  { id: 'views', label: T('Lượt xem'), fmt: fmtNum },
+  { id: 'minutes', label: T('Phút xem'), fmt: fmtNum },
+  { id: 'subsGained', label: T('Người đăng ký mới'), fmt: fmtNum },
 ];
 const COLS = [
-  { id: 'title', label: 'Video' },
-  { id: 'privacy', label: 'Chế độ hiển thị', sort: false, cls: 'hide-sm' },
-  { id: 'publishedAt', label: 'Ngày', cls: 'hide-sm' },
-  { id: 'views', label: 'Lượt xem', num: true },
-  { id: 'likes', label: 'Thích', num: true, cls: 'hide-sm' },
-  { id: 'comments', label: 'Bình luận', num: true, cls: 'hide-sm' },
-  { id: 'avgViewDuration', label: 'Xem TB', num: true, cls: 'hide-sm', hint: 'trong khoảng ngày đã chọn; Analytics trễ 1–2 ngày so với Studio' },
-  { id: 'subs', label: 'Đăng ký', num: true, cls: 'hide-sm', hint: 'ròng: mới − hủy, trong khoảng ngày đã chọn; Analytics trễ 1–2 ngày so với Studio' },
+  { id: 'title', label: T('Video') },
+  { id: 'privacy', label: T('Chế độ hiển thị'), sort: false, cls: 'hide-sm' },
+  { id: 'publishedAt', label: T('Ngày'), cls: 'hide-sm' },
+  { id: 'views', label: T('Lượt xem'), num: true },
+  { id: 'likes', label: T('Thích'), num: true, cls: 'hide-sm' },
+  { id: 'comments', label: T('Bình luận'), num: true, cls: 'hide-sm' },
+  { id: 'avgViewDuration', label: T('Xem TB'), num: true, cls: 'hide-sm', hint: T('trong khoảng ngày đã chọn; Analytics trễ 1–2 ngày so với Studio') },
+  { id: 'subs', label: T('Đăng ký'), num: true, cls: 'hide-sm', hint: T('ròng: mới − hủy, trong khoảng ngày đã chọn; Analytics trễ 1–2 ngày so với Studio') },
 ];
 // Shorts: API không có cờ riêng, YouTube cho Shorts dài tối đa 3 phút → coi video ≤ 180 giây là Shorts.
 const SHORT_MAX = 180;
 const isShort = (v) => v.duration != null && v.duration <= SHORT_MAX;
 const TABS = [
-  { id: 'video', label: 'Video', test: (v) => !isShort(v) },
-  { id: 'short', label: 'Shorts', test: isShort },
+  { id: 'video', label: T('Video'), test: (v) => !isShort(v) },
+  { id: 'short', label: T('Shorts'), test: isShort },
 ];
 const PAGE_SIZES = [10, 30, 50];
 
@@ -96,10 +98,11 @@ export function bucketDays(days, span) {
   });
   return { unit, rows };
 }
-const UNIT = { day: 'ngày', week: 'tuần', month: 'tháng' };
+const UNIT = { day: T('ngày'), week: T('tuần'), month: T('tháng') };
 
 // Đầu trang + thẻ từng kênh. yt = trạng thái /api/youtube (App tải lại khi có SSE 'youtube').
 export default function Channels({ yt, error, onReload }) {
+  const t = useT();
   const toast = useToast();
   const prev = useRef(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -153,7 +156,7 @@ export default function Channels({ yt, error, onReload }) {
   const hasLive = live.length > 0;
   useEffect(() => {
     if (auto !== '5' || !hasLive) return undefined;
-    const t = setInterval(async () => {
+    const timer = setInterval(async () => {
       if (document.hidden || busyRef.current) return;
       busyRef.current = true;
       try {
@@ -162,7 +165,7 @@ export default function Channels({ yt, error, onReload }) {
         busyRef.current = false;
       }
     }, AUTO_MS);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [auto, hasLive]);
 
   const reloadAll = async () => {
@@ -170,8 +173,8 @@ export default function Channels({ yt, error, onReload }) {
     busyRef.current = true;
     try {
       const failed = await loadStats(true);
-      if (failed) toast(`${failed} kênh tải lỗi — thử lại sau.`, 'err');
-      else toast('Đã tải lại tất cả kênh.', 'ok');
+      if (failed) toast(t('{n} kênh tải lỗi — thử lại sau.', { n: failed }), 'err');
+      else toast(t('Đã tải lại tất cả kênh.'), 'ok');
     } finally {
       busyRef.current = false;
       setReloading(false);
@@ -186,12 +189,12 @@ export default function Channels({ yt, error, onReload }) {
     if (!before) return;
     for (const c of yt.channels) {
       const b = before.map.get(c.id);
-      if (!b) toast(`Đã thêm kênh ${c.name}.`, 'ok');
-      else if (b.status === 'reauth' && c.status === 'ok') toast(`Đã kết nối lại ${c.name}.`, 'ok');
+      if (!b) toast(t('Đã thêm kênh {name}.', { name: c.name }), 'ok');
+      else if (b.status === 'reauth' && c.status === 'ok') toast(t('Đã kết nối lại {name}.', { name: c.name }), 'ok');
       else if (c.lastError && c.lastError.at !== b.lastError?.at) toast(c.lastError.message, 'err');
     }
     if (yt.addError && yt.addError.at !== before.addError?.at) toast(yt.addError.message, 'err');
-  }, [yt, toast]);
+  }, [yt, toast, t]);
 
   useEffect(() => {
     if (!yt?.adding) setAddUrl(null);
@@ -211,20 +214,20 @@ export default function Channels({ yt, error, onReload }) {
   if (error && !yt) {
     return (
       <div className="card pad empty">
-        <b>Không tải được trạng thái YouTube.</b>
+        <b>{t('Không tải được trạng thái YouTube.')}</b>
         <p className="note">{error.message}</p>
         <button type="button" className="btn" onClick={onReload}>
-          Thử lại
+          {t('Thử lại')}
         </button>
       </div>
     );
   }
   if (!yt) {
     return (
-      <SkZone label="Đang tải kênh">
+      <SkZone label={t('Đang tải kênh')}>
         <div className="page-h">
           <div>
-            <h1>Kênh YouTube</h1>
+            <h1>{t('Kênh YouTube')}</h1>
             <p className="muted small">
               <Sk w="18em" />
             </p>
@@ -239,12 +242,12 @@ export default function Channels({ yt, error, onReload }) {
           <table className="yt-tbl">
             <thead>
               <tr>
-                <th>Kênh</th>
-                <th className="num">Người đăng ký</th>
-                <th className="num hide-sm">Video</th>
-                <th className="num hide-sm">Lượt xem · {rangeLabel(range)}</th>
+                <th>{t('Kênh')}</th>
+                <th className="num">{t('Người đăng ký')}</th>
+                <th className="num hide-sm">{t('Video')}</th>
+                <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
                 <th>
-                  <span className="sr-only">Thao tác</span>
+                  <span className="sr-only">{t('Thao tác')}</span>
                 </th>
               </tr>
             </thead>
@@ -285,13 +288,13 @@ export default function Channels({ yt, error, onReload }) {
     <>
       <div className="page-h">
         <div>
-          <h1>Kênh YouTube</h1>
+          <h1>{t('Kênh YouTube')}</h1>
           <p className="muted small">
-            Hạn mức YouTube hôm nay: <b>{fmtNum(q.used)}</b> / {fmtNum(q.limit)} điểm{' '}
+            {t('Hạn mức YouTube hôm nay: {used} / {limit} điểm', { used: <b>{fmtNum(q.used)}</b>, limit: fmtNum(q.limit) })}{' '}
             <span className="info-tip" tabIndex={0} role="button" aria-describedby="quota-tip">
               ⓘ
               <span className="info-pop" role="tooltip" id="quota-tip">
-                {QUOTA_TIP}
+                {t(QUOTA_TIP)}
               </span>
             </span>
           </p>
@@ -299,8 +302,8 @@ export default function Channels({ yt, error, onReload }) {
         </div>
         <div className="acts">
           {fetched && !reloading ? (
-            <span className="muted small" title={new Date(fetched).toLocaleString('vi-VN')}>
-              Cập nhật {fmtRelative(fetched, now)}
+            <span className="muted small" title={new Date(fetched).toLocaleString(intlLocale())}>
+              {t('Cập nhật {r}', { r: fmtRelative(fetched, now) })}
             </span>
           ) : null}
           {live.length ? (
@@ -314,21 +317,21 @@ export default function Channels({ yt, error, onReload }) {
             />
           ) : null}
           {live.length ? (
-            <button type="button" className="btn" onClick={reloadAll} disabled={reloading} title="Tải lại số liệu mới nhất từ YouTube cho tất cả kênh">
-              {reloading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới tất cả
+            <button type="button" className="btn" onClick={reloadAll} disabled={reloading} title={t('Tải lại số liệu mới nhất từ YouTube cho tất cả kênh')}>
+              {reloading ? <span className="spinner" aria-hidden="true" /> : '↻'} {t('Làm mới tất cả')}
             </button>
           ) : null}
           {live.length ? (
             <div className="yt-range-sel">
-              <Select label="Tự làm mới" value={auto} options={AUTO_OPTIONS} onChange={pickAuto} />
+              <Select label={t('Tự làm mới')} value={auto} options={AUTO_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))} onChange={pickAuto} />
             </div>
           ) : null}
           <a className="btn" href="#/channels/setup">
-            Thiết lập Google
+            {t('Thiết lập Google')}
           </a>
           {yt.configured ? (
             <button type="button" className="btn primary" onClick={() => setAddOpen(true)} disabled={yt.adding}>
-              + Thêm kênh
+              {t('+ Thêm kênh')}
             </button>
           ) : null}
         </div>
@@ -336,10 +339,10 @@ export default function Channels({ yt, error, onReload }) {
 
       {!yt.configured ? (
         <div className="card pad empty" style={{ marginBottom: 12 }}>
-          <b>Chưa kết nối Google Cloud.</b>
-          <p className="note">Làm 1 lần, khoảng 3 phút — app tự tạo dự án Google Cloud cho bạn.</p>
+          <b>{t('Chưa kết nối Google Cloud.')}</b>
+          <p className="note">{t('Làm 1 lần, khoảng 3 phút — app tự tạo dự án Google Cloud cho bạn.')}</p>
           <a className="btn primary" href="#/channels/setup">
-            Bắt đầu
+            {t('Bắt đầu')}
           </a>
         </div>
       ) : null}
@@ -348,16 +351,16 @@ export default function Channels({ yt, error, onReload }) {
         <div className="card pad yt-wait" role="status" style={{ marginBottom: 12 }}>
           <span className="spinner" aria-hidden="true" />
           <p className="note">
-            Chọn kênh muốn thêm ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → <b>Nâng cao</b> → <b>Đi tới… (không an toàn)</b>.
+            Chọn kênh muốn thêm ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → <b>{t('Nâng cao')}</b> → <b>{t('Đi tới… (không an toàn)')}</b>.
           </p>
           <div className="acts">
             {addUrl ? (
               <a className="btn sm" href={addUrl} target="_blank" rel="noopener noreferrer">
-                Mở lại trang Google
+                {t('Mở lại trang Google')}
               </a>
             ) : null}
             <button type="button" className="btn sm" onClick={cancelAdd} disabled={busy}>
-              Hủy
+              {t('Hủy')}
             </button>
           </div>
         </div>
@@ -366,10 +369,10 @@ export default function Channels({ yt, error, onReload }) {
       {!yt.channels.length ? (
         yt.configured && !yt.adding ? (
           <div className="card pad empty">
-            <b>Chưa có kênh nào.</b>
-            <p className="note">Đăng nhập tài khoản Google sở hữu kênh để thêm.</p>
+            <b>{t('Chưa có kênh nào.')}</b>
+            <p className="note">{t('Đăng nhập tài khoản Google sở hữu kênh để thêm.')}</p>
             <button type="button" className="btn primary" onClick={() => setAddOpen(true)}>
-              + Thêm kênh
+              {t('+ Thêm kênh')}
             </button>
           </div>
         ) : null
@@ -379,7 +382,7 @@ export default function Channels({ yt, error, onReload }) {
 
       {addOpen ? (
         <ConnectModal
-          title="Thêm kênh YouTube"
+          title={t('Thêm kênh YouTube')}
           start={(profileDir) => api.ytAdd({ profileDir })}
           onClose={() => setAddOpen(false)}
           onStarted={(url) => {
@@ -396,24 +399,25 @@ const chHref = (id) => `#/channels/${encodeURIComponent(id)}`;
 
 // Trạng thái kênh → đèn + chữ.
 function chState(c) {
-  if (c.pending) return { lamp: 'idle blink', text: 'Đang chờ cho phép trên Google' };
-  if (c.status === 'reauth') return { lamp: 'err', text: 'Cần kết nối lại' };
-  return { lamp: 'ok', text: 'Đã kết nối' };
+  if (c.pending) return { lamp: 'idle blink', text: tr('Đang chờ cho phép trên Google') };
+  if (c.status === 'reauth') return { lamp: 'err', text: tr('Cần kết nối lại') };
+  return { lamp: 'ok', text: tr('Đã kết nối') };
 }
 
 // Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có nút vào chi tiết.
 function ChannelList({ channels, stats, range }) {
+  const t = useT();
   return (
     <div className="tbl-wrap yt-chlist">
       <table className="yt-tbl">
         <thead>
           <tr>
-            <th>Kênh</th>
-            <th className="num">Người đăng ký</th>
-            <th className="num hide-sm">Video</th>
-            <th className="num hide-sm">Lượt xem · {rangeLabel(range)}</th>
+            <th>{t('Kênh')}</th>
+            <th className="num">{t('Người đăng ký')}</th>
+            <th className="num hide-sm">{t('Video')}</th>
+            <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
             <th>
-              <span className="sr-only">Thao tác</span>
+              <span className="sr-only">{t('Thao tác')}</span>
             </th>
           </tr>
         </thead>
@@ -429,6 +433,7 @@ function ChannelList({ channels, stats, range }) {
 
 // Một hàng kênh; s = số liệu (undefined: đang tải, false: lỗi) do trang danh sách tải.
 function ChannelRow({ c, s }) {
+  const t = useT();
   const ok = c.status !== 'reauth' && !c.pending;
   const st = chState(c);
   const ch = s?.channel;
@@ -443,12 +448,12 @@ function ChannelRow({ c, s }) {
           <i className={`lamp ${st.lamp}`} /> {st.text}
         </span>
       </td>
-      <td className="num">{ok ? cell(ch?.subscribers == null ? 'Ẩn' : fmtNum(ch.subscribers)) : '—'}</td>
+      <td className="num">{ok ? cell(ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(ch?.videos)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
       <td className="yt-chact">
-        <a className="btn sm" href={chHref(c.id)} aria-label={`Xem chi tiết ${c.name}`}>
-          Chi tiết ›
+        <a className="btn sm" href={chHref(c.id)} aria-label={t('Xem chi tiết {name}', { name: c.name })}>
+          {t('Chi tiết ›')}
         </a>
       </td>
     </tr>
@@ -457,6 +462,7 @@ function ChannelRow({ c, s }) {
 
 // Trang chi tiết một kênh.
 export function ChannelDetail({ id, yt, error, onReload }) {
+  const t = useT();
   const c = yt?.channels.find((x) => x.id === id);
   // Kênh vừa bị xóa (trạng thái mới không còn) → về danh sách.
   const seen = useRef(false);
@@ -465,11 +471,11 @@ export function ChannelDetail({ id, yt, error, onReload }) {
     else if (seen.current && yt) navigate('#/channels');
   }, [c, yt]);
   useEffect(() => {
-    document.title = `${c?.name || 'Kênh'} · Video Studio`;
-  }, [c?.name]);
+    document.title = `${c?.name || t('Kênh')} · Video Studio`;
+  }, [c?.name, t]);
   const crumb = (
-    <nav className="crumb" aria-label="Đường dẫn">
-      <a href="#/channels">Kênh</a>
+    <nav className="crumb" aria-label={t('Đường dẫn')}>
+      <a href="#/channels">{t('Kênh')}</a>
       <span className="sep">›</span>
       {c?.name || id}
     </nav>
@@ -477,17 +483,17 @@ export function ChannelDetail({ id, yt, error, onReload }) {
   if (error && !yt) {
     return (
       <div className="card pad empty">
-        <b>Không tải được trạng thái YouTube.</b>
+        <b>{t('Không tải được trạng thái YouTube.')}</b>
         <p className="note">{error.message}</p>
         <button type="button" className="btn" onClick={onReload}>
-          Thử lại
+          {t('Thử lại')}
         </button>
       </div>
     );
   }
   if (!yt) {
     return (
-      <SkZone label="Đang tải kênh">
+      <SkZone label={t('Đang tải kênh')}>
         {crumb}
         <section className="card yt-card">
           <div className="yt-h">
@@ -514,9 +520,9 @@ export function ChannelDetail({ id, yt, error, onReload }) {
       <>
         {crumb}
         <div className="card pad empty">
-          <b>Không có kênh này.</b>
+          <b>{t('Không có kênh này.')}</b>
           <p className="note">
-            <a href="#/channels">Về danh sách kênh</a>
+            <a href="#/channels">{t('Về danh sách kênh')}</a>
           </p>
         </div>
       </>
@@ -532,6 +538,7 @@ export function ChannelDetail({ id, yt, error, onReload }) {
 
 // Thẻ một kênh đã thêm: trạng thái + nút (kết nối lại khi Google bắt đăng nhập lại, xóa kênh) + số liệu.
 function ChannelCard({ c }) {
+  const t = useT();
   const toast = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
@@ -560,7 +567,7 @@ function ChannelCard({ c }) {
     act(async () => {
       const r = await api.ytDisconnect(c.id);
       setConfirmOff(false);
-      toast(r.revoked ? `Đã xóa kênh ${c.name}.` : 'Đã xóa kênh trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.', r.revoked ? 'ok' : 'info');
+      toast(r.revoked ? t('Đã xóa kênh {name}.', { name: c.name }) : t('Đã xóa kênh trên máy; Google không xác nhận thu hồi — gỡ thêm ở myaccount.google.com/permissions.'), r.revoked ? 'ok' : 'info');
     });
 
   // Phải gõ đúng y tên kênh (dấu, hoa/thường); chỉ chuẩn hóa NFC để bộ gõ tiếng Việt không làm lệch.
@@ -569,7 +576,7 @@ function ChannelCard({ c }) {
   const { lamp, text: stText } = chState(c);
 
   return (
-    <section className="card yt-card" aria-label={`Kênh ${c.name}`}>
+    <section className="card yt-card" aria-label={t('Kênh {name}', { name: c.name })}>
       <div className="yt-h">
         <div className="yt-id">
           <h1>{c.name}</h1>
@@ -580,18 +587,18 @@ function ChannelCard({ c }) {
         <div className="acts">
           {c.pending ? (
             <button type="button" className="btn sm" onClick={cancel} disabled={busy}>
-              Hủy
+              {t('Hủy')}
             </button>
           ) : reauth ? (
             <button type="button" className="btn sm primary" onClick={() => setConnectOpen(true)} disabled={busy}>
-              Kết nối lại
+              {t('Kết nối lại')}
             </button>
           ) : null}
           <button type="button" className="btn sm" onClick={() => {
               setLoading(true);
               setTick((n) => n + 1);
-            }} disabled={loading} title="Lấy số liệu mới từ Google (tốn hạn mức API)">
-            {loading ? <span className="spinner" aria-hidden="true" /> : '↻'} Làm mới
+            }} disabled={loading} title={t('Lấy số liệu mới từ Google (tốn hạn mức API)')}>
+            {loading ? <span className="spinner" aria-hidden="true" /> : '↻'} {t('Làm mới')}
           </button>
           <button
             type="button"
@@ -602,7 +609,7 @@ function ChannelCard({ c }) {
             }}
             disabled={busy}
           >
-            Xóa kênh
+            {t('Xóa kênh')}
           </button>
         </div>
       </div>
@@ -611,25 +618,25 @@ function ChannelCard({ c }) {
         <div className="yt-wait" role="status">
           <span className="spinner" aria-hidden="true" />
           <p className="note">
-            Chọn đúng kênh {c.name} ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → <b>Nâng cao</b> → <b>Đi tới… (không an toàn)</b>.
+            {t('Chọn đúng kênh {name} ở trang Google rồi bấm Cho phép. Thấy cảnh báo "chưa xác minh" → {adv} → {go}.', { name: c.name, adv: <b>{t('Nâng cao')}</b>, go: <b>{t('Đi tới… (không an toàn)')}</b> })}
             {authUrl ? (
               <>
                 {' '}
                 <a href={authUrl} target="_blank" rel="noopener noreferrer">
-                  Mở trang Google
+                  {t('Mở trang Google')}
                 </a>
               </>
             ) : null}
           </p>
         </div>
       ) : null}
-      {!c.pending && c.lastError ? <p className="err-note">{c.lastError.message}</p> : null}
+      {!c.pending && c.lastError ? <p className="err-note">{tr(c.lastError.message)}</p> : null}
 
       <ChannelStats key={`${c.id}:${c.connectedAt}`} c={c} tick={tick} onLoading={setLoading} />
 
       {connectOpen ? (
         <ConnectModal
-          title={`Kết nối lại ${c.name}`}
+          title={t('Kết nối lại {name}', { name: c.name })}
           start={(profileDir) => api.ytConnect(c.id, { profileDir })}
           onClose={() => setConnectOpen(false)}
           onStarted={(url) => {
@@ -639,8 +646,8 @@ function ChannelCard({ c }) {
         />
       ) : null}
       {confirmOff ? (
-        <Modal title={`Xóa kênh ${c.name} khỏi app?`} onClose={() => setConfirmOff(false)} busy={busy}>
-          <p className="note">App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.</p>
+        <Modal title={t('Xóa kênh {name} khỏi app?', { name: c.name })} onClose={() => setConfirmOff(false)} busy={busy}>
+          <p className="note">{t('App thu hồi quyền ở Google và xóa token khỏi máy. Kênh và video trên YouTube không bị ảnh hưởng.')}</p>
           <form
             id="yt-del"
             className="yt-del"
@@ -651,17 +658,17 @@ function ChannelCard({ c }) {
           >
             <label className="fld">
               <span>
-                Gõ "<b>{c.name}</b>" để xác nhận
+                {t('Gõ "{name}" để xác nhận', { name: <b>{c.name}</b> })}
               </span>
               <input type="text" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} data-autofocus />
             </label>
           </form>
           <div className="modal-acts">
             <button type="button" className="btn" onClick={() => setConfirmOff(false)} disabled={busy}>
-              Không
+              {t('Không')}
             </button>
             <button type="submit" form="yt-del" className="btn danger" disabled={busy || !nameOk}>
-              {busy ? <span className="spinner" aria-hidden="true" /> : null} Xóa kênh
+              {busy ? <span className="spinner" aria-hidden="true" /> : null} {t('Xóa kênh')}
             </button>
           </div>
         </Modal>
@@ -672,6 +679,7 @@ function ChannelCard({ c }) {
 
 // Hộp chọn hồ sơ Chrome để mở trang đăng nhập Google; start(profileDir) gọi API thêm / kết nối lại.
 function ConnectModal({ title, start: begin, onClose, onStarted }) {
+  const t = useT();
   const toast = useToast();
   const [chrome, setChrome] = useState(null);
   const [profile, setProfile] = useState(() => savedProfile());
@@ -702,18 +710,18 @@ function ConnectModal({ title, start: begin, onClose, onStarted }) {
   };
 
   return (
-    <Modal title={title} onClose={onClose} busy={busy} lead="App chỉ xin quyền xem số liệu kênh. Mật khẩu Google không đi qua app.">
+    <Modal title={title} onClose={onClose} busy={busy} lead={t('App chỉ xin quyền xem số liệu kênh. Mật khẩu Google không đi qua app.')}>
       <label className="fld">
-        <span>Mở trang Google trong</span>
+        <span>{t('Mở trang Google trong')}</span>
         <Select value={picked} options={profileOptions(profiles, DEFAULT_BROWSER, chrome?.defaultBrowser)} onChange={setProfile} disabled={busy || !chrome} />
-        <span className="hint">Chọn hồ sơ đang đăng nhập tài khoản Google sở hữu kênh.</span>
+        <span className="hint">{t('Chọn hồ sơ đang đăng nhập tài khoản Google sở hữu kênh.')}</span>
       </label>
       <div className="modal-acts">
         <button type="button" className="btn" onClick={onClose} disabled={busy}>
-          Đóng
+          {t('Đóng')}
         </button>
         <button type="button" className="btn primary" onClick={start} disabled={busy || !chrome}>
-          {busy ? <span className="spinner" aria-hidden="true" /> : '→'} Mở trang Google
+          {busy ? <span className="spinner" aria-hidden="true" /> : '→'} {t('Mở trang Google')}
         </button>
       </div>
     </Modal>
@@ -722,6 +730,7 @@ function ConnectModal({ title, start: begin, onClose, onStarted }) {
 
 // Số liệu kênh đã kết nối theo khoảng ngày: ô số, biểu đồ, bảng video. Tự tải khi hiện / đổi khoảng; tick tăng (nút Làm mới ở đầu thẻ) → gọi lại Google.
 function ChannelStats({ c, tick, onLoading }) {
+  const t = useT();
   const [range, setRange] = useState(savedRange);
   const [stats, setStats] = useState(null);
   const [videos, setVideos] = useState(null);
@@ -772,7 +781,7 @@ function ChannelStats({ c, tick, onLoading }) {
   }, [videos, vstats]);
 
   const m = METRICS.find((x) => x.id === metric);
-  const t = stats?.totals;
+  const tot = stats?.totals;
   const ch = stats?.channel;
   const rl = stats ? rangeLabel(stats.range) : '';
   const chart = useMemo(() => (stats ? bucketDays(stats.days, stats.period.days) : null), [stats]);
@@ -781,36 +790,36 @@ function ChannelStats({ c, tick, onLoading }) {
     <div className="yt-body">
       <div className="yt-bar">
         <RangePicker value={range} onChange={setRange} disabled={loading && !stats} />
-        {loading && stats ? <span className="spinner" aria-label="Đang tải" /> : null}
+        {loading && stats ? <span className="spinner" aria-label={t('Đang tải')} /> : null}
       </div>
       {err ? <p className="err-note">{err.message}</p> : null}
       {!stats && !err ? (
-        <SkZone className="sk-col" label="Đang tải số liệu">
+        <SkZone className="sk-col" label={t('Đang tải số liệu')}>
           <StatsBodySkeleton />
         </SkZone>
       ) : null}
       {stats ? (
         <>
           <div className="yt-tiles">
-            <Tile label="Người đăng ký" value={ch?.subscribers == null ? 'Ẩn' : fmtNum(ch.subscribers)} sub={`${fmtNum(ch?.videos)} video`} />
-            <Tile label={`Lượt xem · ${rl}`} value={fmtNum(t.views)} sub={`Tổng kênh ${fmtNum(ch?.views)}`} />
-            <Tile label={`Giờ xem · ${rl}`} value={fmtHours(t.minutes)} sub={`Xem TB ${fmtSecs(t.avgViewDuration)}`} />
-            <Tile label={`Đăng ký ròng · ${rl}`} value={signed(t.subsGained - t.subsLost)} sub={`+${fmtNum(t.subsGained)} / −${fmtNum(t.subsLost)}`} />
+            <Tile label={t('Người đăng ký')} value={ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)} sub={t('{n} video', { n: fmtNum(ch?.videos) })} />
+            <Tile label={t('Lượt xem · {r}', { r: rl })} value={fmtNum(tot.views)} sub={t('Tổng kênh {n}', { n: fmtNum(ch?.views) })} />
+            <Tile label={t('Giờ xem · {r}', { r: rl })} value={fmtHours(tot.minutes)} sub={t('Xem TB {n}', { n: fmtSecs(tot.avgViewDuration) })} />
+            <Tile label={t('Đăng ký ròng · {r}', { r: rl })} value={signed(tot.subsGained - tot.subsLost)} sub={`+${fmtNum(tot.subsGained)} / −${fmtNum(tot.subsLost)}`} />
           </div>
 
           <div className="yt-chart-h">
             <h3>
-              {m.label} theo {UNIT[chart.unit]} <span className="muted small">{dm(stats.period.start)} – {dm(stats.period.end)}</span>
+              {t('{m} theo {u}', { m: t(m.label), u: t(UNIT[chart.unit]) })} <span className="muted small">{dm(stats.period.start)} – {dm(stats.period.end)}</span>
             </h3>
-            <div className="chips" role="radiogroup" aria-label="Số liệu biểu đồ">
+            <div className="chips" role="radiogroup" aria-label={t('Số liệu biểu đồ')}>
               {METRICS.map((x) => (
                 <button key={x.id} type="button" role="radio" aria-checked={metric === x.id} className={`chip${metric === x.id ? ' on' : ''}`} onClick={() => setMetric(x.id)}>
-                  {x.label}
+                  {t(x.label)}
                 </button>
               ))}
             </div>
           </div>
-          <YtChart days={chart.rows} unit={chart.unit} field={m.id} label={m.label} fmt={m.fmt} />
+          <YtChart days={chart.rows} unit={chart.unit} field={m.id} label={t(m.label)} fmt={m.fmt} />
         </>
       ) : null}
 
@@ -819,7 +828,7 @@ function ChannelStats({ c, tick, onLoading }) {
       {stats ? (
         <div className="yt-foot">
           <span className="muted small">
-            Cập nhật {fmtRelative(stats.fetchedAt)} · Analytics thường trễ 1–2 ngày
+            {t('Cập nhật {r} · Analytics thường trễ 1–2 ngày', { r: fmtRelative(stats.fetchedAt) })}
           </span>
         </div>
       ) : null}
@@ -897,22 +906,23 @@ function PrivacyIcon({ p }) {
 
 // Bảng video kiểu YouTube Studio: tab Video/Shorts, ảnh thu nhỏ + mô tả, sắp xếp theo cột, phân trang.
 function VideoTable({ videos, truncated }) {
+  const t = useT();
   const all = videos || [];
-  const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t.id, all.filter(t.test).length])), [all]);
+  const counts = useMemo(() => Object.fromEntries(TABS.map((x) => [x.id, all.filter(x.test).length])), [all]);
   const [tab, setTab] = useState(() => (counts.video || !counts.short ? 'video' : 'short'));
   const [sort, setSort] = useState({ id: 'publishedAt', dir: -1 });
   const [size, setSize] = useState(30);
   const [page, setPage] = useState(0);
   const rows = useMemo(() => {
     const k = sort.id;
-    const t = TABS.find((x) => x.id === tab);
-    return all.filter(t.test).sort((a, b) => {
+    const cur = TABS.find((x) => x.id === tab);
+    return all.filter(cur.test).sort((a, b) => {
       const x = a[k];
       const y = b[k];
       if (x == null && y == null) return 0;
       if (x == null) return 1;
       if (y == null) return -1;
-      return (typeof x === 'string' ? x.localeCompare(y, 'vi') : x - y) * sort.dir;
+      return (typeof x === 'string' ? x.localeCompare(y, intlLocale()) : x - y) * sort.dir;
     });
   }, [all, tab, sort]);
   const pages = Math.max(1, Math.ceil(rows.length / size));
@@ -927,18 +937,18 @@ function VideoTable({ videos, truncated }) {
     setPage(0);
   };
 
-  if (!all.length) return <p className="note">Kênh chưa có video.</p>;
+  if (!all.length) return <p className="note">{t('Kênh chưa có video.')}</p>;
   return (
     <div className="yt-videos">
-      <div className="yt-vtabs" role="tablist" aria-label="Loại nội dung">
-        {TABS.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`yt-vtab${tab === t.id ? ' on' : ''}`} onClick={() => pick(t.id)}>
-            {t.label} <span className="muted">{fmtNum(counts[t.id])}</span>
+      <div className="yt-vtabs" role="tablist" aria-label={t('Loại nội dung')}>
+        {TABS.map((x) => (
+          <button key={x.id} type="button" role="tab" aria-selected={tab === x.id} className={`yt-vtab${tab === x.id ? ' on' : ''}`} onClick={() => pick(x.id)}>
+            {t(x.label)} <span className="muted">{fmtNum(counts[x.id])}</span>
           </button>
         ))}
       </div>
       {!rows.length ? (
-        <p className="note">Chưa có {tab === 'short' ? 'Shorts' : 'video'} nào.</p>
+        <p className="note">{tab === 'short' ? t('Chưa có Shorts nào.') : t('Chưa có video nào.')}</p>
       ) : (
         <>
           <div className="tbl-wrap">
@@ -952,10 +962,10 @@ function VideoTable({ videos, truncated }) {
                       aria-sort={col.sort === false ? undefined : sort.id === col.id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}
                     >
                       {col.sort === false ? (
-                        col.label
+                        t(col.label)
                       ) : (
-                        <button type="button" className="th-btn" onClick={() => by(col.id)} title={col.hint ? `${col.label} (${col.hint})` : undefined}>
-                          {col.label}
+                        <button type="button" className="th-btn" onClick={() => by(col.id)} title={col.hint ? `${t(col.label)} (${t(col.hint)})` : undefined}>
+                          {t(col.label)}
                           <span className="th-ar" aria-hidden="true">
                             {sort.id === col.id ? (sort.dir > 0 ? '↑' : '↓') : ''}
                           </span>
@@ -988,7 +998,7 @@ function VideoTable({ videos, truncated }) {
                       <td className="hide-sm">
                         <span className="yt-priv">
                           <PrivacyIcon p={v.privacy} />
-                          {PRIVACY[v.privacy] || v.privacy || '—'}
+                          {PRIVACY[v.privacy] ? t(PRIVACY[v.privacy]) : v.privacy || '—'}
                         </span>
                       </td>
                       <td className="nowrap hide-sm">{fmtDate(v.publishedAt)}</td>
@@ -1004,9 +1014,9 @@ function VideoTable({ videos, truncated }) {
             </table>
           </div>
           <div className="yt-pager">
-            {truncated ? <span className="muted small yt-trunc">{fmtNum(all.length)} video mới nhất</span> : null}
+            {truncated ? <span className="muted small yt-trunc">{t('{n} video mới nhất', { n: fmtNum(all.length) })}</span> : null}
             <span className="small muted yt-psize">
-              <span aria-hidden="true">Số hàng mỗi trang</span>
+              <span aria-hidden="true">{t('Số hàng mỗi trang')}</span>
               <Select
                 size="sm"
                 value={size}
@@ -1015,7 +1025,7 @@ function VideoTable({ videos, truncated }) {
                   setSize(n);
                   setPage(0);
                 }}
-                label="Số hàng mỗi trang"
+                label={t('Số hàng mỗi trang')}
               />
             </span>
             <span className="small muted" aria-live="polite">
@@ -1023,12 +1033,12 @@ function VideoTable({ videos, truncated }) {
             </span>
             <span className="yt-pbtns">
               {[
-                ['Trang đầu', '|‹', 0, pg === 0],
-                ['Trang trước', '‹', pg - 1, pg === 0],
-                ['Trang sau', '›', pg + 1, pg >= pages - 1],
-                ['Trang cuối', '›|', pages - 1, pg >= pages - 1],
+                [T('Trang đầu'), '|‹', 0, pg === 0],
+                [T('Trang trước'), '‹', pg - 1, pg === 0],
+                [T('Trang sau'), '›', pg + 1, pg >= pages - 1],
+                [T('Trang cuối'), '›|', pages - 1, pg >= pages - 1],
               ].map(([label, ch, to, off]) => (
-                <button key={label} type="button" className="btn sm ghost" aria-label={label} title={label} disabled={off} onClick={() => setPage(to)}>
+                <button key={label} type="button" className="btn sm ghost" aria-label={t(label)} title={t(label)} disabled={off} onClick={() => setPage(to)}>
                   {ch}
                 </button>
               ))}

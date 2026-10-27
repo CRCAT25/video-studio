@@ -16,6 +16,9 @@ export const HOLD_TIMEOUT_MS = 240_000; // đang chờ người dùng bấm Cho 
 export const MAX_MESSAGES = 200;
 export const MAX_INPUT = 4000;
 export const KILL_GRACE_MS = 3000;
+export const MAX_CHATS = 30;
+export const MODELS = ['opus', 'sonnet', 'haiku']; // alias → luôn bản mới nhất
+export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const ALLOWED = TOOLS.map((t) => `mcp__studio__${t.name}`);
 
 export const ASSISTANT_PROTOCOL = `Bạn là Trợ lý AI bên trong Video Studio — app local làm video theo quy trình nhiều bước.
@@ -30,13 +33,14 @@ Quy tắc:
 - Trả lời tiếng Việt, ngắn gọn; xong việc thì báo kết quả trong 1–2 câu.`;
 
 // Tham số dòng lệnh cho một lượt: phiên mới dùng --session-id, lượt sau --resume.
-export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model = null }) {
+export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model = null, effort = null }) {
   const args = ['-p', '--output-format', 'stream-json', '--verbose'];
   args.push(resume ? '--resume' : '--session-id', sessionId);
   args.push('--tools', '', '--strict-mcp-config', '--mcp-config', mcpConfig);
   args.push('--allowedTools', ALLOWED.join(','));
   args.push('--append-system-prompt', ASSISTANT_PROTOCOL);
   if (model) args.push('--model', model);
+  if (effort) args.push('--effort', effort);
   return args;
 }
 
@@ -67,23 +71,49 @@ export function createAssistant({
   const listeners = new Set();
   const pending = new Map(); // id → {resolve, timer}
   let turn = null; // {key, tabId, child, stopped, finished, cfgFile}
+  const newChat = (from = null) => ({ id: crypto.randomUUID(), title: '', sessionId: null, started: false, messages: [], model: from?.model ?? null, effort: from?.effort ?? null, updatedAt: now() });
+  const cleanChat = (d) => ({
+    id: typeof d.id === 'string' && d.id ? d.id : crypto.randomUUID(),
+    title: typeof d.title === 'string' ? d.title.slice(0, 80) : '',
+    sessionId: typeof d.sessionId === 'string' ? d.sessionId : null,
+    started: !!d.started,
+    messages: Array.isArray(d.messages) ? d.messages.slice(-MAX_MESSAGES) : [],
+    model: MODELS.includes(d.model) ? d.model : null,
+    effort: EFFORTS.includes(d.effort) ? d.effort : null,
+    updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : now(),
+  });
+  let chats = []; // mọi cuộc chat (kể cả cuộc hiện tại)
   let chat = load();
   let rev = 0;
 
+  // Đọc chat.json: dạng mới {currentId, chats:[…]}; dạng cũ (một cuộc) được đổi thành cuộc đầu tiên.
   function load() {
     try {
       const d = JSON.parse(fs.readFileSync(file, 'utf8'));
-      return { sessionId: typeof d.sessionId === 'string' ? d.sessionId : null, started: !!d.started, messages: Array.isArray(d.messages) ? d.messages.slice(-MAX_MESSAGES) : [] };
+      const list = Array.isArray(d.chats) ? d.chats : [d];
+      chats = list.slice(0, MAX_CHATS).map(cleanChat);
+      const cur = chats.find((c) => c.id === d.currentId) || chats[0];
+      if (cur) {
+        if (!cur.title) cur.title = titleOf(cur);
+        return cur;
+      }
     } catch {
-      return { sessionId: null, started: false, messages: [] };
+      /* chưa có hoặc hỏng → cuộc trống */
     }
+    const c = newChat();
+    chats = [c];
+    return c;
+  }
+  function titleOf(c) {
+    const u = c.messages.find((m) => m.role === 'user');
+    return u ? String(u.text).replace(/\s+/g, ' ').slice(0, 60) : '';
   }
 
   function save() {
     try {
       fs.mkdirSync(dir, { recursive: true });
       const tmp = `${file}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(chat), { mode: 0o600 });
+      fs.writeFileSync(tmp, JSON.stringify({ currentId: chat.id, chats }), { mode: 0o600 });
       fs.renameSync(tmp, file);
     } catch {
       /* ghi lịch sử lỗi không làm hỏng lượt chat */
@@ -93,7 +123,7 @@ export function createAssistant({
   // Ảnh chụp gửi cho UI.
   // rev tăng mỗi lần đổi: UI bỏ trạng thái cũ hơn (phản hồi HTTP có thể về sau SSE).
   function state() {
-    return { busy: !!turn, messages: chat.messages, rev };
+    return { busy: !!turn, messages: chat.messages, rev, chatId: chat.id, model: chat.model, effort: chat.effort, canCompact: chat.started && !turn };
   }
 
   function emit(data) {
@@ -113,6 +143,8 @@ export function createAssistant({
 
   function push(role, text, extra = {}) {
     chat.messages.push({ id: crypto.randomUUID(), role, text: String(text), at: now(), ...extra });
+    chat.updatedAt = now();
+    if (!chat.title && role === 'user') chat.title = titleOf(chat);
     if (chat.messages.length > MAX_MESSAGES) chat.messages.splice(0, chat.messages.length - MAX_MESSAGES);
     changed();
   }
@@ -132,7 +164,7 @@ export function createAssistant({
   }
 
   // Gửi một câu cho trợ lý; tabId = tab trình duyệt sẽ làm thao tác.
-  function send(text, { tabId = null } = {}) {
+  function send(text, { tabId = null, lang = 'vi' } = {}) {
     const msg = String(text ?? '').trim();
     if (!msg) throw new HttpError(400, 'invalid_body', 'Nhập nội dung cần trợ lý làm.');
     if (msg.length > MAX_INPUT) throw new HttpError(400, 'invalid_body', `Tin nhắn tối đa ${MAX_INPUT} ký tự.`);
@@ -140,7 +172,8 @@ export function createAssistant({
     const url = baseUrl();
     if (!url) throw new HttpError(503, 'assistant_unavailable', 'Trợ lý chưa sẵn sàng.');
     push('user', msg);
-    start(msg, url, String(tabId || ''), false);
+    // giao diện tiếng Anh → nhắc trả lời tiếng Anh (chỉ trong lời gửi cho model, tin hiển thị giữ nguyên)
+    start(lang === 'en' ? `[Reply in English.]\n${msg}` : msg, url, String(tabId || ''), false);
     return state();
   }
 
@@ -160,7 +193,7 @@ export function createAssistant({
     const t = { key, tabId, child: null, stopped: false, finished: false, cfgFile, gotResult: false, stderr: '', resume };
     turn = t;
     const isScript = /\.(mjs|cjs|js)$/i.test(bin);
-    const argv = buildAssistantArgs({ sessionId: chat.sessionId, resume, mcpConfig: cfgFile, model });
+    const argv = buildAssistantArgs({ sessionId: chat.sessionId, resume, mcpConfig: cfgFile, model: chat.model || model, effort: chat.effort });
     let child;
     try {
       child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...argv] : argv, {
@@ -251,6 +284,7 @@ export function createAssistant({
       push('error', /not logged in|login/i.test(tail) ? 'Claude chưa đăng nhập — bấm nút Claude trên thanh trên để đăng nhập.' : `Trợ lý dừng bất thường${tail ? `: ${tail.slice(0, 300)}` : '.'}`);
     }
     if (t.gotResult || code === 0) chat.started = true;
+    if (t.compact && t.gotResult && !t.stopped && !err) push('note', 'Đã nén cuộc trò chuyện.');
     changed();
   }
 
@@ -277,14 +311,88 @@ export function createAssistant({
     return state();
   }
 
-  // Cuộc mới: dừng lượt đang chạy, xóa lịch sử, phiên claude mới.
-  function reset() {
+  // Dừng lượt đang chạy khi đổi cuộc: lượt cũ đang tắt, finish() thấy turn khác thì không ghi gì vào cuộc mới.
+  function dropTurn() {
     if (turn) {
       stop();
-      turn = null; // lượt cũ đang tắt: finish() thấy turn khác thì không ghi gì vào cuộc mới
+      turn = null;
     }
-    chat = { sessionId: null, started: false, messages: [] };
+  }
+
+  // Cuộc mới: dừng lượt đang chạy, giữ cuộc cũ trong lịch sử (cuộc trống thì dùng lại), giữ model/effort đang chọn.
+  function reset() {
+    dropTurn();
+    if (chat.messages.length) {
+      chat = newChat(chat);
+      chats.unshift(chat);
+      if (chats.length > MAX_CHATS) chats.length = MAX_CHATS;
+    } else {
+      chat = { ...newChat(chat), id: chat.id };
+      chats[chats.findIndex((c) => c.id === chat.id)] = chat;
+    }
     changed();
+    return state();
+  }
+
+  // Danh sách cuộc chat (mới nhất trước) cho nút Lịch sử.
+  function list() {
+    return chats
+      .filter((c) => c.messages.length || c.id === chat.id)
+      .map((c) => ({ id: c.id, title: c.title || '', updatedAt: c.updatedAt, count: c.messages.length, current: c.id === chat.id }))
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  }
+
+  function busyCheck() {
+    if (turn) throw new HttpError(409, 'assistant_busy', 'Trợ lý đang làm — chờ xong hoặc bấm Dừng.');
+  }
+
+  // Mở lại một cuộc chat cũ (tiếp tục bằng --resume phiên của nó).
+  function open(id) {
+    busyCheck();
+    const c = chats.find((x) => x.id === id);
+    if (!c) throw new HttpError(404, 'not_found', 'Không tìm thấy cuộc trò chuyện.');
+    chat = c;
+    changed();
+    return state();
+  }
+
+  // Xóa một cuộc chat khỏi lịch sử; xóa cuộc đang mở thì sang cuộc trống mới.
+  function remove(id) {
+    busyCheck();
+    const i = chats.findIndex((x) => x.id === id);
+    if (i < 0) throw new HttpError(404, 'not_found', 'Không tìm thấy cuộc trò chuyện.');
+    const wasCurrent = chats[i].id === chat.id;
+    chats.splice(i, 1);
+    if (wasCurrent) {
+      chat = newChat(chat);
+      chats.unshift(chat);
+    }
+    changed();
+    return state();
+  }
+
+  // Chọn model / effort cho cuộc đang mở (null hoặc '' = mặc định); áp dụng từ lượt kế tiếp.
+  function settings(body = {}) {
+    busyCheck();
+    for (const [k, allowed] of [['model', MODELS], ['effort', EFFORTS]]) {
+      if (!(k in body)) continue;
+      const v = body[k] || null;
+      if (v !== null && !allowed.includes(v)) throw new HttpError(400, 'invalid_body', `Giá trị ${k} không hợp lệ.`);
+      chat[k] = v;
+    }
+    changed();
+    return state();
+  }
+
+  // Nén ngữ cảnh phiên hiện tại bằng /compact (cần phiên đã bắt đầu, trợ lý rảnh).
+  function compact() {
+    busyCheck();
+    if (!chat.started || !chat.sessionId) throw new HttpError(409, 'compact_none', 'Chưa có gì để nén — hãy trò chuyện trước.');
+    const url = baseUrl();
+    if (!url) throw new HttpError(503, 'assistant_unavailable', 'Trợ lý chưa sẵn sàng.');
+    push('note', 'Đang nén cuộc trò chuyện…');
+    start('/compact', url, '', true);
+    if (turn) turn.compact = true;
     return state();
   }
 
@@ -325,5 +433,5 @@ export function createAssistant({
     listeners.clear();
   }
 
-  return { state, send, stop, reset, callTool, toolResult, on, dispose };
+  return { state, send, stop, reset, list, open, remove, settings, compact, callTool, toolResult, on, dispose };
 }

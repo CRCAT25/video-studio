@@ -2,6 +2,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { BOX_LABEL, GATE_SHORT, STATE_LABEL, fmtDuration, gateLabel, two } from '../lib/format.js';
 import { stepHref } from '../lib/router.js';
+import { tr, useT } from '../lib/i18n.jsx';
 
 const DONEISH = new Set(['done', 'stale', 'needs_input', 'failed', 'manual', 'running']);
 
@@ -14,8 +15,8 @@ function normalize(s, staticMode) {
       name: s.name,
       cls: `s-plan${s.manual ? ' s-manual' : ''}`,
       // dạng ngắn để không bị cắt trong ô ('Tự · 30 phút')
-      label: s.manual ? 'Việc tay' : s.gate?.mode === 'auto_after' && s.gate?.after_ms ? `Tự · ${fmtDuration(s.gate.after_ms)}` : GATE_SHORT[s.gate?.mode] || 'Duyệt tay',
-      title: `${s.name} — ${s.manual ? 'Việc tay của bạn' : gateLabel(s.gate)}${cost ? ` · tốn tiền (${s.cost.service})` : ''}`,
+      label: s.manual ? tr('Việc tay') : s.gate?.mode === 'auto_after' && s.gate?.after_ms ? tr('Tự · {d}', { d: fmtDuration(s.gate.after_ms) }) : GATE_SHORT[s.gate?.mode] || tr('Duyệt tay'),
+      title: `${tr(s.name)} — ${s.manual ? tr('Việc tay của bạn') : gateLabel(s.gate)}${cost ? ` · ${tr('tốn tiền ({s})', { s: s.cost.service })}` : ''}`,
       cost,
       state: 'plan',
     };
@@ -26,7 +27,7 @@ function normalize(s, staticMode) {
     name: s.name,
     cls: `s-${st}${s.manual && st !== 'manual' ? ' is-manual' : ''}`,
     label: BOX_LABEL[st] || STATE_LABEL[st] || st,
-    title: `${s.name} — ${STATE_LABEL[st] || st} · cổng: ${gateLabel({ mode: s.gate_mode || 'manual' })}${s.has_cost ? ' · tốn tiền' : ''}${s.manual ? ' · việc tay' : ''}`,
+    title: `${tr(s.name)} — ${STATE_LABEL[st] || st} · ${tr('cổng')}: ${gateLabel({ mode: s.gate_mode || 'manual' })}${s.has_cost ? ` · ${tr('tốn tiền')}` : ''}${s.manual ? ` · ${tr('việc tay')}` : ''}`,
     cost: !!s.has_cost,
     state: st,
     pct: st === 'running' ? s.run?.progress_pct : undefined,
@@ -42,6 +43,7 @@ function edge(f) {
 // Hiển thị sơ đồ; staticMode = bản xem preset (không link); large = sơ đồ ở trang bước.
 export default function Flow({ steps = [], projectId, currentKey, large = false, staticMode = false, label }) {
   const ref = useRef(null);
+  const t = useT();
   const items = steps.map((s) => normalize(s, staticMode));
 
   // Cuộn để bước hiện tại nằm giữa khung.
@@ -74,7 +76,7 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
   }, []);
 
   return (
-    <div ref={ref} className={`flow${large ? ' lg' : ''}${staticMode ? ' static' : ''}`} aria-label={label || 'Các bước'} tabIndex={staticMode ? -1 : undefined}>
+    <div ref={ref} className={`flow${large ? ' lg' : ''}${staticMode ? ' static' : ''}`} aria-label={label || t('Các bước')} tabIndex={staticMode ? -1 : undefined}>
       <div className="belt">
         {items.map((it, i) => {
           const Tag = staticMode ? 'div' : 'a';
@@ -85,13 +87,13 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
               <span className="no">
                 {two(i + 1)}
                 {it.cost ? (
-                  <b className="tag-cost" title="Tốn tiền">
+                  <b className="tag-cost" title={t('Tốn tiền')}>
                     $
                   </b>
                 ) : null}
                 {staticMode ? null : <i className="lamp" />}
               </span>
-              <span className="nm">{it.name}</span>
+              <span className="nm">{tr(it.name)}</span>
               <span className="st">{it.label}</span>
               {it.state === 'running' ? (
                 it.pct != null ? <i className="pg" style={{ width: `${Math.max(3, Math.min(100, Number(it.pct)))}%` }} /> : <i className="pg ind" />

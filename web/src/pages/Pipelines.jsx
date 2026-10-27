@@ -9,11 +9,12 @@ import StepEditor, { stepProblem } from '../components/StepEditor.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
 import { fmtDuration, gateLabel, two } from '../lib/format.js';
+import { T, tr, useT } from '../lib/i18n.jsx';
 
 const PERM = [
-  ['allow', 'Cho phép'],
-  ['ask', 'Hỏi'],
-  ['deny', 'Chặn'],
+  ['allow', T('Cho phép')],
+  ['ask', T('Hỏi')],
+  ['deny', T('Chặn')],
 ];
 
 function Kv({ k, children }) {
@@ -25,50 +26,51 @@ function Kv({ k, children }) {
   );
 }
 
-const LEN = { short: 'Video ngắn', long: 'Video dài' };
-const ORI = { vertical: 'dọc', horizontal: 'ngang', square: 'vuông' };
+const LEN = { short: T('Video ngắn'), long: T('Video dài') };
+const ORI = { vertical: T('dọc'), horizontal: T('ngang'), square: T('vuông') };
 function formatText(p) {
   const raw = p.pipeline || {};
-  const parts = [LEN[p.format] || p.format, ORI[raw.orientation], raw.aspect, p.vars?.duration_label].filter(Boolean);
+  const parts = [LEN[p.format] ? tr(LEN[p.format]) : p.format, ORI[raw.orientation] ? tr(ORI[raw.orientation]) : undefined, raw.aspect, p.vars?.duration_label].filter(Boolean);
   return parts.length ? parts.join(' · ') : '—';
 }
 
 function costText(c) {
   if (!c) return '—';
   const est = c.estimate != null && c.estimate !== '' ? ` · ${c.estimate}` : '';
-  return `${c.service || 'dịch vụ'}${est}${c.always_ask ? ' · luôn hỏi' : ''}`;
+  return `${c.service || tr('dịch vụ')}${est}${c.always_ask ? ` · ${tr('luôn hỏi')}` : ''}`;
 }
 
 // Thẻ một quy trình đã lưu; onDelete chỉ có với quy trình của tôi.
 function PresetCard({ p, channelName, onDelete }) {
+  const t = useT();
   const steps = p.steps || [];
   const perms = p.permissions || {};
   const vars = p.vars && typeof p.vars === 'object' ? Object.entries(p.vars) : [];
   const paidCount = steps.filter((s) => s.cost).length;
   return (
-    <section className="bp card" aria-label={`Quy trình ${p.name}`}>
+    <section className="bp card" aria-label={t('Quy trình {n}', { n: p.name })}>
       <div className="bp-h">
-        <h2>{p.name}</h2>
+        <h2>{tr(p.name)}</h2>
         <span className="muted">
-          <span className="mono" title={p.file || ''}>{p.id}</span> · {steps.length} bước{paidCount ? ` · ${paidCount} tốn tiền` : ''}
-          {p.mine ? null : ' · có sẵn'}
+          <span className="mono" title={p.file || ''}>{p.id}</span> · {t('{n} bước', { n: steps.length })}{paidCount ? ` · ${t('{n} tốn tiền', { n: paidCount })}` : ''}
+          {p.mine ? null : ` · ${t('có sẵn')}`}
         </span>
         {onDelete ? (
           <button type="button" className="btn sm ghost bp-del" onClick={onDelete}>
-            Xóa
+            {t('Xóa')}
           </button>
         ) : null}
       </div>
-      <Flow steps={steps} staticMode label={`Các bước của ${p.name}`} />
+      <Flow steps={steps} staticMode label={t('Các bước của {n}', { n: p.name })} />
 
       <details className="bp-more">
-        <summary>Chi tiết</summary>
+        <summary>{t('Chi tiết')}</summary>
       <div className="spec">
         <div className="blk">
-          <h3>Thông tin</h3>
-          <Kv k="Kênh">{channelName || p.channel || '—'}</Kv>
-          <Kv k="Định dạng">{formatText(p)}</Kv>
-          <Kv k="Thư mục"><span className="mono">{p.project_dir || '—'}</span></Kv>
+          <h3>{t('Thông tin')}</h3>
+          <Kv k={t('Kênh')}>{channelName || p.channel || '—'}</Kv>
+          <Kv k={t('Định dạng')}>{formatText(p)}</Kv>
+          <Kv k={t('Thư mục')}><span className="mono">{p.project_dir || '—'}</span></Kv>
           <Kv k="Skills"><span className="mono">{p.skills?.length ? p.skills.join(', ') : '—'}</span></Kv>
           {vars.map(([k, v]) => (
             <Kv key={k} k={`vars.${k}`}>
@@ -77,10 +79,10 @@ function PresetCard({ p, channelName, onDelete }) {
           ))}
         </div>
         <div className="blk">
-          <h3>Quyền của Claude</h3>
+          <h3>{t('Quyền của Claude')}</h3>
           {PERM.map(([k, label]) => (
             <div key={k} className={`perm ${k}`}>
-              <span className="pl">{label}</span>
+              <span className="pl">{t(label)}</span>
               {(perms[k] || []).length ? (
                 perms[k].map((r) => <code key={r}>{r}</code>)
               ) : (
@@ -90,9 +92,9 @@ function PresetCard({ p, channelName, onDelete }) {
           ))}
         </div>
         <div className="blk">
-          <h3>Mặc định</h3>
-          <Kv k="Cổng">{gateLabel(p.defaults?.gate)}</Kv>
-          <Kv k="Giới hạn">{p.defaults?.timeout_ms ? fmtDuration(p.defaults.timeout_ms) : '—'}</Kv>
+          <h3>{t('Mặc định')}</h3>
+          <Kv k={t('Cổng')}>{gateLabel(p.defaults?.gate)}</Kv>
+          <Kv k={t('Giới hạn')}>{p.defaults?.timeout_ms ? fmtDuration(p.defaults.timeout_ms) : '—'}</Kv>
         </div>
       </div>
 
@@ -101,11 +103,11 @@ function PresetCard({ p, channelName, onDelete }) {
           <thead>
             <tr>
               <th>#</th>
-              <th>Bước</th>
-              <th>Cổng</th>
-              <th>Chi phí</th>
-              <th>Kiểm tra</th>
-              <th>Đầu ra</th>
+              <th>{t('Bước')}</th>
+              <th>{t('Cổng')}</th>
+              <th>{t('Chi phí')}</th>
+              <th>{t('Kiểm tra')}</th>
+              <th>{t('Đầu ra')}</th>
             </tr>
           </thead>
           <tbody>
@@ -113,20 +115,20 @@ function PresetCard({ p, channelName, onDelete }) {
               <tr key={s.key}>
                 <td className="num dim">{two(i + 1)}</td>
                 <td>
-                  <b>{s.name}</b>
+                  <b>{tr(s.name)}</b>
                   <div className="mono dim small">
                     {s.key}
-                    {s.manual ? ' · việc tay' : ''}
+                    {s.manual ? ` · ${t('việc tay')}` : ''}
                     {s.timeout_ms && s.timeout_ms !== p.defaults?.timeout_ms ? ` · ${fmtDuration(s.timeout_ms)}` : ''}
                   </div>
                 </td>
-                <td>{s.manual ? 'Việc tay' : gateLabel(s.gate)}</td>
+                <td>{s.manual ? t('Việc tay') : gateLabel(s.gate)}</td>
                 <td className={s.cost ? 'paid' : 'dim'}>{costText(s.cost)}</td>
                 <td>
                   {s.checks?.length
                     ? s.checks.map((c) => (
                         <div key={c.name} title={c.run}>
-                          {c.name}
+                          {tr(c.name)}
                         </div>
                       ))
                     : <span className="dim">—</span>}
@@ -140,7 +142,7 @@ function PresetCard({ p, channelName, onDelete }) {
 
         <details className="yaml">
           <summary>YAML</summary>
-          <pre className="box-pre">{p.yaml || '(trống)'}</pre>
+          <pre className="box-pre">{p.yaml || t('(trống)')}</pre>
         </details>
       </details>
     </section>
@@ -149,6 +151,7 @@ function PresetCard({ p, channelName, onDelete }) {
 
 // Gợi ý theo định dạng: xem trước, tùy chỉnh các bước rồi lưu thành quy trình của tôi.
 function Suggest({ onSaved }) {
+  const t = useT();
   const toast = useToast();
   const { catalog, error: catErr } = useCatalog();
   const [format, setFormat] = useState(DEFAULT_FORMAT);
@@ -179,7 +182,7 @@ function Suggest({ onSaved }) {
     setErr(null);
     try {
       const r = await api.savePipeline(draft, nameT);
-      toast(`Đã lưu quy trình "${r.name}".`, 'ok');
+      toast(t('Đã lưu quy trình "{n}".', { n: r.name }), 'ok');
       onSaved?.();
     } catch (e2) {
       setErr({ message: e2.message, problems: e2.data?.problems || null });
@@ -191,7 +194,7 @@ function Suggest({ onSaved }) {
   if (catErr) return <div className="err-note" role="alert">{catErr.message}</div>;
   if (!catalog) {
     return (
-      <SkZone className="card sg" label="Đang tải gợi ý">
+      <SkZone className="card sg" label={t('Đang tải gợi ý')}>
         <div className="sg-fmt">
           <FormatPickerSkeleton />
         </div>
@@ -202,7 +205,7 @@ function Suggest({ onSaved }) {
     );
   }
   return (
-    <form className="card sg" onSubmit={save} noValidate aria-label="Gợi ý quy trình">
+    <form className="card sg" onSubmit={save} noValidate aria-label={t('Gợi ý quy trình')}>
       <div className="sg-fmt">
         <FormatPicker catalog={catalog} value={format} onChange={setFormat} onValidity={setFormatOk} disabled={busy} />
       </div>
@@ -211,21 +214,21 @@ function Suggest({ onSaved }) {
         {draft ? (
           <>
             <div className="bp-h">
-              <h2>{draft.name}</h2>
+              <h2>{tr(draft.name)}</h2>
               <span className="muted">
-                {enabled.length} bước{paid ? ` · ${paid} tốn tiền (luôn hỏi trước)` : ''}
+                {t('{n} bước', { n: enabled.length })}{paid ? ` · ${t('{n} tốn tiền (luôn hỏi trước)', { n: paid })}` : ''}
                 {sugg.loading ? <span className="spinner" aria-hidden="true" /> : null}
               </span>
             </div>
-            <Flow steps={flowSteps(draft.steps)} staticMode label={`Các bước của ${draft.name}`} />
+            <Flow steps={flowSteps(draft.steps)} staticMode label={t('Các bước của {n}', { n: draft.name })} />
             <details className="bp-more">
-              <summary>Tùy chỉnh các bước</summary>
+              <summary>{t('Tùy chỉnh các bước')}</summary>
               <StepEditor key={draft.id} steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
             </details>
             <div className="sg-save">
-              <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Tên quy trình" aria-label="Tên quy trình" disabled={busy} />
+              <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={t('Tên quy trình')} aria-label={t('Tên quy trình')} disabled={busy} />
               <button type="submit" className="btn primary" disabled={!canSave}>
-                {busy ? <span className="spinner" aria-hidden="true" /> : null}Lưu làm quy trình của tôi
+                {busy ? <span className="spinner" aria-hidden="true" /> : null}{t('Lưu làm quy trình của tôi')}
               </button>
             </div>
             {err ? (
@@ -240,7 +243,7 @@ function Suggest({ onSaved }) {
             ) : null}
           </>
         ) : !sugg.error ? (
-          <SkZone className="sk-col" label="Đang tải gợi ý">
+          <SkZone className="sk-col" label={t('Đang tải gợi ý')}>
             <SuggestMainSkeleton />
           </SkZone>
         ) : null}
@@ -275,6 +278,7 @@ function SuggestMainSkeleton() {
 
 // Trang Quy trình: gợi ý, quy trình đã lưu, lỗi file YAML, nút tải lại.
 export default function Pipelines({ data, error, channels = [], onReload }) {
+  const t = useT();
   const toast = useToast();
   const presets = data?.presets || [];
   const errors = data?.errors || [];
@@ -288,7 +292,7 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
     setDelErr(null);
     try {
       await api.deletePipeline(del.id);
-      toast(`Đã xóa quy trình "${del.name}".`, 'ok');
+      toast(t('Đã xóa quy trình "{n}".', { n: del.name }), 'ok');
       setDel(null);
       onReload?.();
     } catch (e) {
@@ -301,25 +305,25 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
   return (
     <>
       <div className="page-h">
-        <h1>Quy trình</h1>
+        <h1>{t('Quy trình')}</h1>
       </div>
-      <h2 className="sec-h">Gợi ý</h2>
+      <h2 className="sec-h">{t('Gợi ý')}</h2>
       <Suggest onSaved={onReload} />
 
       <div className="page-h sec">
-        <h2 className="sec-h">Quy trình của tôi</h2>
-        <button type="button" className="btn sm" onClick={onReload} title="Đọc lại các file YAML">
-          Tải lại
+        <h2 className="sec-h">{t('Quy trình của tôi')}</h2>
+        <button type="button" className="btn sm" onClick={onReload} title={t('Đọc lại các file YAML')}>
+          {t('Tải lại')}
         </button>
       </div>
       {error ? (
         <div className="err-note" role="alert">
-          Không tải được quy trình: {error.message}
+          {t('Không tải được quy trình:')} {error.message}
         </div>
       ) : null}
       {errors.length ? <PresetErrors errors={errors} /> : null}
       {!data && !error ? (
-        <SkZone className="bp-list" label="Đang tải quy trình">
+        <SkZone className="bp-list" label={t('Đang tải quy trình')}>
           {['9em', '12em'].map((w) => (
             <div key={w} className="bp card">
               <div className="bp-h">
@@ -339,7 +343,7 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
         </SkZone>
       ) : null}
       {data && !presets.length ? (
-        <div className="card empty">Chưa có quy trình nào. Chọn định dạng ở trên, tùy chỉnh rồi bấm Lưu.</div>
+        <div className="card empty">{t('Chưa có quy trình nào. Chọn định dạng ở trên, tùy chỉnh rồi bấm Lưu.')}</div>
       ) : null}
       <div className="bp-list">
         {presets.map((p) => (
@@ -347,17 +351,17 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
         ))}
       </div>
       {del ? (
-        <Modal title="Xóa quy trình?" onClose={() => setDel(null)} busy={delBusy}>
+        <Modal title={t('Xóa quy trình?')} onClose={() => setDel(null)} busy={delBusy}>
           <p className="note">
-            Xóa <b>{del.name}</b>. Dự án đã tạo từ quy trình này không bị ảnh hưởng.
+            {t('Xóa {n}. Dự án đã tạo từ quy trình này không bị ảnh hưởng.', { n: <b>{tr(del.name)}</b> })}
           </p>
           {delErr ? <div className="err-note" role="alert">{delErr}</div> : null}
           <div className="modal-acts">
             <button type="button" className="btn" onClick={() => setDel(null)} disabled={delBusy}>
-              Hủy
+              {t('Hủy')}
             </button>
             <button type="button" className="btn danger" onClick={doDelete} disabled={delBusy}>
-              {delBusy ? <span className="spinner" aria-hidden="true" /> : null}Xóa
+              {delBusy ? <span className="spinner" aria-hidden="true" /> : null}{t('Xóa')}
             </button>
           </div>
         </Modal>

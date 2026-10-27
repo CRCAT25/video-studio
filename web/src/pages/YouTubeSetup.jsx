@@ -7,28 +7,30 @@ import { useToast } from '../components/Toast.jsx';
 import { useSSE } from '../hooks/useSSE.js';
 import { copyText } from '../lib/clipboard.js';
 import { api } from '../api.js';
+import { T, useT } from '../lib/i18n.jsx';
 
-const STORAGE = { keychain: 'Keychain của macOS', file: 'file riêng trên máy (quyền 600)' };
-const STAGES = ['Đăng nhập Google', 'Dự án & API', 'Màn hình xin quyền', 'Tạo client'];
+const STORAGE = { keychain: T('Keychain của macOS'), file: T('file riêng trên máy (quyền 600)') };
+const STAGES = [T('Đăng nhập Google'), T('Dự án & API'), T('Màn hình xin quyền'), T('Tạo client')];
 const STAGE_OF = { login: 0, project: 1, consent: 2, client: 3, done: 4 };
 const BUSY_TEXT = {
-  tools: 'Đang tải công cụ Google Cloud…',
-  login: 'Đã mở trang đăng nhập Google — chọn tài khoản rồi bấm Cho phép.',
-  project: 'Đang tạo dự án "Video Studio"…',
-  apis: 'Đang bật YouTube Data API v3 và YouTube Analytics API…',
+  tools: T('Đang tải công cụ Google Cloud…'),
+  login: T('Đã mở trang đăng nhập Google — chọn tài khoản rồi bấm Cho phép.'),
+  project: T('Đang tạo dự án "Video Studio"…'),
+  apis: T('Đang bật YouTube Data API v3 và YouTube Analytics API…'),
 };
 const MB = (n) => `${Math.round(n / 1e6)} MB`;
 
 // Thanh tiến độ 4 bước.
 function Stages({ at }) {
+  const t = useT();
   return (
-    <ol className="gw-stages" aria-label="Tiến độ">
+    <ol className="gw-stages" aria-label={t('Tiến độ')}>
       {STAGES.map((s, i) => (
         <li key={s} className={i < at ? 'done' : i === at ? 'cur' : ''} aria-current={i === at ? 'step' : undefined}>
           <span className="gw-bar" aria-hidden="true" />
           <span className="gw-lb">
             {i < at ? '✓ ' : ''}
-            {s}
+            {t(s)}
           </span>
         </li>
       ))}
@@ -38,14 +40,15 @@ function Stages({ at }) {
 
 // 1 dòng giá trị cần điền trên trang Google (+ nút Sao chép nếu có).
 function Val({ label, value, copy }) {
+  const t = useT();
   const toast = useToast();
   return (
     <li>
       <span className="muted">{label}</span>
       <b>{value}</b>
       {copy ? (
-        <button type="button" className="btn sm ghost" onClick={async () => toast((await copyText(value)) ? 'Đã sao chép.' : 'Không sao chép được.', 'info')}>
-          Sao chép
+        <button type="button" className="btn sm ghost" onClick={async () => toast((await copyText(value)) ? t('Đã sao chép.') : t('Không sao chép được.'), 'info')}>
+          {t('Sao chép')}
         </button>
       ) : null}
     </li>
@@ -54,44 +57,46 @@ function Val({ label, value, copy }) {
 
 // Các bước trên trang Google để Xuất bản ứng dụng (first = còn phải tạo màn hình xin quyền trước).
 function PublishTodo({ wiz, gl, first }) {
+  const t = useT();
   return (
     <ol className="gw-todo">
       {first ? (
         <li>
-          Trang {gl('consent', 'Thông tin ứng dụng')} → <b>Bắt đầu</b>:
+          Trang {gl('consent', t('Thông tin ứng dụng'))} → <b>{t('Bắt đầu')}</b>:
           <ul className="gw-vals">
-            <Val label="Tên ứng dụng" value={wiz.appName} copy />
-            <Val label="Email hỗ trợ" value="chọn email của bạn" />
-            <Val label="Đối tượng" value="Bên ngoài" />
-            <Val label="Thông tin liên hệ" value="email của bạn" />
+            <Val label={t('Tên ứng dụng')} value={wiz.appName} copy />
+            <Val label={t('Email hỗ trợ')} value="chọn email của bạn" />
+            <Val label={t('Đối tượng')} value="Bên ngoài" />
+            <Val label={t('Thông tin liên hệ')} value="email của bạn" />
           </ul>
-          Đánh dấu đồng ý → <b>Tạo</b>.
+          Đánh dấu đồng ý → <b>{t('Tạo')}</b>.
         </li>
       ) : null}
       <li>
-        {first ? 'Vẫn trang đó' : <>Trang {gl('consent', 'Thông tin ứng dụng')}</>}, điền thêm:
+        {first ? t('Vẫn trang đó') : <>Trang {gl('consent', t('Thông tin ứng dụng'))}</>}, điền thêm:
         <ul className="gw-vals">
-          <Val label="Trang chủ" value={wiz.homepage} copy />
-          <Val label="Chính sách quyền riêng tư" value={wiz.privacy} copy />
-          <Val label="Miền được phép" value="github.com" copy />
+          <Val label={t('Trang chủ')} value={wiz.homepage} copy />
+          <Val label={t('Chính sách quyền riêng tư')} value={wiz.privacy} copy />
+          <Val label={t('Miền được phép')} value="github.com" copy />
         </ul>
-        Miền được phép: bấm <b>Thêm miền</b>. Để trống logo (có logo là Google bắt xác minh) → <b>Lưu</b>.
+        Miền được phép: bấm <b>{t('Thêm miền')}</b>{t('. Để trống logo (có logo là Google bắt xác minh) → ')}<b>{t('Lưu')}</b>.
       </li>
       <li>
-        Trang {gl('audience', 'Đối tượng')} → <b>Xuất bản ứng dụng</b> → <b>Xác nhận</b>.
+        Trang {gl('audience', t('Đối tượng'))} → <b>{t('Xuất bản ứng dụng')}</b> → <b>{t('Xác nhận')}</b>.
       </li>
     </ol>
   );
 }
 
 const GOOGLE_PAGES = [
-  ['project', 'Dự án'],
+  ['project', T('Dự án')],
   ['apis', 'API'],
-  ['consent', 'Màn hình xin quyền'],
+  ['consent', T('Màn hình xin quyền')],
   ['clients', 'Client'],
 ];
 
 export default function YouTubeSetup({ yt, onReload }) {
+  const t = useT();
   const toast = useToast();
   const [wiz, setWiz] = useState(null);
   const [noWiz, setNoWiz] = useState(false);
@@ -184,11 +189,11 @@ export default function YouTubeSetup({ yt, onReload }) {
     if (r?.open && !r.open.opened) window.open(r.open.url, '_blank', 'noopener');
   };
   const reset = () => {
-    if (window.confirm('Làm lại từ đầu? Dự án đã tạo trên Google vẫn giữ nguyên.')) act(() => api.gwReset());
+    if (window.confirm(t('Làm lại từ đầu? Dự án đã tạo trên Google vẫn giữ nguyên.'))) act(() => api.gwReset());
   };
   const handleFile = async (keep) => {
     const r = await act(() => api.gwDownload(keep));
-    if (r) toast(r.trashed ? 'Đã chuyển file vào Thùng rác.' : 'Đã giữ file trong Tải về.', 'info');
+    if (r) toast(r.trashed ? t('Đã chuyển file vào Thùng rác.') : t('Đã giữ file trong Tải về.'), 'info');
   };
 
   const connected = (yt?.channels || []).filter((c) => c.connected).length;
@@ -199,10 +204,10 @@ export default function YouTubeSetup({ yt, onReload }) {
       <div className="page-h">
         <div>
           <p className="small">
-            <a href="#/channels">← Kênh</a>
+            <a href="#/channels">{t('← Kênh')}</a>
           </p>
-          <h1>Thiết lập Google</h1>
-          <p className="muted small">Làm 1 lần, khoảng 3 phút. Dự án Google Cloud là của bạn — app không dùng máy chủ trung gian.</p>
+          <h1>{t('Thiết lập Google')}</h1>
+          <p className="muted small">{t('Làm 1 lần, khoảng 3 phút. Dự án Google Cloud là của bạn — app không dùng máy chủ trung gian.')}</p>
         </div>
       </div>
 
@@ -212,14 +217,14 @@ export default function YouTubeSetup({ yt, onReload }) {
       {wiz?.found ? (
         <div className="card pad gw-found">
           <p>
-            Đã lưu client vào {STORAGE[yt?.storage] || 'kho bí mật của máy'}. Xóa file <span className="mono">{wiz.found.name}</span> khỏi thư mục Tải về?
+            {t('Đã lưu client vào {s}. Xóa file {f} khỏi thư mục Tải về?', { s: STORAGE[yt?.storage] ? t(STORAGE[yt?.storage]) : t('kho bí mật của máy'), f: <span className="mono">{wiz.found.name}</span> })}
           </p>
           <div className="acts">
             <button type="button" className="btn primary" onClick={() => handleFile(false)} disabled={acting}>
-              Chuyển vào Thùng rác
+              {t('Chuyển vào Thùng rác')}
             </button>
             <button type="button" className="btn" onClick={() => handleFile(true)} disabled={acting}>
-              Giữ lại
+              {t('Giữ lại')}
             </button>
           </div>
         </div>
@@ -228,7 +233,7 @@ export default function YouTubeSetup({ yt, onReload }) {
       {showWizard ? (
         <section className="card gw" aria-labelledby="gw-h">
           <div className="gw-head">
-            <h2 id="gw-h">{wiz.step === 'done' ? 'Đã thiết lập xong' : 'Thiết lập tự động'}</h2>
+            <h2 id="gw-h">{wiz.step === 'done' ? t('Đã thiết lập xong') : t('Thiết lập tự động')}</h2>
             <Stages at={STAGE_OF[wiz.step] ?? 0} />
           </div>
           <div className="gw-body">
@@ -237,9 +242,9 @@ export default function YouTubeSetup({ yt, onReload }) {
               acting={acting}
               picker={
                 <label className="fld">
-                  <span>Đăng nhập Google trong</span>
+                  <span>{t('Đăng nhập Google trong')}</span>
                   <Select value={picked} options={profileOptions(profiles, DEFAULT_BROWSER, chrome?.defaultBrowser)} onChange={setProfile} disabled={acting || !chrome} />
-                  <span className="hint">Chọn hồ sơ đang đăng nhập tài khoản Google sở hữu kênh.</span>
+                  <span className="hint">{t('Chọn hồ sơ đang đăng nhập tài khoản Google sở hữu kênh.')}</span>
                 </label>
               }
               pid={pid}
@@ -257,10 +262,10 @@ export default function YouTubeSetup({ yt, onReload }) {
             <div className="gw-foot">
               {wiz.projectId ? (
                 <div className="gw-links">
-                  <span className="small muted">Chỉnh trên Google:</span>
+                  <span className="small muted">{t('Chỉnh trên Google:')}</span>
                   {GOOGLE_PAGES.map(([page, text]) => (
                     <button key={page} type="button" className="btn sm" onClick={() => glOpen(page)} disabled={acting}>
-                      {text}
+                      {t(text)}
                     </button>
                   ))}
                 </div>
@@ -268,7 +273,7 @@ export default function YouTubeSetup({ yt, onReload }) {
                 <span />
               )}
               <button type="button" className="btn sm danger" onClick={reset} disabled={acting}>
-                Làm lại từ đầu
+                {t('Làm lại từ đầu')}
               </button>
             </div>
           ) : null}
@@ -278,14 +283,14 @@ export default function YouTubeSetup({ yt, onReload }) {
       <Manual yt={yt} onReload={onReload} open={noWiz} />
 
       <section className="card pad yt-limits">
-        <h2>Giới hạn của Google</h2>
+        <h2>{t('Giới hạn của Google')}</h2>
         <ul>
           <li>
-            Khi kết nối, Google báo <b>"Google chưa xác minh ứng dụng này"</b> — vì app là của bạn. Bấm <b>Nâng cao</b> → <b>Đi tới … (không an toàn)</b>.
+            Khi kết nối, Google báo <b>{t('"Google chưa xác minh ứng dụng này"')}</b>{t(' — vì app là của bạn. Bấm ')}<b>{t('Nâng cao')}</b> → <b>{t('Đi tới … (không an toàn)')}</b>.
           </li>
-          <li>Hạn mức miễn phí ~10.000 điểm/ngày (đặt lại lúc 14:00–15:00 giờ Việt Nam). Xem số liệu tốn vài điểm; tải 1 video lên tốn ~1.600.</li>
-          <li>Dự án chưa được Google duyệt thì video tải lên qua API luôn ở chế độ <b>Riêng tư</b> — bạn tự chuyển Công khai trong YouTube Studio.</li>
-          <li>Đặt hình thu nhỏ cần kênh đã xác minh số điện thoại.</li>
+          <li>{t('Hạn mức miễn phí ~10.000 điểm/ngày (đặt lại lúc 14:00–15:00 giờ Việt Nam). Xem số liệu tốn vài điểm; tải 1 video lên tốn ~1.600.')}</li>
+          <li>{t('Dự án chưa được Google duyệt thì video tải lên qua API luôn ở chế độ ')}<b>{t('Riêng tư')}</b>{t(' — bạn tự chuyển Công khai trong YouTube Studio.')}</li>
+          <li>{t('Đặt hình thu nhỏ cần kênh đã xác minh số điện thoại.')}</li>
         </ul>
       </section>
     </>
@@ -294,6 +299,7 @@ export default function YouTubeSetup({ yt, onReload }) {
 
 // Nội dung theo bước hiện tại.
 function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProject, onOpen, onNext, onBack, gl }) {
+  const t = useT();
   const err = wiz.error;
   const dis = acting || !!wiz.busy;
 
@@ -305,21 +311,21 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
         <div className="yt-wait" role="status">
           <span className="spinner" aria-hidden="true" />
           <div>
-            <p className="note">{BUSY_TEXT[wiz.busy] || 'Đang xử lý…'}</p>
+            <p className="note">{BUSY_TEXT[wiz.busy] ? t(BUSY_TEXT[wiz.busy]) : t('Đang xử lý…')}</p>
             {wiz.busy === 'tools' && pct !== null ? (
               <>
-                <progress className="gw-progress" max="100" value={pct} aria-label="Tiến độ tải" />
+                <progress className="gw-progress" max="100" value={pct} aria-label={t('Tiến độ tải')} />
                 <p className="note">
-                  {pct}% · {MB(p.bytes)} / {MB(p.total)} — chỉ tải lần đầu, tự xóa khi xong.
+                  {t('{pct}% · {a} / {b} — chỉ tải lần đầu, tự xóa khi xong.', { pct, a: MB(p.bytes), b: MB(p.total) })}
                 </p>
               </>
             ) : null}
-            {wiz.busy === 'login' && !wiz.profile ? <p className="note">Trang mở trong trình duyệt mặc định của máy.</p> : null}
+            {wiz.busy === 'login' && !wiz.profile ? <p className="note">{t('Trang mở trong trình duyệt mặc định của máy.')}</p> : null}
           </div>
         </div>
         <div className="acts">
           <button type="button" className="btn" onClick={onCancel} disabled={acting}>
-            Hủy
+            {t('Hủy')}
           </button>
         </div>
       </>
@@ -333,36 +339,36 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
         {err?.code === 'gc_tos' ? (
           <div className="acts">
             <button type="button" className="btn" onClick={() => onOpen('tos')} disabled={dis}>
-              Mở trang Google Cloud
+              {t('Mở trang Google Cloud')}
             </button>
             <button type="button" className="btn primary" onClick={onStart} disabled={dis}>
-              Thử lại
+              {t('Thử lại')}
             </button>
           </div>
         ) : err?.code === 'gc_project_quota' ? (
           wiz.projects?.length ? (
             <>
               <label className="fld">
-                <span>Dự án có sẵn</span>
-                <Select value={pid} options={wiz.projects.map((p) => ({ value: p.projectId, label: p.name, meta: p.projectId }))} onChange={setPid} placeholder="Chọn dự án…" disabled={dis} />
-                <span className="hint">App bật 2 API YouTube trong dự án này.</span>
+                <span>{t('Dự án có sẵn')}</span>
+                <Select value={pid} options={wiz.projects.map((p) => ({ value: p.projectId, label: p.name, meta: p.projectId }))} onChange={setPid} placeholder={t('Chọn dự án…')} disabled={dis} />
+                <span className="hint">{t('App bật 2 API YouTube trong dự án này.')}</span>
               </label>
               <div className="acts">
                 <button type="button" className="btn primary" onClick={onProject} disabled={dis || !pid}>
-                  Dùng dự án này
+                  {t('Dùng dự án này')}
                 </button>
               </div>
             </>
           ) : (
-            <p className="note">Không có dự án nào để chọn — xóa bớt dự án cũ trên Google Cloud rồi bấm Thử lại, hoặc làm thủ công bên dưới.</p>
+            <p className="note">{t('Không có dự án nào để chọn — xóa bớt dự án cũ trên Google Cloud rồi bấm Thử lại, hoặc làm thủ công bên dưới.')}</p>
           )
         ) : (
           <>
-            {!err ? <p>App tự tạo dự án "Video Studio" trên Google Cloud của bạn và bật 2 API YouTube. Bạn chỉ cần đăng nhập Google và bấm <b>Cho phép</b>.</p> : null}
+            {!err ? <p>{t('App tự tạo dự án "Video Studio" trên Google Cloud của bạn và bật 2 API YouTube. Bạn chỉ cần đăng nhập Google và bấm ')}<b>{t('Cho phép')}</b>.</p> : null}
             {picker}
             <div className="acts">
               <button type="button" className="btn primary" onClick={onStart} disabled={dis}>
-                {err || wiz.step === 'project' ? 'Thử lại' : 'Bắt đầu'}
+                {err || wiz.step === 'project' ? t('Thử lại') : t('Bắt đầu')}
               </button>
             </div>
           </>
@@ -375,19 +381,19 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
     return (
       <>
         <p>
-          Dự án <span className="mono">{wiz.projectId}</span> đã sẵn sàng. Google bắt buộc bạn tự điền trang xin quyền — {wiz.profile ? 'app đã mở sẵn trang này' : 'mở trang rồi'} điền:
+          Dự án <span className="mono">{wiz.projectId}</span> đã sẵn sàng. Google bắt buộc bạn tự điền trang xin quyền — {wiz.profile ? t('app đã mở sẵn trang này') : t('mở trang rồi')} điền:
         </p>
         <PublishTodo wiz={wiz} gl={gl} first />
-        <p className="warn-note">Bỏ qua bước Xuất bản thì Google tự hủy quyền sau 7 ngày — phải kết nối lại mỗi tuần.</p>
+        <p className="warn-note">{t('Bỏ qua bước Xuất bản thì Google tự hủy quyền sau 7 ngày — phải kết nối lại mỗi tuần.')}</p>
         <div className="acts">
           <button type="button" className="btn" onClick={() => onOpen('consent')} disabled={dis}>
-            {wiz.profile ? 'Mở lại trang xin quyền' : 'Mở trang xin quyền'}
+            {wiz.profile ? t('Mở lại trang xin quyền') : t('Mở trang xin quyền')}
           </button>
           <button type="button" className="btn" onClick={() => onOpen('audience')} disabled={dis}>
-            Mở trang Đối tượng
+            {t('Mở trang Đối tượng')}
           </button>
           <button type="button" className="btn primary" onClick={onNext} disabled={dis}>
-            Xong, tiếp tục →
+            {t('Xong, tiếp tục →')}
           </button>
         </div>
       </>
@@ -398,7 +404,7 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
     return (
       <>
         <p>
-          Trên trang {gl('client', 'Tạo client')}: Loại ứng dụng chọn <b>Ứng dụng dành cho máy tính</b> → <b>Tạo</b> → <b>Tải JSON xuống</b>.
+          Trên trang {gl('client', t('Tạo client'))}: Loại ứng dụng chọn <b>{t('Ứng dụng dành cho máy tính')}</b> → <b>{t('Tạo')}</b> → <b>{t('Tải JSON xuống')}</b>.
         </p>
         {err ? <p className="err-note">{err.message}</p> : null}
         {wiz.watchError ? (
@@ -406,15 +412,15 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
         ) : (
           <div className="yt-wait" role="status">
             <span className="spinner" aria-hidden="true" />
-            <p className="note">Đang chờ file client_secret_….json trong thư mục Tải về — app tự nhận, không cần làm gì thêm.</p>
+            <p className="note">{t('Đang chờ file client_secret_….json trong thư mục Tải về — app tự nhận, không cần làm gì thêm.')}</p>
           </div>
         )}
         <div className="acts">
           <button type="button" className="btn" onClick={onBack} disabled={dis}>
-            ← Quay lại
+            {t('← Quay lại')}
           </button>
           <button type="button" className="btn" onClick={() => onOpen('client')} disabled={dis}>
-            Mở lại trang tạo client
+            {t('Mở lại trang tạo client')}
           </button>
         </div>
       </>
@@ -423,13 +429,13 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
 
   return (
     <div className="gw-done">
-      <p>Google đã sẵn sàng. Giờ thêm kênh YouTube của bạn.</p>
+      <p>{t('Google đã sẵn sàng. Giờ thêm kênh YouTube của bạn.')}</p>
       <details className="gw-publish">
-        <summary>Chưa xuất bản ứng dụng? (quyền bị hủy sau 7 ngày)</summary>
+        <summary>{t('Chưa xuất bản ứng dụng? (quyền bị hủy sau 7 ngày)')}</summary>
         <PublishTodo wiz={wiz} gl={gl} />
       </details>
       <a className="btn primary" href="#/channels">
-        Thêm kênh →
+        {t('Thêm kênh →')}
       </a>
     </div>
   );
@@ -437,13 +443,14 @@ function StepBody({ wiz, acting, picker, pid, setPid, onStart, onCancel, onProje
 
 // Thẻ "Đã thiết lập" + nút xóa thiết lập.
 function SetupOk({ yt, connected, onReload }) {
+  const t = useT();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const clear = async () => {
     setBusy(true);
     try {
       await api.ytSetupClear();
-      toast('Đã xóa thiết lập Google.', 'info');
+      toast(t('Đã xóa thiết lập Google.'), 'info');
       onReload?.();
     } catch (e) {
       toast(e.message, 'err');
@@ -455,13 +462,13 @@ function SetupOk({ yt, connected, onReload }) {
     <div className="card pad yt-setup-ok">
       <i className="lamp" style={{ "--c": "var(--ok)" }} />
       <div>
-        <b>Đã thiết lập</b>
+        <b>{t('Đã thiết lập')}</b>
         <p className="note">
-          Client <span className="mono">{yt.client}</span> · lưu trong {STORAGE[yt.storage] || yt.storage}
+          {t('Client {c} · lưu trong {s}', { c: <span className="mono">{yt.client}</span>, s: STORAGE[yt.storage] ? t(STORAGE[yt.storage]) : yt.storage })}
         </p>
       </div>
-      <button type="button" className="btn sm danger" onClick={clear} disabled={busy || connected > 0} title={connected ? 'Ngắt kết nối mọi kênh trước' : undefined}>
-        Xóa thiết lập
+      <button type="button" className="btn sm danger" onClick={clear} disabled={busy || connected > 0} title={connected ? t('Ngắt kết nối mọi kênh trước') : undefined}>
+        {t('Xóa thiết lập')}
       </button>
     </div>
   );
@@ -469,6 +476,7 @@ function SetupOk({ yt, connected, onReload }) {
 
 // Bật/tắt "Đăng nhập bằng Google" cho app: tài khoản Google dùng lúc bật thành chủ duy nhất.
 function GoogleLogin() {
+  const t = useT();
   const toast = useToast();
   const [st, setSt] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -492,7 +500,7 @@ function GoogleLogin() {
     setBusy(true);
     try {
       await api.authDisable();
-      toast('Đã tắt đăng nhập Google. Dùng mật khẩu để mở app.', 'info');
+      toast(t('Đã tắt đăng nhập Google. Dùng mật khẩu để mở app.'), 'info');
       load();
     } catch (e) {
       toast(e.message, 'err');
@@ -504,16 +512,16 @@ function GoogleLogin() {
     <div className="card pad yt-setup-ok gl-login">
       <i className="lamp" style={{ '--c': on ? 'var(--ok)' : 'var(--idle)' }} />
       <div>
-        <b>Đăng nhập bằng Google</b>
-        <p className="note">{on ? 'Đang bật — chỉ tài khoản Google đã dùng lúc bật mới vào được.' : 'Mở app bằng tài khoản Google, ngoài mật khẩu.'}</p>
+        <b>{t('Đăng nhập bằng Google')}</b>
+        <p className="note">{on ? t('Đang bật — chỉ tài khoản Google đã dùng lúc bật mới vào được.') : t('Mở app bằng tài khoản Google, ngoài mật khẩu.')}</p>
       </div>
       {on ? (
         <button type="button" className="btn sm" onClick={disable} disabled={busy}>
-          Tắt
+          {t('Tắt')}
         </button>
       ) : (
         <button type="button" className="btn sm primary" onClick={enable} disabled={busy}>
-          {busy ? <span className="spinner" aria-hidden="true" /> : null} Bật đăng nhập Google
+          {busy ? <span className="spinner" aria-hidden="true" /> : null} {t('Bật đăng nhập Google')}
         </button>
       )}
     </div>
@@ -522,6 +530,7 @@ function GoogleLogin() {
 
 // Cách thủ công: tự làm trên Google Cloud rồi dán / chọn file client_secret.json.
 function Manual({ yt, onReload, open }) {
+  const t = useT();
   const toast = useToast();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -533,7 +542,7 @@ function Manual({ yt, onReload, open }) {
     try {
       await api.ytSetup(text);
       setText('');
-      toast('Đã lưu thiết lập Google.', 'ok');
+      toast(t('Đã lưu thiết lập Google.'), 'ok');
       onReload?.();
     } catch (e) {
       setErr(e.message);
@@ -545,20 +554,20 @@ function Manual({ yt, onReload, open }) {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (f.size > 20_000) return setErr('File quá lớn — chọn đúng file client_secret_….json.');
+    if (f.size > 20_000) return setErr(t('File quá lớn — chọn đúng file client_secret_….json.'));
     setText(await f.text());
     setErr(null);
   };
 
   return (
     <details className="card gw-manual" open={open || undefined}>
-      <summary>Tự làm thủ công</summary>
+      <summary>{t('Tự làm thủ công')}</summary>
       <div className="gw-manual-b">
         <p className="note">
-          Đã có client OAuth loại <b>Ứng dụng dành cho máy tính</b> (dự án bật YouTube Data API v3 + YouTube Analytics API)? Dán nội dung file client_secret.json hoặc chọn file.
+          Đã có client OAuth loại <b>{t('Ứng dụng dành cho máy tính')}</b> (dự án bật YouTube Data API v3 + YouTube Analytics API)? Dán nội dung file client_secret.json hoặc chọn file.
         </p>
         <label className="fld">
-          <span className="sr-only">Nội dung client_secret.json</span>
+          <span className="sr-only">{t('Nội dung client_secret.json')}</span>
           <textarea
             className="mono"
             value={text}
@@ -572,11 +581,11 @@ function Manual({ yt, onReload, open }) {
         {err ? <p className="err-note">{err}</p> : null}
         <div className="acts yt-paste-acts">
           <label className="btn">
-            Chọn file…
+            {t('Chọn file…')}
             <input type="file" accept=".json,application/json" onChange={pickFile} className="sr-only" disabled={busy} />
           </label>
           <button type="button" className="btn primary" onClick={save} disabled={busy || !text.trim()}>
-            {busy ? <span className="spinner" aria-hidden="true" /> : null} {yt?.configured ? 'Thay thiết lập' : 'Lưu'}
+            {busy ? <span className="spinner" aria-hidden="true" /> : null} {yt?.configured ? t('Thay thiết lập') : t('Lưu')}
           </button>
         </div>
       </div>

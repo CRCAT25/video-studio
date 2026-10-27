@@ -2,6 +2,7 @@
 // value = "7"|"28"|"90"|"365"|"YYYY-MM-DD_YYYY-MM-DD" (gửi thẳng lên server ?range=). Nhớ lựa chọn trong localStorage.
 import { useState } from 'react';
 import Select from './Select.jsx';
+import { tr, useT } from '../lib/i18n.jsx';
 
 export const PRESETS = ['7', '28', '90', '365'];
 const KEY = 'vs.yt.range';
@@ -29,9 +30,9 @@ export function validRange(v) {
 
 // Nhãn ngắn: "28 ngày" / "01/09/26 – 30/09/26".
 export function rangeLabel(v) {
-  if (PRESETS.includes(v)) return `${v} ngày`;
+  if (PRESETS.includes(v)) return tr('{n} ngày', { n: v });
   const m = RE.exec(String(v || ''));
-  return m ? `${dmy(m[1])} – ${dmy(m[2])}` : '28 ngày';
+  return m ? `${dmy(m[1])} – ${dmy(m[2])}` : tr('{n} ngày', { n: 28 });
 }
 
 export function savedRange() {
@@ -50,9 +51,10 @@ export function saveRange(v) {
   }
 }
 
-const OPTIONS = [...PRESETS.map((p) => ({ value: p, label: `${p} ngày qua` })), { value: CUSTOM, label: 'Tùy chọn…' }];
+const optionList = () => [...PRESETS.map((p) => ({ value: p, label: tr('{n} ngày qua', { n: p }) })), { value: CUSTOM, label: tr('Tùy chọn…') }];
 
 export default function RangePicker({ value, onChange, disabled = false }) {
+  const t = useT();
   const custom = RE.exec(value || '');
   const [editing, setEditing] = useState(false);
   const [from, setFrom] = useState(custom?.[1] || ymd(-28));
@@ -74,23 +76,24 @@ export default function RangePicker({ value, onChange, disabled = false }) {
     setEditing(false);
     set(draft);
   };
-  const opts = custom ? OPTIONS.map((o) => (o.value === CUSTOM ? { ...o, label: rangeLabel(value) } : o)) : OPTIONS;
+  const base = optionList();
+  const opts = custom ? base.map((o) => (o.value === CUSTOM ? { ...o, label: rangeLabel(value) } : o)) : base;
 
   return (
     <div className="yt-range">
       <div className="yt-range-sel">
-        <Select label="Khoảng ngày" value={editing || custom ? CUSTOM : value} options={opts} onChange={pick} disabled={disabled} />
+        <Select label={t('Khoảng ngày')} value={editing || custom ? CUSTOM : value} options={opts} onChange={pick} disabled={disabled} />
       </div>
       {editing ? (
         <form className="yt-range-c" onSubmit={apply}>
-          <input type="date" aria-label="Từ ngày" value={from} min={MIN_DATE} max={to || ymd(-1)} onChange={(e) => setFrom(e.target.value)} />
+          <input type="date" aria-label={t('Từ ngày')} value={from} min={MIN_DATE} max={to || ymd(-1)} onChange={(e) => setFrom(e.target.value)} />
           <span className="muted">–</span>
-          <input type="date" aria-label="Đến ngày" value={to} min={from || MIN_DATE} max={ymd(-1)} onChange={(e) => setTo(e.target.value)} />
-          <button type="submit" className="btn sm primary" disabled={!ok} title={ok ? undefined : 'Tối đa 3 năm, kết thúc muộn nhất là hôm qua'}>
-            Áp dụng
+          <input type="date" aria-label={t('Đến ngày')} value={to} min={from || MIN_DATE} max={ymd(-1)} onChange={(e) => setTo(e.target.value)} />
+          <button type="submit" className="btn sm primary" disabled={!ok} title={ok ? undefined : t('Tối đa 3 năm, kết thúc muộn nhất là hôm qua')}>
+            {t('Áp dụng')}
           </button>
           <button type="button" className="btn sm ghost" onClick={() => setEditing(false)}>
-            Hủy
+            {t('Hủy')}
           </button>
         </form>
       ) : null}

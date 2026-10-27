@@ -16,6 +16,7 @@ import { api } from './api.js';
 import { useHashRoute } from './lib/router.js';
 import { applyTheme, storeTheme } from './lib/theme.js';
 import { useSSE, useSSEStatus } from './hooks/useSSE.js';
+import { useT } from './lib/i18n.jsx';
 
 // Lỗi kết nối / xác thực đáng hiện lên băng đỏ (lỗi khác hiện tại chỗ).
 function bannerError(e) {
@@ -52,6 +53,7 @@ function Shell() {
   const [accountOpen, setAccountOpen] = useState(false);
   const lastAuthAt = useRef(undefined);
   const timer = useRef(null);
+  const t = useT();
   const toast = useToast();
   const assistant = useAssistant();
   const usage = useUsage();
@@ -196,13 +198,23 @@ function Shell() {
   }, [running]);
 
   useEffect(() => {
-    const TITLES = { presets: 'Quy trình · Video Studio', channels: 'Kênh · Video Studio', channelsSetup: 'Thiết lập Google · Video Studio' };
+    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio') };
     if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
-  }, [route.name]);
+  }, [route.name, t]);
 
   // Sidebar trợ lý mở → nội dung co lại (CSS body.ai-open).
   useEffect(() => {
     document.body.classList.toggle('ai-open', assistant.open);
+  }, [assistant.open]);
+  // giữ sidebar trong DOM thêm một nhịp để chạy hiệu ứng thu vào rồi mới gỡ
+  const [aiMounted, setAiMounted] = useState(assistant.open);
+  useEffect(() => {
+    if (assistant.open) {
+      setAiMounted(true);
+      return undefined;
+    }
+    const id = setTimeout(() => setAiMounted(false), 240);
+    return () => clearTimeout(id);
   }, [assistant.open]);
 
   const toggleTheme = () => {
@@ -240,9 +252,9 @@ function Shell() {
   } else {
     page = (
       <div className="card pad empty">
-        <b>Không có trang này.</b>
+        <b>{t('Không có trang này.')}</b>
         <p className="note">
-          <a href="#/">Về Tổng quan</a>
+          <a href="#/">{t('Về Tổng quan')}</a>
         </p>
       </div>
     );
@@ -254,7 +266,7 @@ function Shell() {
       <DoctorBanner doctor={doctor} error={banner} onRefresh={() => Promise.all([loadDoctor(true), loadOverview()])} onAccount={() => setAccountOpen(true)} />
       <UpdateBanner u={update} running={running} />
       <main>{page}</main>
-      {assistant.open ? (
+      {aiMounted || assistant.open ? (
         <AssistantPanel a={assistant} loggedIn={doctor ? !!doctor.auth?.loggedIn : null} onAccount={() => setAccountOpen(true)} />
       ) : null}
       {accountOpen ? (

@@ -7,48 +7,51 @@ import { useToast } from '../components/Toast.jsx';
 import { useNow } from '../hooks/useNow.js';
 import { LINE_CLASS, STATE_LABEL, fmtDateTime, fmtNum, fmtRelative, fmtTokens, fmtUsd, usageTokens } from '../lib/format.js';
 import { navigate, stepHref } from '../lib/router.js';
+import { T, tr, useT } from '../lib/i18n.jsx';
 
 const WAIT_KIND = {
-  needs_input: { cls: 'L-ask', label: 'Claude hỏi bạn' },
-  failed: { cls: 'L-err', label: 'Bị lỗi' },
-  manual: { cls: 'L-wait', label: 'Việc tay của bạn' },
+  needs_input: { cls: 'L-ask', label: T('Claude hỏi bạn') },
+  failed: { cls: 'L-err', label: T('Bị lỗi') },
+  manual: { cls: 'L-wait', label: T('Việc tay của bạn') },
 };
 const WAIT_ORDER = { needs_input: 0, failed: 1, manual: 2 };
 
 // Một câu ngắn "đang làm gì" của dự án.
 function nowText(p) {
   const c = p.current;
-  if (p.status === 'done' || !c) return 'Đã xong mọi bước.';
+  if (p.status === 'done' || !c) return tr('Đã xong mọi bước.');
   const r = c.run;
   const at = `${c.name}`;
   switch (c.state) {
     case 'running': {
       const pct = r?.progress_pct != null ? ` · ${Math.round(Number(r.progress_pct))}%` : '';
-      return `${at}: ${r?.progress_msg || 'Claude đang làm…'}${pct}`;
+      return `${at}: ${r?.progress_msg || tr('Claude đang làm…')}${pct}`;
     }
     case 'needs_input':
-      return `${at}: Claude cần bạn trả lời${r?.summary ? ` — ${r.summary}` : '.'}`;
+      return r?.summary ? tr('{at}: Claude cần bạn trả lời — {s}', { at, s: tr(r.summary) }) : tr('{at}: Claude cần bạn trả lời.', { at });
     case 'failed':
-      return `${at}: lỗi${r?.error ? ` — ${r.error}` : r?.summary ? ` — ${r.summary}` : '.'}`;
+      const why = tr(r?.error || r?.summary || '');
+      return why ? tr('{at}: lỗi — {s}', { at, s: why }) : tr('{at}: lỗi.', { at });
     case 'manual':
-      return `${at}: việc tay — làm xong bấm "Đánh dấu xong".`;
+      return tr('{at}: việc tay — làm xong bấm "Đánh dấu xong".', { at });
     case 'stale':
-      return `${at}: cần chạy lại vì bước trước vừa đổi.`;
+      return tr('{at}: cần chạy lại vì bước trước vừa đổi.', { at });
     case 'ready':
-      return `${at}: sẵn sàng chạy.${r?.summary ? ` Lần trước: ${r.summary}` : ''}`;
+      return r?.summary ? tr('{at}: sẵn sàng chạy. Lần trước: {s}', { at, s: tr(r.summary) }) : tr('{at}: sẵn sàng chạy.', { at });
     default:
       return `${at}: ${STATE_LABEL[c.state] || c.state}`;
   }
 }
 
 function lineState(p) {
-  if (p.status === 'done') return { cls: 'L-ok', label: 'Hoàn tất' };
+  if (p.status === 'done') return { cls: 'L-ok', label: tr('Hoàn tất') };
   const st = p.current?.state;
-  return { cls: LINE_CLASS[st] || 'L-idle', label: STATE_LABEL[st] || 'Chưa rõ' };
+  return { cls: LINE_CLASS[st] || 'L-idle', label: STATE_LABEL[st] || tr('Chưa rõ') };
 }
 
 // Thẻ một dự án: tên, kênh/preset, trạng thái, tiến độ, sơ đồ bước, việc đang làm.
 function ProjectLine({ p, now }) {
+  const t = useT();
   const L = lineState(p);
   const target = p.current?.key || p.steps?.[0]?.key || '';
   const tokens = usageTokens(p.costs);
@@ -66,22 +69,22 @@ function ProjectLine({ p, now }) {
             {L.label}
           </span>
         </div>
-        <a className="btn sm" href={href} aria-label={`Mở ${p.title}`}>
-          Mở
+        <a className="btn sm" href={href} aria-label={t('Mở {n}', { n: p.title })}>
+          {t('Mở')}
         </a>
       </div>
       <div className="proj-meta">
-        <span>{p.channel?.name || p.channel?.id || 'Không kênh'} · {p.preset?.name || p.preset?.id}</span>
+        <span>{p.channel?.name || p.channel?.id || t('Không kênh')} · {p.preset?.name || p.preset?.id}</span>
         <span>
-          {prog.done}/{prog.total} bước
+          {t('{a}/{b} bước', { a: prog.done, b: prog.total })}
         </span>
-        <span title={`Cập nhật ${fmtDateTime(p.updated_at)}`}>{fmtRelative(p.updated_at, now)}</span>
-        <span title={`${fmtNum(p.costs?.runs ?? 0)} lượt chạy`}>
-          {fmtTokens(tokens)} token
+        <span title={t('Cập nhật {at}', { at: fmtDateTime(p.updated_at) })}>{fmtRelative(p.updated_at, now)}</span>
+        <span title={t('{n} lượt chạy', { n: fmtNum(p.costs?.runs ?? 0) })}>
+          {fmtTokens(tokens)} {t('token')}
           {p.costs?.usd != null && Number(p.costs.usd) > 0 ? ` · ${fmtUsd(p.costs.usd)}` : ''}
         </span>
       </div>
-      <Flow steps={p.steps || []} projectId={p.id} currentKey={p.current?.key} label={`Các bước của ${p.title}`} />
+      <Flow steps={p.steps || []} projectId={p.id} currentKey={p.current?.key} label={t('Các bước của {n}', { n: p.title })} />
       <p className="proj-now">{nowText(p)}</p>
     </article>
   );
@@ -101,26 +104,27 @@ function waitItems(projects) {
 
 // Danh sách bước đang chờ bạn (chỉ hiện khi có).
 function WaitPanel({ items, now }) {
+  const t = useT();
   return (
-    <section className="card alarm" aria-label="Chờ bạn">
+    <section className="card alarm" aria-label={t('Chờ bạn')}>
       <div className="bar-h">
         <h2 style={{ margin: 0 }}>
-          Chờ bạn <span className="cnt">{items.length}</span>
+          {t('Chờ bạn')} <span className="cnt">{items.length}</span>
         </h2>
       </div>
       {items.slice(0, 30).map(({ p, s, at }) => {
         const k = WAIT_KIND[s.state];
-        const msg = s.state === 'failed' ? s.run?.error || s.run?.summary : s.state === 'manual' ? 'Làm xong thì bấm "Đánh dấu xong".' : s.run?.summary;
+        const msg = s.state === 'failed' ? tr(s.run?.error || s.run?.summary || '') : s.state === 'manual' ? t('Làm xong thì bấm "Đánh dấu xong".') : tr(s.run?.summary || '');
         return (
           <a key={`${p.id}/${s.key}`} className={`wait-item ${k.cls}`} href={stepHref(p.id, s.key)}>
             <i className="lamp" />
             <div className="wi-main">
               <div className="wi-t">
-                <b>{s.name}</b> <span className="muted">· {p.title}</span>
+                <b>{tr(s.name)}</b> <span className="muted">· {p.title}</span>
               </div>
               {msg ? <p>{msg}</p> : null}
             </div>
-            <span className="kind">{k.label}</span>
+            <span className="kind">{t(k.label)}</span>
             <span className="age">{fmtRelative(at, now)}</span>
           </a>
         );
@@ -131,8 +135,9 @@ function WaitPanel({ items, now }) {
 
 // Khung chờ Tổng quan: 3 ô số + vài hàng dự án (tên, trạng thái, meta, dải bước).
 function OverviewSkeleton() {
+  const t = useT();
   return (
-    <SkZone label="Đang tải dự án">
+    <SkZone label={t('Đang tải dự án')}>
       <div className="stats">
         {['5em', '4em', '7em'].map((w) => (
           <div key={w} className="card stat">
@@ -172,6 +177,7 @@ function OverviewSkeleton() {
 }
 
 function StatCards({ stats, projects }) {
+  const t = useT();
   const st = stats || {};
   const waitBy = { needs_input: 0, failed: 0, manual: 0 };
   for (const p of projects) for (const s of p.steps || []) if (s.state in waitBy) waitBy[s.state] += 1;
@@ -180,16 +186,16 @@ function StatCards({ stats, projects }) {
   return (
     <div className="stats">
       <div className="card stat">
-        <span className="lbl">Đang chạy</span>
+        <span className="lbl">{t('Đang chạy')}</span>
         <span className="num">{fmtNum(st.running ?? runningLines)}</span>
       </div>
       <div className={`card stat${waiting > 0 ? ' hot' : ''}`}>
-        <span className="lbl">Chờ bạn</span>
+        <span className="lbl">{t('Chờ bạn')}</span>
         <span className="num">{fmtNum(waiting)}</span>
       </div>
       <div className="card stat">
-        <span className="lbl">Token tháng này</span>
-        <span className="num" title={`${fmtNum(st.tokens_month ?? 0)} token`}>
+        <span className="lbl">{t('Token tháng này')}</span>
+        <span className="num" title={`${fmtNum(st.tokens_month ?? 0)} ${t('token')}`}>
           {fmtTokens(st.tokens_month ?? 0)}
         </span>
       </div>
@@ -199,6 +205,7 @@ function StatCards({ stats, projects }) {
 
 // Trang Tổng quan; data = {projects, stats} từ GET /api/projects.
 export default function Overview({ data, error, doctor, presetsData, channels, onReloadPresets, onReload }) {
+  const t = useT();
   const now = useNow(30000);
   const toast = useToast();
   const [showNew, setShowNew] = useState(false);
@@ -210,11 +217,11 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
     const m = new Map();
     for (const p of projects) {
       const id = p.channel?.id || '';
-      if (!m.has(id)) m.set(id, { id, name: p.channel?.name || id || 'Không kênh', n: 0 });
+      if (!m.has(id)) m.set(id, { id, name: p.channel?.name || id || t('Không kênh'), n: 0 });
       m.get(id).n += 1;
     }
     return [...m.values()];
-  }, [projects]);
+  }, [projects, t]);
   const shown = filter === 'all' ? projects : projects.filter((p) => (p.channel?.id || '') === filter);
 
   const openNew = () => {
@@ -225,9 +232,9 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
   return (
     <>
       <div className="page-h">
-        <h1>Dự án</h1>
+        <h1>{t('Các dự án')}</h1>
         <button type="button" className="btn primary" onClick={openNew}>
-          + Dự án mới
+          {t('+ Dự án mới')}
         </button>
       </div>
 
@@ -235,7 +242,7 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
         <div className="err-note" role="alert">
           {error.message}{' '}
           <button type="button" className="linkbtn" onClick={onReload}>
-            Thử lại
+            {t('Thử lại')}
           </button>
         </div>
       ) : null}
@@ -248,18 +255,18 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
           {waits.length ? <WaitPanel items={waits} now={now} /> : null}
           {projects.length === 0 ? (
             <div className="card empty">
-              Chưa có dự án nào.
+              {t('Chưa có dự án nào.')}
               <br />
               <button type="button" className="btn primary" onClick={openNew}>
-                + Dự án mới
+                {t('+ Dự án mới')}
               </button>
             </div>
           ) : (
-            <section aria-label="Danh sách dự án">
+            <section aria-label={t('Danh sách dự án')}>
               {chans.length > 1 ? (
-                <div className="chips" role="group" aria-label="Lọc theo kênh">
+                <div className="chips" role="group" aria-label={t('Lọc theo kênh')}>
                   <button type="button" className={`chip${filter === 'all' ? ' on' : ''}`} onClick={() => setFilter('all')} aria-pressed={filter === 'all'}>
-                    Tất cả<span className="n">{projects.length}</span>
+                    {t('Tất cả')}<span className="n">{projects.length}</span>
                   </button>
                   {chans.map((c) => (
                     <button key={c.id} type="button" className={`chip${filter === c.id ? ' on' : ''}`} onClick={() => setFilter(c.id)} aria-pressed={filter === c.id}>
@@ -274,7 +281,7 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
                   <ProjectLine key={p.id} p={p} now={now} />
                 ))}
               </div>
-              {shown.length === 0 ? <div className="empty">Không có dự án nào của kênh này.</div> : null}
+              {shown.length === 0 ? <div className="empty">{t('Không có dự án nào của kênh này.')}</div> : null}
             </section>
           )}
         </>
@@ -288,7 +295,7 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
           onClose={() => setShowNew(false)}
           onCreated={(view) => {
             setShowNew(false);
-            toast(`Đã tạo dự án "${view?.title || view?.id}".`, 'ok');
+            toast(t('Đã tạo dự án "{n}".', { n: view?.title || view?.id }), 'ok');
             onReload?.();
             const first = view?.current?.key || view?.steps?.[0]?.key || '';
             navigate(stepHref(view.id, first));

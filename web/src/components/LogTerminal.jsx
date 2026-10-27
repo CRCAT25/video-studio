@@ -4,26 +4,27 @@ import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
 import { RUN_LABEL, fmtNum, fmtTime } from '../lib/format.js';
 import { Sk, SkZone } from './Skeleton.jsx';
+import { T, tr, useT } from '../lib/i18n.jsx';
 
 const CAP = 3000; // giữ tối đa ~3000 dòng trên màn hình
 const PAGE = 1000;
 const MAX_PAGES = 60;
 
 const KIND_TAG = {
-  init: 'Khởi động',
-  thinking: 'Suy nghĩ',
+  init: T('Khởi động'),
+  thinking: T('Suy nghĩ'),
   text: 'Claude',
-  tool: 'Công cụ',
-  tool_result: 'Kết quả',
-  denied: 'Bị chặn',
-  structured: 'Kết quả bước',
-  rate_limit: 'Giới hạn',
-  result: 'Hoàn tất',
+  tool: T('Công cụ'),
+  tool_result: T('Kết quả'),
+  denied: T('Bị chặn'),
+  structured: T('Kết quả bước'),
+  rate_limit: T('Giới hạn'),
+  result: T('Hoàn tất'),
   raw: 'raw',
   stderr: 'stderr',
-  status: 'Trạng thái',
-  check: 'Kiểm tra',
-  error: 'Lỗi',
+  status: T('Trạng thái'),
+  check: T('Kiểm tra'),
+  error: T('Lỗi'),
 };
 
 function pretty(v) {
@@ -51,7 +52,7 @@ function EventLine({ ev }) {
     if (p.passed === false) cls += ' bad';
     else if (p.passed == null) cls += ' skip';
   }
-  let tag = KIND_TAG[kind] || String(kind);
+  let tag = KIND_TAG[kind] ? tr(KIND_TAG[kind]) : String(kind);
   if (kind === 'tool' && p.name) tag = String(p.name);
   const text = ev.text ?? '';
   let body;
@@ -63,7 +64,7 @@ function EventLine({ ev }) {
         <pre>{text}</pre>
       </details>
     ) : (
-      text || <span className="dim">(trống)</span>
+      text || <span className="dim">{tr('(trống)')}</span>
     );
   } else if (kind === 'tool' && p.input && typeof p.input === 'object' && Object.keys(p.input).length) {
     body = (
@@ -95,6 +96,7 @@ function EventLine({ ev }) {
 
 // Terminal nhật ký cho một lượt; run = RunSummary (state 'running' → nhận live).
 export default function LogTerminal({ run, offline = false }) {
+  const t = useT();
   const runId = run?.id;
   const live = run?.state === 'running';
   const logRef = useRef(null);
@@ -233,19 +235,19 @@ export default function LogTerminal({ run, offline = false }) {
       <div className="term-h">
         <i className={`lamp ${lamp}`} />
         <span>
-          Nhật ký Claude · lượt {run?.n ?? '—'} · {onAir ? 'trực tiếp' : live ? 'mất kết nối — đang nối lại' : RUN_LABEL[run?.state] || run?.state || ''}
+          {t('Nhật ký Claude')} · {t('lượt')} {run?.n ?? '—'} · {onAir ? t('trực tiếp') : live ? t('mất kết nối — đang nối lại') : RUN_LABEL[run?.state] || run?.state || ''}
         </span>
         <span className="mono" title={runId || ''}>
-          {fmtNum(s.list.length + s.hidden)} dòng · {runId ? runId.slice(0, 8) : ''}
+          {t('{n} dòng', { n: fmtNum(s.list.length + s.hidden) })} · {runId ? runId.slice(0, 8) : ''}
         </span>
       </div>
-      <div ref={logRef} className="log" onScroll={onScroll} role="log" aria-live="off" aria-label="Nhật ký Claude">
-        {s.hidden > 0 ? <div className="note-l">… đã ẩn {fmtNum(s.hidden)} dòng cũ (chỉ giữ {fmtNum(CAP)} dòng gần nhất)</div> : null}
+      <div ref={logRef} className="log" onScroll={onScroll} role="log" aria-live="off" aria-label={t('Nhật ký Claude')}>
+        {s.hidden > 0 ? <div className="note-l">{t('… đã ẩn {a} dòng cũ (chỉ giữ {b} dòng gần nhất)', { a: fmtNum(s.hidden), b: fmtNum(CAP) })}</div> : null}
         {s.list.map((ev) => (
           <EventLine key={ev.seq} ev={ev} />
         ))}
         {loading && s.list.length === 0 ? (
-          <SkZone className="sk-log" label="Đang nạp nhật ký">
+          <SkZone className="sk-log" label={t('Đang nạp nhật ký')}>
             {['62%', '84%', '48%', '76%', '90%', '55%', '70%', '40%'].map((w, i) => (
               <div key={i} className="ev">
                 <Sk w="5.5em" />
@@ -256,13 +258,13 @@ export default function LogTerminal({ run, offline = false }) {
           </SkZone>
         ) : null}
         {!loading && !error && s.list.length === 0 ? (
-          <div className="note-l">{live ? 'Đang chờ Claude gửi dòng đầu tiên…' : 'Lượt này không có dòng nhật ký nào.'}</div>
+          <div className="note-l">{live ? t('Đang chờ Claude gửi dòng đầu tiên…') : t('Lượt này không có dòng nhật ký nào.')}</div>
         ) : null}
         {error ? (
           <div className="note-l" role="alert">
-            Không nạp được nhật ký: {error.message}{' '}
+            {t('Không nạp được nhật ký:')} {error.message}{' '}
             <button type="button" className="linkbtn" onClick={() => setAttempt((a) => a + 1)}>
-              Thử lại
+              {t('Thử lại')}
             </button>
           </div>
         ) : null}
@@ -271,7 +273,7 @@ export default function LogTerminal({ run, offline = false }) {
       {showJump ? (
         <div className="to-bottom">
           <button type="button" className="btn sm" onClick={jump}>
-            ↓ Mới nhất
+            {t('↓ Mới nhất')}
           </button>
         </div>
       ) : null}

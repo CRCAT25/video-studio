@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useToast } from './Toast.jsx';
+import { useT } from '../lib/i18n.jsx';
 
 const SKIP_KEY = 'vs.update.skip';
 const readSkip = () => {
@@ -16,6 +17,7 @@ const readSkip = () => {
 // u = trạng thái /api/update; running = số bước đang chạy (khởi động lại sẽ dừng chúng).
 export default function UpdateBanner({ u, running = 0 }) {
   const toast = useToast();
+  const t = useT();
   const [skip, setSkip] = useState(readSkip);
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -52,7 +54,7 @@ export default function UpdateBanner({ u, running = 0 }) {
       if (h && ((h.boot && h.boot !== before?.boot) || (h.version && h.version !== u.current))) return window.location.reload();
     }
     setRestarting(false);
-    toast('App chưa mở lại — chạy: video-studio service restart', 'err');
+    toast(t('App chưa mở lại — chạy: video-studio service restart'), 'err');
   });
 
   let body;
@@ -60,47 +62,47 @@ export default function UpdateBanner({ u, running = 0 }) {
   if (u.state === 'running' || restarting) {
     body = (
       <>
-        <span className="spinner" aria-hidden="true" /> {restarting ? 'Đang khởi động lại…' : 'Đang cập nhật…'}
+        <span className="spinner" aria-hidden="true" /> {restarting ? t('Đang khởi động lại…') : t('Đang cập nhật…')}
       </>
     );
   } else if (u.state === 'done' || u.stale) {
-    const what = u.state === 'done' ? `Đã tải bản v${u.latest}.` : 'App vừa được cập nhật trên máy.';
-    body = u.canRestart ? <>{what} Khởi động lại để dùng.</> : (
+    const what = u.state === 'done' ? t('Đã tải bản v{v}.', { v: u.latest }) : t('App vừa được cập nhật trên máy.');
+    body = u.canRestart ? <>{what} {t('Khởi động lại để dùng.')}</> : (
       <>
-        {what} Tắt app (Ctrl+C ở terminal) rồi chạy lại <code>video-studio</code>.
+        {what} {t('Tắt app (Ctrl+C ở terminal) rồi chạy lại')} <code>video-studio</code>.
       </>
     );
     if (u.canRestart) {
       acts = (
-        <button type="button" className="btn sm primary" onClick={restart} disabled={busy || running > 0} title={running > 0 ? 'Đợi các bước đang chạy xong' : undefined}>
-          Khởi động lại
+        <button type="button" className="btn sm primary" onClick={restart} disabled={busy || running > 0} title={running > 0 ? t('Đợi các bước đang chạy xong') : undefined}>
+          {t('Khởi động lại')}
         </button>
       );
     }
   } else if (u.state === 'error') {
     body = (
       <>
-        Cập nhật lỗi.{' '}
+        {t('Cập nhật lỗi.')}{' '}
         <details className="upd-log">
-          <summary>Chi tiết</summary>
+          <summary>{t('Chi tiết')}</summary>
           <pre>{u.log}</pre>
         </details>
       </>
     );
     acts = (
       <button type="button" className="btn sm" onClick={update} disabled={busy}>
-        Thử lại
+        {t('Thử lại')}
       </button>
     );
   } else {
     body = (
       <>
-        Có bản mới <b>v{u.latest}</b> <span className="muted">(đang dùng v{u.current})</span>
+        {t('Có bản mới')} <b>v{u.latest}</b> <span className="muted">({t('đang dùng v{v}', { v: u.current })})</span>
         {u.url ? (
           <>
             {' · '}
             <a href={u.url} target="_blank" rel="noopener noreferrer">
-              Xem thay đổi
+              {t('Xem thay đổi')}
             </a>
           </>
         ) : null}
@@ -109,10 +111,10 @@ export default function UpdateBanner({ u, running = 0 }) {
     acts = (
       <>
         <button type="button" className="btn sm" onClick={later}>
-          Để sau
+          {t('Để sau')}
         </button>
         <button type="button" className="btn sm primary" onClick={update} disabled={busy}>
-          Cập nhật
+          {t('Cập nhật')}
         </button>
       </>
     );

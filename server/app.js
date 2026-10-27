@@ -342,10 +342,15 @@ export async function buildApp({
   app.post('/api/assistant/message', async (req) => {
     const b = req.body || {};
     if (typeof b.text !== 'string') throw new HttpError(400, 'invalid_body', 'Thiếu nội dung tin nhắn.');
-    return needAssistant().send(b.text, { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null });
+    return needAssistant().send(b.text, { tabId: typeof b.tabId === 'string' ? b.tabId.slice(0, 64) : null, lang: b.lang === 'en' ? 'en' : 'vi' });
   });
   app.post('/api/assistant/stop', async () => needAssistant().stop());
   app.post('/api/assistant/reset', async () => needAssistant().reset());
+  app.get('/api/assistant/chats', async () => ({ chats: needAssistant().list() }));
+  app.post('/api/assistant/chats/:id/open', async (req) => needAssistant().open(req.params.id));
+  app.delete('/api/assistant/chats/:id', async (req) => needAssistant().remove(req.params.id));
+  app.post('/api/assistant/settings', async (req) => needAssistant().settings(req.body || {}));
+  app.post('/api/assistant/compact', async () => needAssistant().compact());
   app.post('/api/assistant/tool', async (req) => {
     const b = req.body || {};
     return needAssistant().callTool(b.key, b.tool, b.args);

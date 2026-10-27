@@ -43,6 +43,18 @@ function record(name, ok, detail = '') {
 }
 
 // Chạy một mục kiểm; lỗi ném ra = ❌ kèm thông điệp, rồi đi tiếp.
+// Menu Tài khoản ở header: đổi theme / mở bảng Claude (qua DOM để dùng được cả khi panel phủ header).
+async function toggleTheme(p) {
+  await p.evaluate(() => document.querySelector('header.top .acc-btn').click());
+  await p.waitForSelector('header.top .menu');
+  await p.evaluate(() => [...document.querySelectorAll('.menu [role=menuitemradio][aria-checked=false]')].find((b) => /^(Sáng|Tối)$/.test(b.textContent.trim())).click());
+  await p.waitForSelector('header.top .menu', { state: 'detached' });
+}
+async function openAccount(p) {
+  await p.locator('header.top .acc-btn').click();
+  await p.getByRole('menuitem', { name: 'Tài khoản Claude' }).click();
+}
+
 async function check(name, fn) {
   try {
     const detail = await fn();
@@ -606,10 +618,45 @@ async function main() {
       return id;
     });
 
+    await check('Song ngữ: menu Tài khoản → English; các màn không còn chữ Việt; nhớ sau reload; trả lại Tiếng Việt', async () => {
+      const VI = /[À-ÖØ-öø-ỹ]/;
+      const pick = async (name) => {
+        await page.locator('header.top .acc-btn').click();
+        await page.getByRole('menuitemradio', { name }).click();
+      };
+      await page.goto(`${base}/#/`);
+      const left = [];
+      try {
+        await pick('English');
+        assert((await page.evaluate(() => document.documentElement.lang)) === 'en', 'lang chưa đổi');
+        for (const [hash, h1] of [['#/', 'Projects'], ['#/presets', 'Workflows'], ['#/channels', 'YouTube channel']]) {
+          await page.goto(`${base}/${hash}`);
+          await page.locator('.page-h h1', { hasText: h1 }).waitFor();
+          await page.waitForFunction(() => !document.querySelector('.sk-zone'), null, { timeout: WAIT });
+          const txt = await page.locator('header.top, main').evaluateAll((els) => els.map((e) => e.innerText).join('\n'));
+          for (const line of txt.split('\n')) if (VI.test(line)) left.push(`${hash}: ${line.trim()}`);
+        }
+        // Tên dự án/kênh và tên bước/quy trình do server trả (dịch ở Đợt 2) vẫn là tiếng Việt → bỏ qua; chỉ bắt chữ giao diện còn sót.
+        const ui = left.filter((l) => !/e2e|Kênh giả|kenh-gia|Video (một|ba)|Đăng tay|Xem lại|Vàng nhẫn|Lời hứa|Lồng tiếng|Giao bản cuối/i.test(l));
+        assert(ui.length === 0, `còn chữ Việt ở EN: ${ui.slice(0, 40).join(' | ')}`);
+        await shot('lang-en');
+        await page.goto(`${base}/#/`);
+        await page.reload();
+        await page.locator('.page-h h1', { hasText: 'Projects' }).waitFor();
+        await pick('Tiếng Việt');
+        await page.locator('.page-h h1', { hasText: 'Các dự án' }).waitFor();
+        assert((await page.evaluate(() => document.documentElement.lang)) === 'vi', 'lang chưa trả về vi');
+      } finally {
+        await page.evaluate(() => localStorage.setItem('vs.lang', 'vi'));
+        await page.goto(`${base}/#/presets`);
+        await page.reload();
+      }
+      return `EN ok, ${left.length} dòng tên riêng có dấu`;
+    });
     await check('Đổi theme sáng/tối (nhớ sau khi tải lại)', async () => {
       const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
       const t0 = await theme();
-      await page.locator('header.top .theme-btn').click();
+      await toggleTheme(page);
       const t1 = await theme();
       assert(t0 !== t1 && ['light', 'dark'].includes(t1), `${t0} → ${t1}`);
       const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -618,7 +665,7 @@ async function main() {
       await page.reload();
       await page.locator('.page-h h1', { hasText: 'Quy trình' }).waitFor();
       assert((await theme()) === t1, 'theme không được nhớ sau reload');
-      await page.locator('header.top .theme-btn').click();
+      await toggleTheme(page);
       assert((await theme()) === t0, 'không đổi lại được');
       const bg0 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
       assert(bg !== bg0, 'màu nền không đổi');
@@ -676,7 +723,7 @@ async function main() {
           await m.goto(`${base}/${hash}`);
           await m.reload(); // đổi hash không tải lại trang → ép tải lần đầu
           if (pass === 1 && !seen.includes('toggled')) {
-            await m.locator('header.top .theme-btn').click();
+            await toggleTheme(m);
             seen.push('toggled');
           }
           const zone = m.locator('.sk-zone[aria-busy="true"]').first();
@@ -691,7 +738,7 @@ async function main() {
           assert(await m.locator(real).first().isVisible(), `${name}: không thấy nội dung thật sau khi tải xong`);
         }
       }
-      await m.locator('header.top .theme-btn').click(); // trả theme cũ
+      await toggleTheme(m); // trả theme cũ
       await m.close();
       return 'overview, step, presets × sáng/tối';
     });
@@ -700,7 +747,7 @@ async function main() {
     const accModal = () => page.locator('.modal', { hasText: 'Tài khoản Claude' });
     await check('Tài khoản: bấm ô CLAUDE CODE → bảng tài khoản; Đăng xuất cần xác nhận', async () => {
       await page.goto(`${base}/#/`);
-      await page.locator('header.top .acc-btn', { hasText: 'ĐÃ ĐĂNG NHẬP' }).click();
+      await openAccount(page);
       await accModal().locator('.acc-box', { hasText: 'Đã đăng nhập' }).waitFor();
       await accModal().locator('.sel-btn').waitFor();
       // Ô chọn tự vẽ: bàn phím mở/đóng; Esc chỉ đóng danh sách, không đóng hộp thoại.
@@ -838,7 +885,7 @@ async function main() {
           assert(!(await meter().isVisible()), 'màn 390 px vẫn hiện ô mức dùng');
           seen.push(await theme());
           await shot(`usage-390-${await theme()}`, page, false);
-          await page.locator('header.top .theme-btn').click();
+          await toggleTheme(page);
         }
         assert((await page.locator('.toast', { hasText: 'Đã chạm giới hạn' }).count()) <= 1, 'toast lặp');
         return seen.join(' + ');
@@ -1202,6 +1249,29 @@ async function main() {
       return 'Dừng → Đã dừng; Cuộc mới → trống';
     });
 
+    await check('Trợ lý AI: lịch sử giữ cuộc cũ + mở lại; đổi model/effort; Compact tắt khi chưa có phiên', async () => {
+      await ai().getByRole('button', { name: 'Lịch sử trò chuyện' }).click();
+      const row = ai().locator('.ai-hist-row', { hasText: 'Tạo dự án mới' });
+      await row.waitFor();
+      await row.locator('.ai-hist-open').click();
+      await ai().locator('.ai-user', { hasText: 'làm chậm thôi' }).waitFor();
+      await ai().getByRole('button', { name: 'Cuộc mới' }).click();
+      await ai().locator('.ai-ex .chip').first().waitFor();
+      const opts = ai().locator('.ai-opts button');
+      await opts.nth(0).click();
+      await page.getByRole('option', { name: 'Haiku' }).click();
+      await opts.nth(1).click();
+      await page.getByRole('option', { name: 'low' }).click();
+      await page.waitForTimeout(300);
+      assert((await opts.nth(0).innerText()).includes('Haiku'), await opts.nth(0).innerText());
+      assert((await opts.nth(1).innerText()).includes('low'), await opts.nth(1).innerText());
+      await ai().getByRole('button', { name: 'Thêm' }).click();
+      assert(await ai().getByRole('menuitem').isDisabled(), 'Compact phải tắt khi chưa có phiên');
+      await ai().getByLabel('Tin nhắn cho trợ lý').press('Escape');
+      await shot('ai-hist');
+      return 'lịch sử mở lại OK; Haiku + low; Compact tắt';
+    });
+
     await check('Trợ lý AI: 390 px sáng + tối không cuộn ngang; Esc đóng sidebar', async () => {
       await page.setViewportSize({ width: 390, height: 844 });
       const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
@@ -1216,10 +1286,10 @@ async function main() {
         await shot(`ai-390-${await theme()}`);
         if (i === 0) {
           // panel phủ cả header ở màn hẹp → bấm theme qua DOM
-          await page.evaluate(() => document.querySelector('header.top .theme-btn').click());
+          await toggleTheme(page);
         }
       }
-      await page.evaluate(() => document.querySelector('header.top .theme-btn').click());
+      await toggleTheme(page);
       await page.setViewportSize({ width: 1366, height: 900 });
       await ai().getByLabel('Tin nhắn cho trợ lý').press('Escape');
       await ai().waitFor({ state: 'detached' });

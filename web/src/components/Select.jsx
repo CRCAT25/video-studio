@@ -2,6 +2,7 @@
 // options = [{value, label, meta?, dot?, badges?: [{text, tone?}], icon?, group?}]; onChange(value).
 // Mọi ô chọn trong app dùng component này (không dùng <select> gốc) để giao diện đồng nhất; size="sm" cho hàng chật.
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { tr, useT } from '../lib/i18n.jsx';
 
 const GAP = 4;
 const MAX_H = 320;
@@ -23,7 +24,8 @@ function Line({ o }) {
   );
 }
 
-export default function Select({ value, options = [], onChange, disabled = false, placeholder = 'Chọn…', label, id, size, className = '' }) {
+export default function Select({ value, options = [], onChange, disabled = false, placeholder, label, id, size, className = '' }) {
+  const t = useT();
   const autoId = useId();
   const btnId = id || `${autoId}-b`;
   const listId = `${autoId}-l`;
@@ -163,7 +165,7 @@ export default function Select({ value, options = [], onChange, disabled = false
         onClick={() => (open ? close() : show())}
         onKeyDown={onKey}
       >
-        <span className="sel-val">{cur ? <Line o={cur} /> : <span className="sel-ph">{placeholder}</span>}</span>
+        <span className="sel-val">{cur ? <Line o={cur} /> : <span className="sel-ph">{placeholder ?? t('Chọn…')}</span>}</span>
         <svg className="sel-chev" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 6l4 4 4-4" />
         </svg>
@@ -227,10 +229,10 @@ export function saveProfile(v) {
 // Tùy chọn cho ô "mở trong hồ sơ Chrome": chấm màu hồ sơ, tên, thư mục mờ, nhãn "Gần nhất" / "Đang mở";
 // cuối là trình duyệt mặc định (kèm tên nếu biết, vd. Safari).
 export function profileOptions(profiles = [], defaultValue, browser = null) {
-  const badges = (p) => [p.lastUsed && { text: 'Gần nhất' }, p.open && { text: 'Đang mở', tone: 'ok' }].filter(Boolean);
+  const badges = (p) => [p.lastUsed && { text: tr('Gần nhất') }, p.open && { text: tr('Đang mở'), tone: 'ok' }].filter(Boolean);
   return [
     ...profiles.map((p) => ({ value: p.dir, label: p.name, meta: p.dir, dot: p.color || null, badges: badges(p), group: 'Chrome' })),
-    { value: defaultValue, label: browser ? `Trình duyệt mặc định (${browser})` : 'Trình duyệt mặc định', icon: <GlobeIcon />, group: 'Khác' },
+    { value: defaultValue, label: browser ? tr('Trình duyệt mặc định ({b})', { b: browser }) : tr('Trình duyệt mặc định'), icon: <GlobeIcon />, group: tr('Khác') },
   ];
 }
 

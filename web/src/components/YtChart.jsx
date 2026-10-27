@@ -1,6 +1,7 @@
 // Biểu đồ cột theo ngày / tuần / tháng (một chuỗi số liệu YouTube): cột ≤24px bo 4px đầu, lưới mảnh, tooltip theo cột, bảng số thay thế.
 import { useEffect, useRef, useState } from 'react';
 import { fmtNum } from '../lib/format.js';
+import { T, intlLocale, tr } from '../lib/i18n.jsx';
 
 const H = 180;
 const PAD = { top: 12, right: 8, bottom: 24, left: 44 };
@@ -8,7 +9,7 @@ const PAD = { top: 12, right: 8, bottom: 24, left: 44 };
 // Số gọn cho trục: 1200 → "1,2K".
 export function compact(n) {
   const v = Number(n) || 0;
-  const f = (x) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: x < 10 ? 1 : 0 }).format(x);
+  const f = (x) => new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: x < 10 ? 1 : 0 }).format(x);
   if (Math.abs(v) >= 1e6) return `${f(v / 1e6)}M`;
   if (Math.abs(v) >= 1e3) return `${f(v / 1e3)}K`;
   return f(v);
@@ -28,13 +29,12 @@ function ticks(max) {
 
 // "2026-10-03" → "03/10".
 const dm = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-const WEEKDAY = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const dayName = (d) => WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()];
+const dayName = (d) => new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
 // Nhãn trục và tooltip theo đơn vị cột.
 const axisLabel = (d, unit) => (unit === 'month' ? `${d.date.slice(5, 7)}/${d.date.slice(2, 4)}` : dm(d.date));
 const tipLabel = (d, unit) =>
-  unit === 'month' ? `Tháng ${Number(d.date.slice(5, 7))}/${d.date.slice(0, 4)}` : unit === 'week' ? `${dm(d.date)} – ${dm(d.end || d.date)}` : `${dayName(d.date)} ${dm(d.date)}`;
-const UNIT = { day: 'ngày', week: 'tuần', month: 'tháng' };
+  unit === 'month' ? tr('Tháng {m}/{y}', { m: Number(d.date.slice(5, 7)), y: d.date.slice(0, 4) }) : unit === 'week' ? `${dm(d.date)} – ${dm(d.end || d.date)}` : `${dayName(d.date)} ${dm(d.date)}`;
+const UNIT = { day: T('ngày'), week: T('tuần'), month: T('tháng') };
 
 // days = [{date, end?, ...}], unit = 'day'|'week'|'month', field = khóa số liệu, label = tên số liệu, fmt? = định dạng giá trị tooltip/bảng.
 export default function YtChart({ days = [], unit = 'day', field, label, fmt = fmtNum }) {
@@ -65,7 +65,7 @@ export default function YtChart({ days = [], unit = 'day', field, label, fmt = f
   return (
     <figure className="ytc">
       <div className="ytc-plot" ref={wrap} onPointerLeave={() => setHover(null)}>
-        <svg width={w} height={H} role="img" aria-label={`${label} theo ${UNIT[unit]}, ${days.length} ${UNIT[unit]}`}>
+        <svg width={w} height={H} role="img" aria-label={tr('{label} theo {u}, {n} {u}', { label, u: tr(UNIT[unit]), n: days.length })}>
           {t.map((v) => (
             <g key={v}>
               <line x1={PAD.left} x2={w - PAD.right} y1={y(v)} y2={y(v)} className="ytc-grid" />

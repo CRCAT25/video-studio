@@ -4,6 +4,7 @@ import { fetchText, mediaUrl } from '../api.js';
 import { KIND_LABEL, fmtBytes, fmtDateTime, fmtDuration } from '../lib/format.js';
 import { DownloadIcon } from './icons.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
+import { tr, useT } from '../lib/i18n.jsx';
 
 const ORDER = ['video', 'audio', 'image', 'markdown', 'json', 'text', 'other'];
 const TEXT_KINDS = new Set(['markdown', 'json', 'text']);
@@ -48,6 +49,7 @@ function prettyJson(text) {
 
 // Xem trước file chữ: tải tối đa 256 KB, hiện trong <pre> (không bao giờ render HTML/markdown).
 function TextPreview({ projectId, a, auto }) {
+  const t = useT();
   const [open, setOpen] = useState(auto);
   const [state, setState] = useState({ loading: false, text: null, truncated: false, error: null });
   const src = srcOf(projectId, a.path);
@@ -79,17 +81,17 @@ function TextPreview({ projectId, a, auto }) {
           <Meta a={a} />
           {open ? null : (
             <button type="button" className="btn sm" onClick={() => setOpen(true)}>
-              Xem nội dung
+              {t('Xem nội dung')}
             </button>
           )}
           <a className="btn sm" href={src} download={baseName(a.path)}>
-            <DownloadIcon /> Tải
+            <DownloadIcon /> {t('Tải')}
           </a>
         </span>
       </div>
       {open ? (
         state.loading ? (
-          <SkZone className="sk-prebox" label="Đang tải nội dung">
+          <SkZone className="sk-prebox" label={t('Đang tải nội dung')}>
             <SkLines n={6} cls="sk-pre" />
           </SkZone>
         ) : state.error ? (
@@ -98,8 +100,8 @@ function TextPreview({ projectId, a, auto }) {
           </div>
         ) : state.text != null ? (
           <>
-            <pre className="box-pre">{state.text || '(file trống)'}</pre>
-            {state.truncated ? <div className="note">Đã cắt bớt — chỉ hiện 256 KB đầu. Tải file để xem đủ.</div> : null}
+            <pre className="box-pre">{state.text || t('(file trống)')}</pre>
+            {state.truncated ? <div className="note">{t('Đã cắt bớt — chỉ hiện 256 KB đầu. Tải file để xem đủ.')}</div> : null}
           </>
         ) : null
       ) : null}
@@ -109,6 +111,7 @@ function TextPreview({ projectId, a, auto }) {
 
 // Danh sách đầu ra theo nhóm kind; fromResult = lấy từ kết quả của lượt cũ (file có thể đã bị ghi đè).
 export default function Outputs({ projectId, artifacts = [], fromResult = false, runN, outputs = [], running = false }) {
+  const t = useT();
   const list = (artifacts || [])
     .filter((a) => a && a.path)
     .map((a) => ({ ...a, kind: ORDER.includes(a.kind) ? a.kind : guessKind(a.path) }));
@@ -117,12 +120,12 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
     return (
       <div className="card pad">
         <div className="empty">
-          <b>{running ? 'Claude đang làm — chưa có đầu ra.' : 'Lượt này chưa có đầu ra nào.'}</b>
+          <b>{running ? t('Claude đang làm — chưa có đầu ra.') : t('Lượt này chưa có đầu ra nào.')}</b>
           <p className="note">
-            Đầu ra hiện ở đây khi Claude kết thúc bước và khai báo trong kết quả.
+            {t('Đầu ra hiện ở đây khi Claude kết thúc bước và khai báo trong kết quả.')}
             {outputs?.length ? (
               <>
-                {' '}Preset dự kiến: <span className="mono wrap-any">{outputs.join(', ')}</span>
+                {' '}{t('Preset dự kiến: {o}', { o: <span className="mono wrap-any">{outputs.join(', ')}</span> })}
               </>
             ) : null}
           </p>
@@ -137,7 +140,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
     <div>
       {fromResult ? (
         <div className="warn-note" style={{ marginBottom: 14 }}>
-          Đây là đầu ra Claude khai báo ở lượt {runN ?? 'cũ'}. File cùng tên có thể đã bị lượt sau ghi đè.
+          Đây là đầu ra Claude khai báo ở lượt {runN ?? t('cũ')}. File cùng tên có thể đã bị lượt sau ghi đè.
         </div>
       ) : null}
       {groups.map(([kind, arr]) => (
@@ -152,7 +155,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
                     <video controls preload="metadata" src={srcOf(projectId, a.path)} />
                     <div className="cap">
                       {a.path}
-                      {runN ? ` · lượt ${runN}` : ''}
+                      {runN ? ` · ${t('lượt {n}', { n: runN })}` : ''}
                     </div>
                   </div>
                   <div className="out-row">
@@ -202,7 +205,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
                   </div>
                   <Meta a={a} />
                   <a className="btn sm" href={srcOf(projectId, a.path)} download={baseName(a.path)}>
-                    <DownloadIcon /> Tải về
+                    <DownloadIcon /> {t('Tải về')}
                   </a>
                 </div>
               ))
@@ -215,6 +218,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
 
 // Tab Kiểm tra: kết quả lệnh check do app chạy (không phải Claude tự chấm); configured = checks khai báo trong preset.
 export function Checks({ checks = [], configured = [], running = false, hasRun = true }) {
+  const t = useT();
   if (!checks.length) {
     return (
       <div className="card pad">
@@ -222,21 +226,21 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
           <>
             {configured.map((c) => (
               <div key={c.name} className="check">
-                <span className="pf s">CHƯA CHẠY</span>
+                <span className="pf s">{t('CHƯA CHẠY')}</span>
                 <div>
-                  <b>{c.name}</b>
+                  <b>{tr(c.name)}</b>
                   <code>{c.run}</code>
                 </div>
               </div>
             ))}
             <p className="note" style={{ margin: '10px 0 0' }}>
-              {running ? 'Kiểm tra sẽ chạy khi Claude xong bước.' : hasRun ? 'Lượt này chưa chạy kiểm tra (chỉ chạy khi Claude báo xong).' : 'Bước chưa chạy lượt nào.'}
+              {running ? t('Kiểm tra sẽ chạy khi Claude xong bước.') : hasRun ? t('Lượt này chưa chạy kiểm tra (chỉ chạy khi Claude báo xong).') : t('Bước chưa chạy lượt nào.')}
             </p>
           </>
         ) : (
           <div className="empty">
-            <b>Bước này không có kiểm tra tự động.</b>
-            <p className="note">Khai báo trong mục <span className="mono">checks</span> của quy trình nếu muốn app tự chạy lệnh kiểm tra.</p>
+            <b>{t('Bước này không có kiểm tra tự động.')}</b>
+            <p className="note">{t('Khai báo trong mục {k} của quy trình nếu muốn app tự chạy lệnh kiểm tra.', { k: <span className="mono">checks</span> })}</p>
           </div>
         )}
       </div>
@@ -247,16 +251,16 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
   return (
     <div className="card pad">
       <h2>
-        Kiểm tra · <span className="num">{pass} đạt / {fail} trượt / {checks.length - pass - fail} bỏ qua</span>
+        {t('Kiểm tra')} · <span className="num">{t('{p} đạt / {f} trượt / {s} bỏ qua', { p: pass, f: fail, s: checks.length - pass - fail })}</span>
       </h2>
       {checks.map((c) => {
         const p = c.passed === 1 || c.passed === true;
         const f = c.passed === 0 || c.passed === false;
         return (
           <div key={c.id ?? c.name} className="check">
-            <span className={`pf ${p ? 'p' : f ? 'f' : 's'}`}>{p ? 'Đạt' : f ? 'Trượt' : 'Bỏ qua'}</span>
+            <span className={`pf ${p ? 'p' : f ? 'f' : 's'}`}>{p ? t('Đạt') : f ? t('Trượt') : t('Bỏ qua')}</span>
             <div>
-              <b>{c.name}</b>
+              <b>{tr(c.name)}</b>
               {c.duration_ms != null ? <span className="out-meta"> · {c.duration_ms < 1000 ? `${c.duration_ms} ms` : fmtDuration(c.duration_ms)}</span> : null}
               <code>{c.cmd}</code>
               {c.output ? <pre>{c.output}</pre> : null}
@@ -265,7 +269,7 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
         );
       })}
       <p className="note" style={{ margin: '10px 0 0' }}>
-        App tự chạy các lệnh trong <span className="mono">checks</span> của quy trình — Claude không tự chấm.
+        {t('App tự chạy các lệnh trong {k} của quy trình — Claude không tự chấm.', { k: <span className="mono">checks</span> })}
       </p>
     </div>
   );

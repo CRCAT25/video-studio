@@ -1,4 +1,5 @@
 // Khung chờ (skeleton) cho nội dung tải từ API: giữ đúng hình dạng nội dung thật để tải xong không xô layout.
+import { useT } from '../lib/i18n.jsx';
 
 // Một vệt chờ. Mặc định là vệt chữ inline (cao 0.8em, nằm trong dòng chữ thật nên giữ đúng line-height);
 // block = khối có kích thước (ô bước, biểu đồ…).
@@ -7,11 +8,12 @@ export function Sk({ w, h, r, block = false, className = '', style }) {
 }
 
 // Vùng đang tải: aria-busy + chữ "Đang tải" cho trình đọc màn hình; hiện mờ dần sau 150 ms để lần tải nhanh không nhấp nháy.
-export function SkZone({ as: Tag = 'div', label = 'Đang tải', className = '', children, ...rest }) {
+export function SkZone({ as: Tag = 'div', label, className = '', children, ...rest }) {
+  const t = useT();
   return (
     <Tag className={`sk-zone${className ? ` ${className}` : ''}`} aria-busy="true" {...rest}>
       <span className="sr-only" role="status">
-        {label}
+        {label || t('Đang tải')}
       </span>
       {children}
     </Tag>

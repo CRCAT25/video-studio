@@ -11,6 +11,7 @@ import './styles/index.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import { I18nProvider } from './lib/i18n.jsx';
 import { applyTheme, getStoredTheme } from './lib/theme.js';
 
 // Áp theme trước khi vẽ để không nháy màu (CSP chặn script inline nên làm ở đây).
@@ -18,6 +19,8 @@ applyTheme(getStoredTheme());
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </StrictMode>,
 );

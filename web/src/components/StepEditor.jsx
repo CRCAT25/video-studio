@@ -1,18 +1,19 @@
 // Sửa các bước của một quy trình: bật/tắt, đổi thứ tự, đổi tên, cổng duyệt, lời dặn Claude, đầu ra; thêm bước từ thư viện.
 import { useState } from 'react';
 import Select from './Select.jsx';
+import { T, tr, useT } from '../lib/i18n.jsx';
 
 const GATES = [
-  ['manual', 'Duyệt tay'],
-  ['auto_if_checks', 'Tự duyệt khi kiểm đạt'],
+  ['manual', T('Duyệt tay')],
+  ['auto_if_checks', T('Tự duyệt khi kiểm đạt')],
 ];
 
 // Bước chưa đủ để chạy (bước tự động cần lời dặn + đầu ra) → câu báo; đủ → null.
 export function stepProblem(s) {
   if (s.enabled === false || s.manual) return null;
-  if (!String(s.name || '').trim()) return 'Cần tên bước.';
-  if (!String(s.prompt || '').trim()) return 'Cần lời dặn cho Claude.';
-  if (!(s.outputs || []).length) return 'Cần ít nhất 1 đầu ra.';
+  if (!String(s.name || '').trim()) return tr('Cần tên bước.');
+  if (!String(s.prompt || '').trim()) return tr('Cần lời dặn cho Claude.');
+  if (!(s.outputs || []).length) return tr('Cần ít nhất 1 đầu ra.');
   return null;
 }
 
@@ -32,6 +33,7 @@ const parseOutputs = (t) =>
     .filter(Boolean);
 
 function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, disabled }) {
+  const t = useT();
   const off = s.enabled === false;
   const problem = stepProblem(s);
   const gate = s.gate?.mode || (typeof s.gate === 'string' ? s.gate : 'manual');
@@ -39,34 +41,34 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
   return (
     <li className={`se-row${off ? ' off' : ''}${problem ? ' bad' : ''}`}>
       <div className="se-main">
-        <input type="checkbox" checked={!off} onChange={(e) => onChange({ enabled: e.target.checked })} disabled={disabled} aria-label={`Dùng bước ${s.name}`} />
+        <input type="checkbox" checked={!off} onChange={(e) => onChange({ enabled: e.target.checked })} disabled={disabled} aria-label={t('Dùng bước {n}', { n: s.name })} />
         <span className="se-no">{String(i + 1).padStart(2, '0')}</span>
-        <input type="text" className="se-name" value={s.name} maxLength={80} onChange={(e) => onChange({ name: e.target.value })} disabled={disabled || off} aria-label={`Tên bước ${i + 1}`} />
+        <input type="text" className="se-name" value={s.name} maxLength={80} onChange={(e) => onChange({ name: e.target.value })} disabled={disabled || off} aria-label={t('Tên bước {n}', { n: i + 1 })} />
         <span className="se-tags">
-          {s.cost ? <span className="tag paid" title={`${s.cost.service} · luôn hỏi trước khi tốn tiền`}>Tốn tiền</span> : null}
-          {s.manual ? <span className="tag">Việc tay</span> : null}
+          {s.cost ? <span className="tag paid" title={`${s.cost.service} · luôn hỏi trước khi tốn tiền`}>{t('Tốn tiền')}</span> : null}
+          {s.manual ? <span className="tag">{t('Việc tay')}</span> : null}
         </span>
         {s.manual ? null : (
           <Select
             size="sm"
             className="se-gate"
             value={gate}
-            options={[...GATES, ...(GATES.some(([v]) => v === gate) ? [] : [[gate, gate]])].map(([value, label]) => ({ value, label }))}
+            options={[...GATES, ...(GATES.some(([v]) => v === gate) ? [] : [[gate, gate]])].map(([value, label]) => ({ value, label: t(label) }))}
             onChange={(mode) => onChange({ gate: { mode } })}
             disabled={disabled || off}
-            label={`Cổng duyệt bước ${i + 1}`}
+            label={t('Cổng duyệt bước {n}', { n: i + 1 })}
           />
         )}
         <span className="se-acts">
-          <button type="button" className="btn sm ghost" onClick={() => onMove(-1)} disabled={disabled || i === 0} aria-label="Lên" title="Lên">↑</button>
-          <button type="button" className="btn sm ghost" onClick={() => onMove(1)} disabled={disabled || i === count - 1} aria-label="Xuống" title="Xuống">↓</button>
+          <button type="button" className="btn sm ghost" onClick={() => onMove(-1)} disabled={disabled || i === 0} aria-label={t('Lên')} title={t('Lên')}>↑</button>
+          <button type="button" className="btn sm ghost" onClick={() => onMove(1)} disabled={disabled || i === count - 1} aria-label={t('Xuống')} title={t('Xuống')}>↓</button>
           {s.manual ? null : (
             <button type="button" className={`btn sm ghost${open ? ' on' : ''}`} onClick={onToggleOpen} disabled={disabled} aria-expanded={open}>
-              Sửa
+              {t('Sửa')}
             </button>
           )}
           {onRemove ? (
-            <button type="button" className="btn sm ghost" onClick={onRemove} disabled={disabled} aria-label="Bỏ bước" title="Bỏ bước">✕</button>
+            <button type="button" className="btn sm ghost" onClick={onRemove} disabled={disabled} aria-label={t('Bỏ bước')} title={t('Bỏ bước')}>✕</button>
           ) : null}
         </span>
       </div>
@@ -74,14 +76,14 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
       {open && !s.manual ? (
         <div className="se-edit">
           <label className="fld">
-            <span>Lời dặn Claude</span>
+            <span>{t('Lời dặn Claude')}</span>
             <textarea rows={4} value={s.prompt || ''} onChange={(e) => onChange({ prompt: e.target.value })} disabled={disabled} />
             <span className="hint">
-              Dùng được <code>{'{title}'}</code>, <code>{'{feedback}'}</code>, <code>{'{vars.aspect}'}</code>, <code>{'{vars.duration_label}'}</code>.
+              {t('Dùng được')} <code>{'{title}'}</code>, <code>{'{feedback}'}</code>, <code>{'{vars.aspect}'}</code>, <code>{'{vars.duration_label}'}</code>.
             </span>
           </label>
           <label className="fld">
-            <span>Đầu ra</span>
+            <span>{t('Đầu ra')}</span>
             <textarea
               rows={2}
               className="mono-in"
@@ -92,7 +94,7 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
               }}
               disabled={disabled}
             />
-            <span className="hint">Mỗi dòng một file hoặc mẫu, vd: script.md, images/*</span>
+            <span className="hint">{t('Mỗi dòng một file hoặc mẫu, vd: script.md, images/*')}</span>
           </label>
           {problem ? <div className="hint bad">{problem}</div> : null}
         </div>
@@ -103,6 +105,7 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
 
 // steps: mảng bước dạng YAML (id, name, prompt, outputs, gate, cost, manual, enabled); library: bước có thể thêm.
 export default function StepEditor({ steps, library = [], onChange, disabled = false }) {
+  const t = useT();
   const [openId, setOpenId] = useState(null);
   const [added, setAdded] = useState(() => new Set());
   const ids = new Set(steps.map((s) => s.id));
@@ -119,7 +122,7 @@ export default function StepEditor({ steps, library = [], onChange, disabled = f
     const lib = library.find((s) => s.id === val);
     const step = lib
       ? { ...JSON.parse(JSON.stringify(lib)), enabled: true }
-      : { id: freeId(steps, 'buoc-moi'), name: 'Bước mới', prompt: '', outputs: [], gate: { mode: 'manual' }, enabled: true };
+      : { id: freeId(steps, 'buoc-moi'), name: t('Bước mới'), prompt: '', outputs: [], gate: { mode: 'manual' }, enabled: true };
     // bước tự thêm: chèn trước "Gói đăng" nếu có, để gói đăng luôn ở cuối
     const last = steps.length && steps[steps.length - 1].id === 'goi-dang' ? steps.length - 1 : steps.length;
     onChange([...steps.slice(0, last), step, ...steps.slice(last)]);
@@ -151,11 +154,11 @@ export default function StepEditor({ steps, library = [], onChange, disabled = f
           size="sm"
           className="se-add-sel"
           value=""
-          placeholder="+ Thêm bước…"
-          options={[...addable.map((s) => ({ value: s.id, label: s.name })), { value: '__custom', label: 'Bước tự viết' }]}
+          placeholder={t('+ Thêm bước…')}
+          options={[...addable.map((s) => ({ value: s.id, label: s.name })), { value: '__custom', label: t('Bước tự viết') }]}
           onChange={add}
           disabled={disabled}
-          label="Thêm bước"
+          label={t('Thêm bước')}
         />
       </div>
     </div>
