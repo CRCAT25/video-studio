@@ -5,6 +5,7 @@ import Select from '../components/Select.jsx';
 import { MODELS } from '../components/StepEditor.jsx';
 import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
+import Modal from '../components/Modal.jsx';
 import DistillModal from '../components/DistillModal.jsx';
 import LogTerminal from '../components/LogTerminal.jsx';
 import Outputs, { Checks } from '../components/Outputs.jsx';
@@ -274,6 +275,7 @@ function StepPage({ projectId, stepKey }) {
   const [view, setView] = useState(null);
   const [err, setErr] = useState(null);
   const [selRunId, setSelRunId] = useState(null);
+  const [rerunAsk, setRerunAsk] = useState(false); // hộp xác nhận trước khi Chạy lại một bước đã chạy
   const [tab, setTab] = useState(null);
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(null);
@@ -498,7 +500,7 @@ function StepPage({ projectId, stepKey }) {
     );
   } else if (RUNNABLE.has(st) && !step.manual) {
     buttons.push(
-      <button key="run" type="button" className={`btn ${paid ? 'paid' : st === 'done' ? '' : 'primary'}`} onClick={() => requestRun('')} disabled={runDisabled} title={runTitle}>
+      <button key="run" type="button" className={`btn ${paid ? 'paid' : st === 'done' ? '' : 'primary'}`} onClick={() => (st === 'ready' ? requestRun('') : setRerunAsk(true))} disabled={runDisabled} title={runTitle}>
         {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : null}
         {paid ? `$ ${st === 'ready' ? t('Chạy') : t('Chạy lại')}` : st === 'ready' ? t('Chạy') : t('Chạy lại')}
       </button>,
@@ -803,6 +805,15 @@ function StepPage({ projectId, stepKey }) {
       </div>
 
       {distillOpen ? <DistillModal projectId={projectId} stepKey={stepKey} stepName={step.name} stepDone={st === 'done'} doneCount={doneUpto} onClose={() => setDistillOpen(false)} /> : null}
+      {rerunAsk ? (
+        <Modal title={t('Chạy lại "{n}"?', { n: step.name })} lead={t('Lượt mới có thể ghi đè các đầu ra hiện có của bước này.')} onClose={() => setRerunAsk(false)}>
+          <p className="note">{t('Lịch sử các lượt cũ vẫn được giữ. Muốn sửa theo góp ý thì dùng "Chạy lại kèm góp ý".')}</p>
+          <div className="modal-acts">
+            <button type="button" className="btn" onClick={() => setRerunAsk(false)}>{t('Hủy')}</button>
+            <button type="button" className={`btn ${paid ? 'paid' : 'primary'}`} data-autofocus onClick={() => { setRerunAsk(false); requestRun(''); }}>{paid ? '$ ' : ''}{t('Chạy lại')}</button>
+          </div>
+        </Modal>
+      ) : null}
       {costAsk ? (
         <CostModal
           stepName={step.name}
