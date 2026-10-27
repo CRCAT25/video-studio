@@ -10,6 +10,7 @@ import { runTool } from '../lib/pageAgent.js';
 import Progress from './Progress.jsx';
 import Select from './Select.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
+import { McpModal, MemoryModal } from './ClaudeFilesModal.jsx';
 import { T, getLang, intlLocale, tr, useT } from '../lib/i18n.jsx';
 
 const OPEN_KEY = 'vs-ai-open';
@@ -136,11 +137,14 @@ export function useAssistant() {
   const removeChat = (id) => api.assistantRemove(id).then(apply);
   const settings = (body) => api.assistantSettings(body).then(apply);
   const compact = () => api.assistantCompact().then(apply);
+  const command = (name, args = '') => api.assistantCommand(name, args, TAB_ID, getLang()).then(apply);
+  const permit = (id, allow) => api.assistantPermission(id, allow).then(apply);
+  const approvePlan = (mode) => api.assistantApprovePlan(mode, TAB_ID, getLang()).then(apply);
   const answer = (ok) => {
     ask?.resolve(ok);
     setAsk(null);
   };
-  return { open, setOpen, data, error, ask, answer, send, stop, reset, openChat, removeChat, settings, compact, reload: load };
+  return { open, setOpen, data, error, ask, answer, send, stop, reset, openChat, removeChat, settings, compact, command, permit, approvePlan, reload: load };
 }
 
 // Một dòng trong cuộc chat.
@@ -204,6 +208,20 @@ const EFFORT_OPTS = [
   ...['low', 'medium', 'high', 'xhigh', 'max'].map((v) => ({ value: v, label: v })),
 ];
 
+const MODE_OPTS = [
+  { value: 'page', label: T('Chỉ thao tác trang') },
+  { value: 'plan', label: T('Lập kế hoạch') },
+  { value: 'ask', label: T('Hỏi trước khi sửa') },
+  { value: 'edit', label: T('Tự sửa file') },
+];
+const UI_CMDS = ['resume', 'export', 'memory', 'mcp'];
+
+// Cuộc chat → markdown để lưu ra tệp.
+function chatMarkdown(msgs) {
+  const who = { user: '**Bạn**', assistant: '**Trợ lý**', action: '_thao tác_', note: '_ghi chú_', error: '**Lỗi**' };
+  return msgs.map((m) => `${who[m.role] || m.role}: ${m.text}`).join('\n\n');
+}
+
 const EXAMPLES = [T('Tạo dự án mới, video dài 60 giây'), T('Mở trang Quy trình'), T('Dự án nào đang chờ tôi?')];
 
 // Sidebar bên phải; loggedIn=false → hướng dẫn đăng nhập Claude (onAccount mở bảng Tài khoản).
@@ -252,9 +270,18 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const input = useRef(null);
   const [hist, setHist] = useState(null); // null = đóng; mảng = danh sách cuộc chat
   const [menu, setMenu] = useState(false);
+  const [cmds, setCmds] = useState(null); // danh sách lệnh "/" (nạp khi gõ "/" lần đầu)
+  const [sel, setSel] = useState(0);
+  const [dlg, setDlg] = useState(null); // 'memory' | 'mcp'
+  const [q, setQ] = useState('');
+  const [renaming, setRenaming] = useState(null);
   const { data, error, ask } = a;
   const busy = !!data?.busy;
   const msgs = data?.messages || [];
+  const slash = /^\/[^\s]*$/.test(text) && cmds ? text.slice(1).toLowerCase() : null;
+  const shown = slash == null ? [] : cmds.filter((c) => c.name.toLowerCase().startsWith(slash)).slice(0, 8);
+  const mode = data?.mode || 'page';
+  const ctxPct = Math.round((data?.context?.pct || 0) * 100);
   const compacting = busy && msgs[msgs.length - 1]?.role === 'note' && msgs[msgs.length - 1]?.text === 'Đang nén cuộc trò chuyện…';
 
   // Tin mới / thẻ hỏi → cuộn xuống cuối.
@@ -266,6 +293,11 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   useEffect(() => {
     input.current?.focus();
   }, []);
+  useEffect(() => {
+    if (cmds || !text.startsWith('/')) return;
+    api.assistantCommands().then((r) => setCmds(r.commands), () => {});
+  }, [text, cmds]);
+  useEffect(() => setSel(0), [slash]);
 
   // Thêm ảnh (từ máy, dán, thả hoặc kéo từ Đầu ra); quá số lượng thì báo.
   const addImages = async (jobs) => {
@@ -315,7 +347,15 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const submit = async (e) => {
     e?.preventDefault();
     const typed = text.trim();
-    if ((!typed && !imgs.length) || busy || sending) return;
+    if ((!typed && !imgs.length) || sending) return;
+    const ui = /^\/([a-z]+)\s*$/.exec(typed)?.[1];
+    if (ui && UI_CMDS.includes(ui) && !imgs.length) {
+      setText('');
+      if (ui === 'resume') showHist();
+      else if (ui === 'export') exportChat();
+      else setDlg(ui);
+      return;
+    }
     const q0 = typed || t('Xem tệp đính kèm.');
     const pf = imgs.filter((i) => i.kind === 'pfolder').map((f) => `[${t('Thư mục dự án')} ${f.projectId}: ${f.dir} — ${f.count} ${t('ảnh')}; ${t('xem bằng project_images và view_images')}]`);
     const q1 = [...pf, q0].join('\n');
@@ -349,8 +389,16 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
     act(async () => {
       setMenu(false);
       if (hist) return setHist(null);
+      setQ('');
       setHist((await api.assistantChats()).chats);
     });
+  const reloadHist = async (query = q) => setHist((await api.assistantChats(query)).chats);
+  const exportChat = () => {
+    const url = URL.createObjectURL(new Blob([chatMarkdown(msgs)], { type: 'text/markdown' }));
+    const el = Object.assign(document.createElement('a'), { href: url, download: 'tro-ly-ai.md' });
+    el.click();
+    URL.revokeObjectURL(url);
+  };
   const pickChat = (id) =>
     act(async () => {
       await a.openChat(id);
@@ -359,8 +407,20 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const delChat = (id) =>
     act(async () => {
       await a.removeChat(id);
-      setHist((await api.assistantChats()).chats);
+      await reloadHist();
     });
+  const pinChat = (c) =>
+    act(async () => {
+      await api.assistantPin(c.id, !c.pinned);
+      await reloadHist();
+    });
+  const renameChat = (id, title) =>
+    act(async () => {
+      setRenaming(null);
+      if (title.trim()) await api.assistantRename(id, title);
+      await reloadHist();
+    });
+  const cycleMode = () => act(() => a.settings({ mode: MODE_OPTS[(MODE_OPTS.findIndex((o) => o.value === mode) + 1) % MODE_OPTS.length].value }));
 
   const onKey = (e) => {
     if (e.key === 'Escape') {
@@ -368,7 +428,8 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
       if (hist || menu) {
         setHist(null);
         setMenu(false);
-      } else a.setOpen(false);
+      } else if (busy) act(a.stop);
+      else a.setOpen(false);
     }
   };
 
@@ -440,6 +501,29 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
             </div>
           </div>
         ) : null}
+        {(data?.permissions || []).map((p) => (
+          <div key={p.id} className="ai-ask" role="alertdialog" aria-label={t('Trợ lý xin phép')}>
+            <div>
+              {t('Cho phép trợ lý dùng')} <b>{p.tool}</b>: <code className="wrap-any">{p.summary}</code>?
+            </div>
+            <div className="ai-ask-acts">
+              <button type="button" className="btn sm" onClick={() => act(() => a.permit(p.id, false))}>{t('Không')}</button>
+              <button type="button" className="btn sm primary" onClick={() => act(() => a.permit(p.id, true))}>{t('Cho phép')}</button>
+            </div>
+          </div>
+        ))}
+        {(data?.queue || []).map((m, i) => (
+          <div key={i} className="ai-msg ai-user ai-queued" title={t('Đang chờ gửi')}>{m}</div>
+        ))}
+        {data?.planReady ? (
+          <div className="ai-ask" role="group" aria-label={t('Duyệt kế hoạch')}>
+            <div>{t('Kế hoạch xong? Duyệt để trợ lý bắt đầu làm.')}</div>
+            <div className="ai-ask-acts">
+              <button type="button" className="btn sm" onClick={() => act(() => a.approvePlan('edit'))}>{t('Duyệt & tự sửa file')}</button>
+              <button type="button" className="btn sm primary" onClick={() => act(() => a.approvePlan('ask'))}>{t('Duyệt & hỏi từng bước')}</button>
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -492,6 +576,9 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
                     >
                       {t('Nén cuộc trò chuyện (compact)')}
                     </button>
+                    <button type="button" role="menuitem" disabled={!msgs.length} onClick={() => { setMenu(false); exportChat(); }}>{t('Lưu cuộc trò chuyện (.md)')}</button>
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); setDlg('memory'); }}>{t('CLAUDE.md và memory')}</button>
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); setDlg('mcp'); }}>{t('MCP server')}</button>
                   </div>
                 ) : null}
               </div>
@@ -506,13 +593,21 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
       </div>
       {hist ? (
         <div className="ai-hist" role="list" aria-label={t('Lịch sử trò chuyện')}>
+          <input className="ai-hist-q" value={q} placeholder={t('Tìm trong lịch sử…')} aria-label={t('Tìm trong lịch sử')} onChange={(e) => { setQ(e.target.value); act(() => reloadHist(e.target.value)); }} />
           {hist.map((c) => (
             <div key={c.id} className={`ai-hist-row${c.current ? ' cur' : ''}`} role="listitem">
-              <button type="button" className="ai-hist-open" onClick={() => pickChat(c.id)} disabled={busy}>
-                <span className="ai-hist-t">{c.title || t('Cuộc mới')}</span>
+              {renaming?.id === c.id ? (
+                <input className="ai-hist-q" autoFocus defaultValue={c.title} maxLength={80} aria-label={t('Tên cuộc trò chuyện')} onBlur={(e) => renameChat(c.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.stopPropagation(); setRenaming(null); } }} />
+              ) : (
+              <button type="button" className="ai-hist-open" onClick={() => pickChat(c.id)} onDoubleClick={() => setRenaming(c)} title={t('Bấm đúp để đổi tên')}>
+                <span className="ai-hist-t">{c.busy ? <span className="spinner" aria-hidden="true" /> : null}{c.pinned ? '📌 ' : ''}{c.title || t('Cuộc mới')}</span>
                 <span className="ai-hist-d">{new Date(c.updatedAt).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' })}</span>
               </button>
-              <button type="button" className="ai-ic" onClick={() => delChat(c.id)} disabled={busy} aria-label={t('Xóa')} title={t('Xóa')}>
+              )}
+              <button type="button" className="ai-ic" onClick={() => pinChat(c)} aria-label={c.pinned ? t('Bỏ ghim') : t('Ghim')} title={c.pinned ? t('Bỏ ghim') : t('Ghim')}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7" /></svg>
+              </button>
+              <button type="button" className="ai-ic" onClick={() => delChat(c.id)} aria-label={t('Xóa')} title={t('Xóa')}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
                 </svg>
@@ -564,12 +659,21 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
               ))}
             </div>
           ) : null}
+          {shown.length ? (
+            <div className="ai-slash" role="listbox" aria-label={t('Lệnh')}>
+              {shown.map((c, i) => (
+                <button key={c.name} type="button" role="option" aria-selected={i === sel} className={i === sel ? 'on' : ''} onMouseDown={(e) => { e.preventDefault(); setText(`/${c.name} `); input.current?.focus(); }}>
+                  <b>/{c.name}</b> {c.hint ? <i>{c.hint}</i> : null}<span>{c.kind === 'builtin' ? t(c.desc) : c.desc}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <textarea
             ref={input}
             rows={2}
             value={text}
             maxLength={4000}
-            placeholder={t('Bạn muốn trợ lý làm gì?')}
+            placeholder={busy ? t('Gõ tiếp — tin sẽ chờ trợ lý làm xong…') : t('Bạn muốn trợ lý làm gì? Gõ / để xem lệnh')}
             aria-label={t('Tin nhắn cho trợ lý')}
             disabled={!ready || loggedIn === false}
             onChange={(e) => setText(e.target.value)}
@@ -581,7 +685,23 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) submit(e);
+              if (e.nativeEvent.isComposing) return;
+              if (shown.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                setSel((i) => (i + (e.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length);
+              } else if (shown.length && (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && text.slice(1) !== shown[sel].name))) {
+                e.preventDefault();
+                setText(`/${shown[sel].name} `);
+              } else if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault();
+                cycleMode();
+              } else if (e.key === 'ArrowUp' && !text && !imgs.length) {
+                const last = [...msgs].reverse().find((m) => m.role === 'user');
+                if (last) {
+                  e.preventDefault();
+                  setText(last.text);
+                }
+              } else if (e.key === 'Enter' && !e.shiftKey) submit(e);
             }}
           />
           <div className="ai-box-row">
@@ -593,9 +713,11 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
               </svg>
             </button>
               <Select size="sm" value={data?.model || ''} options={MODEL_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Model')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ model: v || null }))} />
+              <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
               <Select size="sm" value={data?.effort || ''} options={EFFORT_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Effort')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ effort: v || null }))} />
             </div>
-            {busy ? (
+            {ready && data?.context?.tokens ? <span className={`ai-ctx${ctxPct >= 80 ? ' hot' : ''}`} title={t('Ngữ cảnh đã dùng — tự nén khi đạt 80%')}>{ctxPct}%</span> : null}
+            {busy && !text.trim() && !imgs.length ? (
               <button type="button" className="ai-send stop" onClick={() => act(a.stop)} aria-label={t('Dừng')} title={t('Dừng')}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="7" y="7" width="10" height="10" rx="2" />
@@ -615,6 +737,8 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
           </div>
         </div>
       </form>
+      {dlg === 'memory' ? <MemoryModal onClose={() => setDlg(null)} /> : null}
+      {dlg === 'mcp' ? <McpModal onClose={() => setDlg(null)} /> : null}
     </aside>
   );
 }
