@@ -625,7 +625,7 @@ test('estimateCost: chars / count / số nguyên / thiếu file / biểu thức 
 test('stepView: đủ trường, runs n DESC, latest, can_run, resume_cmd', () => {
   const { id, dir, session_id } = mk({ slug: 'sv', dir: path.join(tmp, "it's dir") });
   let sv = projects.stepView(id, 'voice');
-  assert.deepEqual(Object.keys(sv).sort(), ['can_run', 'latest', 'project', 'resume_cmd', 'runs', 'step']);
+  assert.deepEqual(Object.keys(sv).sort(), ['can_run', 'latest', 'project', 'resume_cmd', 'runs', 'step', 'usage_by_step']);
   assert.equal(sv.project.id, id);
   assert.equal(sv.step.key, 'voice');
   assert.equal(sv.step.prompt_template.includes('script.md'), true);

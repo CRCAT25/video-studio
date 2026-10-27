@@ -312,6 +312,34 @@ export function grantSavedPipeline(home, id, tool) {
   return false;
 }
 
+// Gắn thư mục skill vào quy trình đã lưu (<home>/presets/<id>.yaml) nếu có; trả true khi đã ghi.
+export function attachSavedSkill(home, id, skillDir) {
+  if (!isValidSlug(id)) return false;
+  const dir = path.join(home, 'presets');
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => /\.ya?ml$/i.test(n) && !/^channels\.ya?ml$/i.test(n));
+  } catch {
+    return false;
+  }
+  for (const n of names) {
+    const file = path.join(dir, n);
+    let raw;
+    try {
+      raw = YAML.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      continue;
+    }
+    if (!raw || raw.id !== id) continue;
+    const list = Array.isArray(raw.skills) ? raw.skills : raw.skills ? [raw.skills] : [];
+    if (list.map((s) => path.resolve(String(s))).includes(path.resolve(skillDir))) return false;
+    raw.skills = [...list, skillDir];
+    fs.writeFileSync(file, `# Quy trình của tôi — tạo bởi Video Studio\n${YAML.stringify(raw, { lineWidth: 0 })}`);
+    return true;
+  }
+  return false;
+}
+
 // Quyền cấp cho mọi dự án (nút "Cho phép tất cả các dự án"): <home>/global-permissions.json {allow: [...]}.
 export function readGlobalAllow(home) {
   if (!home) return [];

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { fetchText, mediaUrl } from '../api.js';
 import { KIND_LABEL, fmtBytes, fmtDateTime, fmtDuration } from '../lib/format.js';
 import { DownloadIcon } from './icons.jsx';
+import Lightbox from './Lightbox.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
 import { tr, useT } from '../lib/i18n.jsx';
 
@@ -112,6 +113,7 @@ function TextPreview({ projectId, a, auto }) {
 // Danh sách đầu ra theo nhóm kind; fromResult = lấy từ kết quả của lượt cũ (file có thể đã bị ghi đè).
 export default function Outputs({ projectId, artifacts = [], fromResult = false, runN, outputs = [], running = false }) {
   const t = useT();
+  const [viewIdx, setViewIdx] = useState(null);
   const list = (artifacts || [])
     .filter((a) => a && a.path)
     .map((a) => ({ ...a, kind: ORDER.includes(a.kind) ? a.kind : guessKind(a.path) }));
@@ -182,12 +184,29 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
             : null}
           {kind === 'image' ? (
             <div className="imgs">
-              {arr.map((a) => (
-                <a key={a.id ?? a.path} href={srcOf(projectId, a.path)} target="_blank" rel="noopener noreferrer" title={`${a.label || a.path}${a.bytes != null ? ` · ${fmtBytes(a.bytes)}` : ''}`}>
+              {arr.map((a, i) => (
+                <a
+                  key={a.id ?? a.path}
+                  href={srcOf(projectId, a.path)}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; // giữ ⌘/Ctrl-click mở tab mới
+                    e.preventDefault();
+                    setViewIdx(i);
+                  }}
+                  title={`${a.label || a.path}${a.bytes != null ? ` · ${fmtBytes(a.bytes)}` : ''}`}
+                >
                   <img src={srcOf(projectId, a.path)} alt={a.label || baseName(a.path)} loading="lazy" />
                   <span>{a.label || baseName(a.path)}</span>
                 </a>
               ))}
+              {viewIdx != null && arr[viewIdx] ? (
+                <Lightbox
+                  items={arr.map((a) => ({ src: srcOf(projectId, a.path), name: a.label || baseName(a.path), file: baseName(a.path) }))}
+                  index={viewIdx}
+                  onIndex={setViewIdx}
+                  onClose={() => setViewIdx(null)}
+                />
+              ) : null}
             </div>
           ) : null}
           {TEXT_KINDS.has(kind)

@@ -345,6 +345,13 @@ export function openStore(file) {
         runs: r.runs,
       };
     },
+    // Token theo từng bước (runs.usage_json), theo thứ tự bước: [{key, name, runs, input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens}].
+    usageByStep(projectId) {
+      const tok = (f) => `COALESCE(SUM(CASE WHEN json_valid(r.usage_json) THEN json_extract(r.usage_json, '$.${f}') END), 0) AS ${f}`;
+      return st(`SELECT s.key AS key, s.name AS name, COUNT(r.id) AS runs, ${tok('input_tokens')}, ${tok('output_tokens')},
+                 ${tok('cache_read_input_tokens')}, ${tok('cache_creation_input_tokens')}
+                 FROM steps s LEFT JOIN runs r ON r.step_id = s.id WHERE s.project_id = ? GROUP BY s.id ORDER BY s.ord`).all(projectId);
+    },
     // Tổng units của costs kind 'claude_tokens' có run.started_at ≥ iso.
     tokensSince(iso) {
       const r = st(`SELECT COALESCE(SUM(c.units), 0) AS t FROM costs c JOIN runs r ON r.id = c.run_id

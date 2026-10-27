@@ -11,6 +11,7 @@ import { createAssistant } from './assistant.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
 import { createSkillSearch } from './skill-search.js';
+import { createDistill } from './distill.js';
 import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
 import { openStore } from './db.js';
@@ -287,6 +288,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       assistant,
       usage,
       skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
+      distill: createDistill({ claudeBin, env: authEnv }),
       youtube,
       googleWizard: wizard,
       login: createLogin({

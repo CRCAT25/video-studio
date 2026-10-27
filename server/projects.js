@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expandHome, isValidSlug, safeJoin, shellQuote, slugify, studioHome } from './paths.js';
-import { addAllowTool, addGlobalAllow, grantSavedPipeline, preparePipeline } from './pipeline.js';
+import { addAllowTool, addGlobalAllow, attachSavedSkill, grantSavedPipeline, preparePipeline } from './pipeline.js';
 import { DEFAULT_TIMEOUT_MS, renderTemplate, validatePreset } from './presets.js';
 
 // Lỗi có mã HTTP + code máy đọc (§10); extra (vd {cost}) được gộp vào body JSON.
@@ -372,7 +372,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     const resume_cmd = p.session_started === 1 && p.claude_session_id
       ? `cd ${shellQuote(p.dir)} && claude --resume ${p.claude_session_id}`
       : null;
-    return { project, step, runs, latest, can_run, resume_cmd };
+    return { project, step, runs, latest, can_run, resume_cmd, usage_by_step: store.usageByStep(id) };
   }
 
   // Kiểm bước có chạy được không (§5, §8.4.1): {ok:true} hoặc {ok:false, status, code, message[, cost]}. Lock do runner kiểm.
@@ -712,6 +712,69 @@ export function createProjects({ store, presets, channels, home } = {}) {
     return { ok: true, changed, savedUpdated };
   }
 
+  // Dữ liệu cho lượt đúc kết skill của một bước đã xong: prompt mẫu, file đầu ra (gộp mọi lượt), góp ý, skill đang gắn.
+  function distillSource(id, key) {
+    const p = store.getProject(id);
+    const s = p ? store.getStep(id, key) : null;
+    if (!s) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${key}" trong dự án "${id}".`);
+    if (s.state !== 'done') throw new HttpError(409, 'step_not_done', 'Chỉ đúc kết skill khi bước đã xong.');
+    const preset = presetFor(p);
+    const ps = presetStepOf(preset, key);
+    const runs = store.listRunsByStep(s.id);
+    const seen = new Set();
+    const artifacts = [];
+    for (const r of runs) {
+      for (const a of store.listArtifacts(r.id)) {
+        if (!seen.has(a.path)) {
+          seen.add(a.path);
+          artifacts.push({ path: a.path, kind: a.kind });
+        }
+      }
+    }
+    const feedbacks = runs.map((r) => (typeof r.feedback === 'string' ? r.feedback.trim() : '')).filter(Boolean).slice(-10);
+    const libRoot = path.join(homeDir(), 'skills');
+    const existing = [];
+    for (const d of Array.isArray(preset?.skills) ? preset.skills : []) {
+      if (path.dirname(path.resolve(String(d))) !== libRoot) continue;
+      try {
+        existing.push({ name: path.basename(d), content: fs.readFileSync(path.join(d, 'SKILL.md'), 'utf8') });
+      } catch {
+        /* skill đã bị xóa */
+      }
+    }
+    return { stepKey: key, stepName: s.name, promptTemplate: ps?.prompt ?? '', dir: p.dir, artifacts, feedbacks, existing, channelId: p.channel_id };
+  }
+
+  // Gắn thư mục skill vào quy trình của dự án (bản chụp) và quy trình đã lưu nếu có.
+  function attachSkill(id, skillDir) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    const preset = presetFor(p);
+    let raw = null;
+    try {
+      if (p.pipeline) raw = JSON.parse(p.pipeline);
+      else if (preset?.pipeline) raw = { ...preset.pipeline, skills: preset.skills };
+    } catch {
+      raw = null;
+    }
+    let attached = false;
+    if (raw) {
+      const list = Array.isArray(raw.skills) ? raw.skills : [];
+      if (!list.map((x) => path.resolve(String(x))).includes(path.resolve(skillDir))) {
+        raw.skills = [...list, skillDir];
+        try {
+          validatePreset(raw);
+        } catch (e) {
+          throw new HttpError(409, 'no_snapshot', 'Không gắn được skill vào quy trình của dự án — hãy gắn tay ở tab Skills.');
+        }
+        store.updateProject(id, { pipeline: JSON.stringify(raw) });
+      }
+      attached = true;
+    }
+    const savedUpdated = p.preset_id ? attachSavedSkill(homeDir(), p.preset_id, skillDir) : false;
+    return { attached, savedUpdated };
+  }
+
   // Preset (đã chuẩn hóa) của dự án, hoặc null nếu dự án/preset không còn.
   function presetOf(id) {
     const p = store.getProject(id);
@@ -773,6 +836,8 @@ export function createProjects({ store, presets, channels, home } = {}) {
     writeSnapshot,
     presetOf,
     grantPermission,
+    distillSource,
+    attachSkill,
     estimateCost,
   };
 }

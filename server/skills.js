@@ -260,6 +260,52 @@ export function createSkills({ home, localRoot = path.join(os.homedir(), '.claud
     return [n];
   }
 
+  // Lưu bản nháp đúc kết: files [{path, content}|{path, from}] (from = file thật để chép, vd ảnh mẫu). overwrite=true cho phép ghi đè skill cùng tên.
+  function saveDraft({ name, files, rename = false, overwrite = false }) {
+    if (!Array.isArray(files) || !files.length || files.length > 40) throw fail(400, 'invalid_body', 'Skill cần từ 1 đến 40 file.');
+    const clean = [];
+    let total = 0;
+    for (const f of files) {
+      const rel = String(f?.path ?? '').replace(/\\/g, '/');
+      if (!rel || rel.startsWith('/') || rel.split('/').some((x) => !x || x === '.' || x === '..' || x.startsWith('.')) || SKIP.has(rel.split('/').pop())) throw fail(400, 'invalid_body', `Tên file không hợp lệ: ${rel}`);
+      let data;
+      if (typeof f.from === 'string') {
+        const st = fs.statSync(f.from);
+        if (!st.isFile() || st.size > 1024 * 1024) throw fail(400, 'invalid_body', `File mẫu quá lớn hoặc không hợp lệ: ${rel}`);
+        data = fs.readFileSync(f.from);
+      } else {
+        if (typeof f.content !== 'string') throw fail(400, 'invalid_body', `Thiếu nội dung: ${rel}`);
+        data = Buffer.from(f.content);
+      }
+      total += data.length;
+      clean.push({ rel, data });
+    }
+    if (total > MAX_BYTES) throw fail(400, 'skill_too_big', 'Skill quá lớn.');
+    const md = clean.find((f) => f.rel === 'SKILL.md');
+    if (!md) throw fail(400, 'invalid_body', 'Skill cần có file SKILL.md.');
+    checkContent(md.data.toString('utf8'));
+    const base = nameOf(name);
+    const exists = base && fs.existsSync(path.join(lib, base, 'SKILL.md'));
+    const n = exists && overwrite ? base : freeName(name || parseSkillMd(md.data.toString('utf8')).title, rename);
+    const dir = path.join(lib, n);
+    const tmp = path.join(lib, `.tmp-${n}-${process.pid}`);
+    fs.rmSync(tmp, { recursive: true, force: true });
+    try {
+      for (const f of clean) {
+        fs.mkdirSync(path.dirname(path.join(tmp, f.rel)), { recursive: true });
+        fs.writeFileSync(path.join(tmp, f.rel), f.data);
+      }
+      const scope = path.join(dir, SCOPE_FILE);
+      if (n === base && exists && fs.existsSync(scope)) fs.copyFileSync(scope, path.join(tmp, SCOPE_FILE));
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.renameSync(tmp, dir);
+    } catch (e) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      throw e;
+    }
+    return { name: n, path: dir, updated: !!(exists && overwrite) };
+  }
+
   // Skill có trên máy (~/.claude/skills) + đã có trong thư viện hay chưa.
   function local() {
     const have = new Set(scanSkillDirs(lib).map((s) => s.name));
@@ -294,5 +340,5 @@ export function createSkills({ home, localRoot = path.join(os.homedir(), '.claud
     }
   }
 
-  return { lib, list, read, write, setScope, remove, local, importLocal, importText, importGithub };
+  return { lib, list, read, write, setScope, remove, local, importLocal, importText, importGithub, saveDraft };
 }

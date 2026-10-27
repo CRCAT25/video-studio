@@ -125,6 +125,7 @@ export async function buildApp({
   home = null,
   skills = null,
   skillSearch = null,
+  distill = null,
   pickDir = createDirPicker(),
   resetAll = null,
   hub = null,
@@ -689,6 +690,39 @@ export async function buildApp({
   app.put('/api/skills/:name', async (req) => skillCall((l) => l.write(req.params.name, skillBody(req).content)));
   app.put('/api/skills/:name/scope', async (req) => skillCall((l) => l.setScope(req.params.name, skillBody(req))));
   app.delete('/api/skills/:name', async (req) => skillCall((l) => l.remove(req.params.name)));
+
+  // Đúc kết skill từ bước đã xong (tốn token Claude): /distill trả bản nháp (không ghi gì); /distill/save lưu vào thư viện và gắn vào quy trình dự án.
+  app.post('/api/projects/:id/steps/:key/distill', async (req) => {
+    if (!distill) throw new HttpError(503, 'skills_unavailable', 'Đúc kết skill chưa bật trên server này.');
+    const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key));
+    const ch = src.channelId ? (callList(channels) ?? []).find((c) => c && c.id === src.channelId) : null;
+    try {
+      return await distill.draft(src, ch?.name || '');
+    } catch (e) {
+      throw pipelineError(e);
+    }
+  });
+  app.post('/api/projects/:id/steps/:key/distill/save', async (req, reply) => {
+    const b = skillBody(req);
+    const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key));
+    if (!Array.isArray(b.files)) throw badBody('Cần gửi JSON {name, files, samples?, overwrite?}.');
+    const have = new Set(src.artifacts.map((a) => a.path));
+    const files = b.files.filter(isObject).map((f) => ({ path: f.path, content: f.content }));
+    for (const rel of Array.isArray(b.samples) ? b.samples.slice(0, 2) : []) {
+      if (typeof rel !== 'string' || !have.has(rel) || !/\.(png|jpe?g|webp)$/i.test(rel)) continue;
+      let abs;
+      try {
+        abs = safeJoin(src.dir, rel);
+      } catch {
+        continue;
+      }
+      files.push({ path: `samples/${path.basename(rel)}`, from: abs });
+    }
+    const saved = await skillCall((l) => l.saveDraft({ name: b.name, files, rename: b.rename === true, overwrite: b.overwrite === true }));
+    const att = pipelineCall(() => projects.attachSkill(req.params.id, saved.path));
+    presets.invalidate?.();
+    return reply.code(saved.updated ? 200 : 201).send({ ...saved, ...att });
+  });
 
   app.get('/api/presets', async () => {
     const res = callList(presets) ?? {};
