@@ -523,9 +523,11 @@ function StepPage({ projectId, stepKey }) {
   const nextStep = idx >= 0 ? (project.steps || [])[idx + 1] : null;
   let nextBtn = null;
   if (st === 'done' && nextStep) {
+    // Bước sau đã chạy (không còn ở trạng thái chờ) → đã duyệt rồi: chỉ còn là nút chuyển bước.
+    const approved = !['ready', 'pending', 'manual'].includes(nextStep.state);
     nextBtn = (
-      <button key="next" type="button" className="btn primary tab-next" onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Kết quả ổn — mở bước "{n}"', { n: nextStep.name })}>
-        {t('Duyệt · sang bước tiếp →')}
+      <button key="next" type="button" className={`btn${approved ? '' : ' primary'} tab-next`} onClick={() => window.location.assign(stepHref(projectId, nextStep.key))} title={t('Kết quả ổn — mở bước "{n}"', { n: nextStep.name })}>
+        {approved ? t('Sang bước tiếp →') : t('Duyệt · sang bước tiếp →')}
       </button>
     );
   }

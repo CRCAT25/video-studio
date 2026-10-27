@@ -1064,6 +1064,7 @@ export default {
   'Chạy lại bước': 'Run step again',
   'Đã cho phép {tools} — chạy lại bước để áp dụng.': 'Allowed {tools} — run the step again to apply.',
   '(Quy trình này chưa được lưu nên chỉ áp cho dự án.)': '(This pipeline is not saved, so it only applies to this project.)',
+  'Sang bước tiếp →': 'Go to next step →',
   'Duyệt · sang bước tiếp →': 'Approve · next step →',
   'Kết quả ổn — mở bước "{n}"': 'Looks good — open step "{n}"',
   "Cho phép lần này": "Allow this time",
