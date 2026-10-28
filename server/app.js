@@ -15,6 +15,7 @@ import { deletePipeline, duplicatePipeline, exportPipeline, importPipeline, form
 import { REPO_ROOT } from './presets.js';
 import { createSkills } from './skills.js';
 import { HttpError } from './projects.js';
+import { createSkillRepo } from './skill-repo.js';
 import { LOGIN_CALLBACK_PATH, SESSION_COOKIE, sessionCookie } from './login.js';
 import { createHub } from './sse.js';
 import { CALLBACK_PATH } from './youtube/index.js';
@@ -129,6 +130,7 @@ export async function buildApp({
   home = null,
   skills = null,
   skillSearch = null,
+  skillRepo = null,
   distill = null,
   pickDir = createDirPicker(),
   resetAll = null,
@@ -731,6 +733,24 @@ export async function buildApp({
   app.put('/api/skills/:name', async (req) => skillCall((l) => l.write(req.params.name, skillBody(req).content)));
   app.put('/api/skills/:name/scope', async (req) => skillCall((l) => l.setScope(req.params.name, skillBody(req))));
   app.delete('/api/skills/:name', async (req) => skillCall((l) => l.remove(req.params.name)));
+
+  // Kho skill riêng của người dùng (repo git): tạo, đẩy skill lên, kéo bản mới về.
+  const repo = skillRepo ?? (home && lib ? createSkillRepo({ home }) : null);
+  const repoCall = async (fn) => {
+    if (!repo) throw new HttpError(503, 'skills_unavailable', 'Kho skill chưa bật trên server này.');
+    try {
+      return await fn(repo);
+    } catch (e) {
+      if (e?.extra && Number.isInteger(e.status)) throw new HttpError(e.status, e.code, e.message, e.extra);
+      throw pipelineError(e);
+    }
+  };
+  app.get('/api/skill-repo', async () => repoCall((r) => r.status()));
+  app.post('/api/skill-repo/init', async (req) => repoCall((r) => r.init(skillBody(req))));
+  app.post('/api/skill-repo/scan', async (req) => repoCall((r) => ({ findings: r.scan(skillBody(req).names) })));
+  app.post('/api/skill-repo/publish', async (req) => repoCall((r) => r.publish(skillBody(req))));
+  app.post('/api/skill-repo/pull', async () => repoCall((r) => r.pull()));
+  app.post('/api/skill-repo/apply', async (req) => repoCall((r) => r.apply(skillBody(req))));
 
   // Giai đoạn đang chạy của lượt tạo skill theo dự án, cho thanh tiến độ ở giao diện (hỏi lại định kỳ).
   const distillPhase = new Map();

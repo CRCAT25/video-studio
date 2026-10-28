@@ -220,3 +220,7 @@ details.yaml pre{margin-top:8px}
 .mode-sw{font-size:var(--fs-sm)}
 .pc-steps{margin:0;font-size:var(--fs-sm);color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .se-gate{width:230px}
+.sk-steps{margin:12px 0;padding-left:20px;display:flex;flex-direction:column;gap:14px}
+.sk-steps li input[type=text]{width:100%;margin-top:6px}
+.sk-steps li .btn{margin:4px 8px 0 0}
+.sk-find{margin:8px 0;padding-left:18px;font-size:var(--fs-sm);max-height:160px;overflow:auto}

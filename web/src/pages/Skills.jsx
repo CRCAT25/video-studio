@@ -7,6 +7,7 @@ import { api } from '../api.js';
 import Select from '../components/Select.jsx';
 import Req from '../components/Req.jsx';
 import { useT } from '../lib/i18n.jsx';
+import SkillRepo from './SkillRepo.jsx';
 
 // Trình xem/sửa SKILL.md; đóng khi có thay đổi chưa lưu thì hỏi lại một lần.
 function SkillEditor({ name, onClose, onSaved }) {
@@ -350,6 +351,7 @@ export default function Skills({ onReloadPresets }) {
   const [edit, setEdit] = useState(null);
   const [imp, setImp] = useState(null);
   const [del, setDel] = useState(null);
+  const [repo, setRepo] = useState(false);
   const [channels, setChannels] = useState([]);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(null); // 'ai' | 'web' khi đang tìm
@@ -445,6 +447,7 @@ export default function Skills({ onReloadPresets }) {
         <h1>Skills</h1>
         <div className="sk-acts">
           <button type="button" className="btn sm" onClick={load}>{t('Tải lại')}</button>
+          <button type="button" className="btn sm" onClick={() => setRepo(true)}>{t('Kho skill của tôi')}</button>
           <button type="button" className="btn sm primary" onClick={() => setImp({})}>{t('Nhập skill')}</button>
         </div>
       </div>
@@ -517,6 +520,7 @@ export default function Skills({ onReloadPresets }) {
       {tab === 'search' && found ? <Suggestions local={localHits} web={found.suggestions} channels={channels} onImport={setImp} /> : null}
       {edit ? <SkillEditor name={edit} onClose={() => setEdit(null)} onSaved={changed} /> : null}
       {imp ? <ImportModal initial={imp.tab ? imp : null} onClose={() => setImp(null)} onDone={changed} /> : null}
+      {repo ? <SkillRepo onClose={() => setRepo(false)} onChanged={changed} /> : null}
       {del ? <DeleteModal skill={del} onClose={() => setDel(null)} onDone={changed} /> : null}
     </>
   );

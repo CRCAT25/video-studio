@@ -90,7 +90,7 @@ export function scanSkillDirs(root) {
 }
 
 // Chép thư mục skill (chỉ file thường; bỏ symlink, .git, node_modules); vượt giới hạn → lỗi.
-function copyTree(src, dest) {
+export function copyTree(src, dest) {
   let files = 0;
   let bytes = 0;
   const walk = (from, to) => {
