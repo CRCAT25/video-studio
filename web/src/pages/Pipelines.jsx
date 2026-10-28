@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Flow from '../components/Flow.jsx';
 import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatalog, useSuggestion } from '../components/FormatPicker.jsx';
 import Modal from '../components/Modal.jsx';
+import { RowMenu } from './Channels.jsx';
 import { PresetErrors } from '../components/NewProjectModal.jsx';
 import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
 import Req from '../components/Req.jsx';
@@ -42,36 +43,15 @@ function costText(c) {
   return `${c.service || tr('dịch vụ')}${est}${c.always_ask ? ` · ${tr('luôn hỏi')}` : ''}`;
 }
 
-// Thẻ một quy trình đã lưu; onDelete chỉ có với quy trình của tôi.
-function PresetCard({ p, channelName, onDelete, onEdit }) {
+// Chi tiết một quy trình (hiện trong hộp thoại): dải bước, thông tin, quyền, bảng bước, YAML.
+function PresetDetail({ p, channelName }) {
   const t = useT();
   const steps = p.steps || [];
   const perms = p.permissions || {};
   const vars = p.vars && typeof p.vars === 'object' ? Object.entries(p.vars) : [];
-  const paidCount = steps.filter((s) => s.cost).length;
   return (
-    <section className="bp card" aria-label={t('Quy trình {n}', { n: p.name })}>
-      <div className="bp-h">
-        <h2>{tr(p.name)}</h2>
-        <span className="muted">
-          <span className="mono" title={p.file || ''}>{p.id}</span> · {t('{n} bước', { n: steps.length })}{paidCount ? ` · ${t('{n} tốn tiền', { n: paidCount })}` : ''}
-          {p.mine ? null : ` · ${t('có sẵn')}`}
-        </span>
-        {onEdit ? (
-          <button type="button" className="btn sm ghost" onClick={onEdit}>
-            {t('Sửa')}
-          </button>
-        ) : null}
-        {onDelete ? (
-          <button type="button" className="btn sm ghost bp-del" onClick={onDelete}>
-            {t('Xóa')}
-          </button>
-        ) : null}
-      </div>
+    <>
       <Flow steps={steps} staticMode label={t('Các bước của {n}', { n: p.name })} />
-
-      <details className="bp-more">
-        <summary>{t('Chi tiết')}</summary>
       <div className="spec">
         <div className="blk">
           <h3>{t('Thông tin')}</h3>
@@ -151,8 +131,7 @@ function PresetCard({ p, channelName, onDelete, onEdit }) {
           <summary>YAML</summary>
           <pre className="box-pre">{p.yaml || t('(trống)')}</pre>
         </details>
-      </details>
-    </section>
+    </>
   );
 }
 
@@ -362,6 +341,7 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
   const chName = (id) => channels.find((c) => c.id === id)?.name;
   const [del, setDel] = useState(null);
   const [edit, setEdit] = useState(null);
+  const [view, setView] = useState(null);
   const [delBusy, setDelBusy] = useState(false);
   const [delErr, setDelErr] = useState(null);
 
@@ -423,11 +403,56 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
       {data && !presets.length ? (
         <div className="card empty">{t('Chưa có quy trình nào. Chọn định dạng ở trên, tùy chỉnh rồi bấm Lưu.')}</div>
       ) : null}
-      <div className="bp-list">
-        {presets.map((p) => (
-          <PresetCard key={p.id} p={p} channelName={chName(p.channel)} onDelete={p.mine ? () => setDel(p) : null} onEdit={p.mine ? () => setEdit(p) : null} />
-        ))}
-      </div>
+      {presets.length ? (
+        <div className="tbl-wrap yt-chlist">
+          <table className="yt-tbl">
+            <thead>
+              <tr>
+                <th>{t('Quy trình')}</th>
+                <th className="num">{t('Bước')}</th>
+                <th className="num hide-sm">{t('Tốn tiền')}</th>
+                <th className="hide-sm">{t('Định dạng')}</th>
+                <th>
+                  <span className="sr-only">{t('Thao tác')}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {presets.map((p) => {
+                const n = (p.steps || []).length;
+                const paid = (p.steps || []).filter((s) => s.cost).length;
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <button type="button" className="yt-chname link-btn" onClick={() => setView(p)}>{tr(p.name)}</button>
+                      <span className="muted small yt-chst">
+                        <span className="mono" title={p.file || ''}>{p.id}</span>{p.mine ? '' : ` · ${t('có sẵn')}`}
+                      </span>
+                    </td>
+                    <td className="num">{n}</td>
+                    <td className="num hide-sm">{paid || '—'}</td>
+                    <td className="hide-sm">{formatText(p)}</td>
+                    <td className="yt-chact">
+                      <RowMenu
+                        label={t('Thao tác với quy trình {n}', { n: p.name })}
+                        items={[
+                          { label: t('Xem chi tiết'), onClick: () => setView(p) },
+                          ...(p.mine ? [{ label: t('Sửa'), onClick: () => setEdit(p) }, { sep: true }, { label: t('Xóa'), onClick: () => setDel(p), danger: true }] : []),
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {view ? (
+        <Modal title={tr(view.name)} onClose={() => setView(null)} xwide>
+          <PresetDetail p={view} channelName={chName(view.channel)} />
+        </Modal>
+      ) : null}
       {edit ? <EditModal preset={edit} onClose={() => setEdit(null)} onSaved={onReload} /> : null}
       {del ? (
         <Modal title={t('Xóa quy trình?')} onClose={() => setDel(null)} busy={delBusy}>

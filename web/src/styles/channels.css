@@ -149,3 +149,4 @@
 .menu-it:disabled{opacity:.5;cursor:not-allowed}
 .yt-rowmenu .menu.yt-rowpop{position:fixed;left:auto}
 .yt-rowmenu .btn svg{display:block}
+.link-btn{background:none;border:0;padding:0;font:inherit;text-align:left;cursor:pointer}

@@ -1204,4 +1204,6 @@ export default {
   'Model và effort': 'Model and effort',
   'Sửa quy trình': 'Edit workflow',
   'Dự án đã tạo từ quy trình này không bị ảnh hưởng.': 'Projects already created from this workflow are not affected.',
+  'Thao tác với quy trình {n}': 'Actions for workflow {n}',
+  'Xem chi tiết': 'View details',
 };

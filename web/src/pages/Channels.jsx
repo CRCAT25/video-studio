@@ -478,7 +478,16 @@ function ChannelRow({ c, s, onNew, onDelete }) {
       <td className="num hide-sm">{ok ? cell(fmtNum(ch?.videos)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
       <td className="yt-chact">
-        <RowMenu c={c} url={ytUrl(ch)} onNew={() => onNew(c)} onDelete={() => onDelete(c)} />
+        <RowMenu
+          label={t('Thao tác với kênh {name}', { name: c.name })}
+          items={[
+            { label: t('Xem chi tiết kênh'), onClick: () => navigate(chHref(c.id)) },
+            { label: t('Mở kênh trên YouTube'), onClick: () => window.open(ytUrl(ch), '_blank', 'noopener,noreferrer'), disabled: !ytUrl(ch), title: ytUrl(ch) ? undefined : t('Chưa có thông tin kênh từ YouTube'), external: true },
+            { label: t('Tạo video'), onClick: () => onNew(c), disabled: !ok, title: ok ? undefined : t('Kênh cần được kết nối trước') },
+            { sep: true },
+            { label: t('Xóa kênh'), onClick: () => onDelete(c), danger: true },
+          ]}
+        />
       </td>
     </tr>
   );
@@ -633,7 +642,7 @@ function DeleteChannelModal({ c, onClose }) {
 }
 
 // Menu "…" cuối hàng kênh: xem chi tiết, tạo video, xóa kênh.
-function RowMenu({ c, url, onNew, onDelete }) {
+export function RowMenu({ label, items }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
@@ -694,7 +703,6 @@ function RowMenu({ c, url, onNew, onDelete }) {
     close();
     fn();
   };
-  const ok = c.status !== 'reauth' && !c.pending;
   return (
     <div className="menu-wrap yt-rowmenu" ref={wrap}>
       <button
@@ -705,7 +713,7 @@ function RowMenu({ c, url, onNew, onDelete }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        aria-label={t('Thao tác với kênh {name}', { name: c.name })}
+        aria-label={label}
         title={t('Thao tác')}
       >
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
@@ -715,23 +723,21 @@ function RowMenu({ c, url, onNew, onDelete }) {
         </svg>
       </button>
       {open ? (
-        <div ref={menu} id={id} className="menu yt-rowpop" style={pos} role="menu" aria-label={t('Thao tác với kênh {name}', { name: c.name })} onKeyDown={onKey}>
-          <button type="button" role="menuitem" className="menu-it" onClick={pick(() => navigate(chHref(c.id)))}>
-            <span className="menu-lb">{t('Xem chi tiết kênh')}</span>
-          </button>
-          <button type="button" role="menuitem" className="menu-it" onClick={pick(() => window.open(url, '_blank', 'noopener,noreferrer'))} disabled={!url} title={url ? undefined : t('Chưa có thông tin kênh từ YouTube')}>
-            <span className="menu-lb">{t('Mở kênh trên YouTube')}</span>
-            <svg className="menu-tick" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 3h4v4M13 3L7.5 8.5M12 9v3.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5H7" />
-            </svg>
-          </button>
-          <button type="button" role="menuitem" className="menu-it" onClick={pick(onNew)} disabled={!ok} title={ok ? undefined : t('Kênh cần được kết nối trước')}>
-            <span className="menu-lb">{t('Tạo video')}</span>
-          </button>
-          <div className="menu-sep" role="separator" />
-          <button type="button" role="menuitem" className="menu-it menu-danger" onClick={pick(onDelete)}>
-            <span className="menu-lb">{t('Xóa kênh')}</span>
-          </button>
+        <div ref={menu} id={id} className="menu yt-rowpop" style={pos} role="menu" aria-label={label} onKeyDown={onKey}>
+          {items.map((it, i) =>
+            it.sep ? (
+              <div key={i} className="menu-sep" role="separator" />
+            ) : (
+              <button key={i} type="button" role="menuitem" className={`menu-it${it.danger ? ' menu-danger' : ''}`} onClick={pick(it.onClick)} disabled={it.disabled} title={it.title}>
+                <span className="menu-lb">{it.label}</span>
+                {it.external ? (
+                  <svg className="menu-tick" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 3h4v4M13 3L7.5 8.5M12 9v3.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5H7" />
+                  </svg>
+                ) : null}
+              </button>
+            ),
+          )}
         </div>
       ) : null}
     </div>
