@@ -29,11 +29,18 @@ details.adv:not([open]) > summary{margin-bottom:0}
 .cost-box p{margin:6px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 
 .toasts{position:fixed;right:20px;top:20px;z-index:60;display:flex;flex-direction:column;gap:8px;align-items:flex-end;width:max-content;max-width:calc(100% - 40px);pointer-events:none}
-.toast{display:flex;align-items:center;gap:8px;background:#18181b;color:#f4f4f5;border:1px solid #2e2e33;padding:10px 14px;border-radius:8px;font-size:var(--fs-md);box-shadow:0 12px 30px rgba(0,0,0,.3);animation:toast-in .18s ease-out;overflow-wrap:anywhere;pointer-events:auto;max-width:100%}
-.toast:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#71717a}
-.toast.err:before{background:#f87171}
-.toast.ok:before{background:#34c76f}
-@keyframes toast-in{from{opacity:0;transform:translateX(12px)}}
+.toast{--tc:#71717a;position:relative;display:flex;align-items:center;gap:10px;background:#18181b;color:#f4f4f5;border:1px solid #2e2e33;padding:11px 16px 11px 12px;border-radius:10px;font-size:var(--fs-md);box-shadow:0 14px 34px rgba(0,0,0,.38),0 2px 6px rgba(0,0,0,.25);animation:toast-in .38s cubic-bezier(.2,.9,.3,1.15) backwards;overflow:hidden;overflow-wrap:anywhere;pointer-events:auto;max-width:min(420px,100%);cursor:pointer;transition:opacity .24s ease,transform .24s ease}
+.toast.ok{--tc:#34c76f}
+.toast.err{--tc:#f87171}
+.toast .ti{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;color:var(--tc);background:color-mix(in srgb,var(--tc) 18%,transparent);animation:toast-pop .45s cubic-bezier(.3,1.6,.5,1) .12s backwards}
+.toast .ti svg{display:block}
+.toast .tm{min-width:0}
+.toast:after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--tc);opacity:.75;transform-origin:left;animation:toast-life var(--life,3200ms) linear forwards}
+.toast.out{opacity:0;transform:translateX(24px) scale(.97);pointer-events:none}
+@keyframes toast-in{from{opacity:0;transform:translateX(36px) scale(.96)}}
+@keyframes toast-pop{from{transform:scale(0)}}
+@keyframes toast-life{to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.toast,.toast .ti{animation:none}.toast:after{animation:none;display:none}}
 
 @media (max-width:520px){
   .modal-bg{padding:16px}
