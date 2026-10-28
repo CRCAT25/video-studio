@@ -1316,4 +1316,12 @@ export default {
   'Dán địa chỉ repo (mới tạo hoặc đã có sẵn)': 'Paste the repo URL (new or existing)',
   'Nếu repo đã có skill, app sẽ tải về và bạn chọn skill nào lấy vào thư viện.': 'If the repo already has skills, the app downloads it and you choose which ones to bring into the library.',
   'Không truy cập được repo này — kiểm tra địa chỉ, hoặc đăng nhập git nếu repo riêng tư.': 'Cannot access this repo — check the URL, or log in to git if the repo is private.',
+  'Bạn đã có repo skill chưa?': 'Do you already have a skills repo?',
+  'Tôi đã có repo': 'I already have a repo',
+  'Tôi chưa có repo': "I don't have one yet",
+  'Dán địa chỉ repo': 'Paste the repo address',
+  'Tạo repo trống trên GitHub': 'Create an empty repo on GitHub',
+  'Dán địa chỉ repo vừa tạo': 'Paste the address of the repo you just created',
+  'Kết nối': 'Connect',
+  'Đang kết nối…': 'Connecting…',
 };

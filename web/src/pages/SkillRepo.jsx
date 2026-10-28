@@ -11,6 +11,7 @@ function Wizard({ st, onDone }) {
   const t = useT();
   const toast = useToast();
   const [url, setUrl] = useState('');
+  const [mode, setMode] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const go = async (body) => {
@@ -29,26 +30,35 @@ function Wizard({ st, onDone }) {
     <>
       <p>{t('Kho skill là một repo GitHub của riêng bạn. Đẩy skill lên đó để sao lưu, chia sẻ, và cài lại trên máy khác chỉ bằng một lệnh.')}</p>
       {!st.hasGit ? <div className="err-note" role="alert">{t('Máy chưa cài git — cài git rồi mở lại cửa sổ này.')}</div> : null}
-      <ol className="sk-steps">
-        <li>
-          <b>{t('Chưa có repo? Tạo repo trống trên GitHub')}</b>
-          <p className="note">{t('Mở trang tạo repo (đã điền sẵn tên my-skills), bấm "Create repository" và đừng thêm README.')}</p>
-          <a className="btn sm" href={NEW_REPO} target="_blank" rel="noopener noreferrer">{t('Mở github.com/new')}</a>
-          {st.ghLoggedIn ? (
-            <button type="button" className="btn sm" disabled={busy || !st.hasGit} onClick={() => go({ createWithGh: true, name: 'my-skills' })} title={t('Dùng gh (đã đăng nhập) để tạo repo công khai my-skills và nối luôn')}>{t('Hoặc tạo bằng gh')}</button>
-          ) : null}
-        </li>
-        <li>
-          <b>{t('Dán địa chỉ repo (mới tạo hoặc đã có sẵn)')}</b>
+      <div className="row" role="group" aria-label={t('Bạn đã có repo skill chưa?')}>
+        <button type="button" className={`btn sm${mode === 'have' ? ' primary' : ''}`} onClick={() => setMode('have')}>{t('Tôi đã có repo')}</button>
+        <button type="button" className={`btn sm${mode === 'new' ? ' primary' : ''}`} onClick={() => setMode('new')}>{t('Tôi chưa có repo')}</button>
+      </div>
+      {mode === 'have' ? (
+        <div className="sk-steps">
+          <b>{t('Dán địa chỉ repo')}</b>
           <p className="note">{t('Nếu repo đã có skill, app sẽ tải về và bạn chọn skill nào lấy vào thư viện.')}</p>
           <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/ten-ban/my-skills" aria-label={t('Địa chỉ repo GitHub')} disabled={busy} />
-        </li>
-        <li>
-          <b>{t('Tạo kho trên máy')}</b>
-          <p className="note">{t('Tạo thư mục {d} gồm README, LICENSE, .gitignore, sync.sh, sync.ps1 và nối với repo.', { d: st.dir })}</p>
-          <button type="button" className="btn sm primary" disabled={busy || !st.hasGit || !url.trim()} onClick={() => go({ url: url.trim() })}>{busy ? <><i className="spinner on-acc" aria-hidden="true" />{t('Đang tạo…')}</> : t('Tạo kho trên máy')}</button>
-        </li>
-      </ol>
+          <button type="button" className="btn sm primary" disabled={busy || !st.hasGit || !url.trim()} onClick={() => go({ url: url.trim() })}>{busy ? <><i className="spinner on-acc" aria-hidden="true" />{t('Đang kết nối…')}</> : t('Kết nối')}</button>
+        </div>
+      ) : null}
+      {mode === 'new' ? (
+        <ol className="sk-steps">
+          <li>
+            <b>{t('Tạo repo trống trên GitHub')}</b>
+            <p className="note">{t('Mở trang tạo repo (đã điền sẵn tên my-skills), bấm "Create repository" và đừng thêm README.')}</p>
+            <a className="btn sm" href={NEW_REPO} target="_blank" rel="noopener noreferrer">{t('Mở github.com/new')}</a>
+            {st.ghLoggedIn ? (
+              <button type="button" className="btn sm" disabled={busy || !st.hasGit} onClick={() => go({ createWithGh: true, name: 'my-skills' })} title={t('Dùng gh (đã đăng nhập) để tạo repo công khai my-skills và nối luôn')}>{t('Hoặc tạo bằng gh')}</button>
+            ) : null}
+          </li>
+          <li>
+            <b>{t('Dán địa chỉ repo vừa tạo')}</b>
+            <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/ten-ban/my-skills" aria-label={t('Địa chỉ repo GitHub')} disabled={busy} />
+            <button type="button" className="btn sm primary" disabled={busy || !st.hasGit || !url.trim()} onClick={() => go({ url: url.trim() })}>{busy ? <><i className="spinner on-acc" aria-hidden="true" />{t('Đang kết nối…')}</> : t('Kết nối')}</button>
+          </li>
+        </ol>
+      ) : null}
       {err ? <div className="err-note" role="alert">{err}</div> : null}
     </>
   );
