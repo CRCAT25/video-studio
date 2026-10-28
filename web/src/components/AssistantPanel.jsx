@@ -712,9 +712,20 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
                 <path d="M20 11.5l-7.8 7.8a5 5 0 01-7-7L13 4.5a3.3 3.3 0 014.7 4.7L9.9 17a1.7 1.7 0 01-2.4-2.4l7.4-7.4" />
               </svg>
             </button>
-              <Select size="sm" value={data?.model || ''} options={MODEL_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Model')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ model: v || null }))} />
+              <Select
+                size="sm"
+                value=""
+                display={`${t((MODEL_OPTS.find((o) => o.value === (data?.model || '')) || MODEL_OPTS[0]).label)} · ${t((EFFORT_OPTS.find((o) => o.value === (data?.effort || '')) || EFFORT_OPTS[0]).label)}`}
+                selected={(v) => v === `m:${data?.model || ''}` || v === `e:${data?.effort || ''}`}
+                options={[
+                  ...MODEL_OPTS.map((o) => ({ value: `m:${o.value}`, label: t(o.label), group: t('Model') })),
+                  ...EFFORT_OPTS.map((o) => ({ value: `e:${o.value}`, label: t(o.label), group: 'Effort' })),
+                ]}
+                label={t('Model và effort')}
+                disabled={!ready || busy}
+                onChange={(v) => act(() => a.settings(v.startsWith('m:') ? { model: v.slice(2) || null } : { effort: v.slice(2) || null }))}
+              />
               <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
-              <Select size="sm" value={data?.effort || ''} options={EFFORT_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Effort')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ effort: v || null }))} />
             </div>
             {ready && data?.context?.tokens ? <span className={`ai-ctx${ctxPct >= 80 ? ' hot' : ''}`} title={t('Ngữ cảnh đã dùng — tự nén khi đạt 80%')}>{ctxPct}%</span> : null}
             {busy && !text.trim() && !imgs.length ? (

@@ -24,7 +24,7 @@ function Line({ o }) {
   );
 }
 
-export default function Select({ value, options = [], onChange, disabled = false, placeholder, label, id, size, className = '' }) {
+export default function Select({ value, options = [], onChange, disabled = false, placeholder, label, id, size, className = '', display, selected }) {
   const t = useT();
   const autoId = useId();
   const btnId = id || `${autoId}-b`;
@@ -45,7 +45,7 @@ export default function Select({ value, options = [], onChange, disabled = false
   };
   const pick = (i) => {
     const o = options[i];
-    if (o && o.value !== value) onChange?.(o.value);
+    if (o && (selected ? true : o.value !== value)) onChange?.(o.value);
     close();
   };
   const show = (at = idx) => {
@@ -165,7 +165,7 @@ export default function Select({ value, options = [], onChange, disabled = false
         onClick={() => (open ? close() : show())}
         onKeyDown={onKey}
       >
-        <span className="sel-val">{cur ? <Line o={cur} /> : <span className="sel-ph">{placeholder ?? t('Chọn…')}</span>}</span>
+        <span className="sel-val">{display ? <span className="sel-lb">{display}</span> : cur ? <Line o={cur} /> : <span className="sel-ph">{placeholder ?? t('Chọn…')}</span>}</span>
         <svg className="sel-chev" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 6l4 4 4-4" />
         </svg>
@@ -187,7 +187,7 @@ export default function Select({ value, options = [], onChange, disabled = false
                 data-i={i}
                 data-value={o.value}
                 role="option"
-                aria-selected={o.value === value}
+                aria-selected={selected ? selected(o.value) : o.value === value}
                 className={`sel-opt${i === active ? ' act' : ''}`}
                 onMouseMove={() => i !== active && setActive(i)}
                 onClick={(e) => {

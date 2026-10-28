@@ -1201,4 +1201,5 @@ export default {
   'Loại': 'Type',
   'Lệnh và đối số': 'Command and arguments',
   'Lệnh hoặc URL': 'Command or URL',
+  'Model và effort': 'Model and effort',
 };
