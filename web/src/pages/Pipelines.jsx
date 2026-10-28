@@ -333,7 +333,11 @@ function EditModal({ preset, onClose, onSaved }) {
 }
 
 // Trang Quy trình: gợi ý, quy trình đã lưu, lỗi file YAML, nút tải lại.
-export default function Pipelines({ data, error, channels = [], onReload }) {
+// Lời nhắc gửi cho Trợ lý AI (chế độ page: AI tự thao tác trên trang).
+const NEW_PROMPT = 'Tôi chưa rành về quy trình. Hãy giúp tôi tạo một quy trình làm video mới: hỏi tôi từng câu ngắn, dễ hiểu (video về chủ đề gì, ngắn hay dài, dọc hay ngang, muốn tự duyệt những bước nào), rồi tự thao tác trên trang này (mục Gợi ý, hoặc Sửa quy trình) để dựng và lưu thành "quy trình của tôi". Giải thích ngắn gọn bằng lời thường, tránh thuật ngữ.';
+const editPrompt = (p) => `Tôi chưa rành về quy trình. Hãy giúp tôi chỉnh quy trình "${p.name}" (id ${p.id}): hỏi tôi muốn thay đổi gì bằng lời thường, rồi mở "Sửa" của quy trình đó trên trang Quy trình và chỉnh giúp (thêm/bớt/đổi thứ tự bước, chọn bước tự duyệt hay duyệt tay), kiểm tra lại rồi bấm Lưu. Giải thích ngắn gọn, tránh thuật ngữ.`;
+
+export default function Pipelines({ data, error, channels = [], onReload, onAskAI }) {
   const t = useT();
   const toast = useToast();
   const presets = data?.presets || [];
@@ -364,6 +368,11 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
     <>
       <div className="page-h">
         <h1>{t('Quy trình')}</h1>
+        {onAskAI ? (
+          <button type="button" className="btn primary" onClick={() => onAskAI(NEW_PROMPT)} title={t('Mô tả video bạn muốn, AI hỏi lại và dựng quy trình giúp bạn')}>
+            <span aria-hidden="true">✦ </span>{t('Làm quy trình cùng AI')}
+          </button>
+        ) : null}
       </div>
       <h2 className="sec-h">{t('Gợi ý')}</h2>
       <Suggest onSaved={onReload} />
@@ -437,7 +446,7 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
                         label={t('Thao tác với quy trình {n}', { n: p.name })}
                         items={[
                           { label: t('Xem chi tiết'), onClick: () => setView(p) },
-                          ...(p.mine ? [{ label: t('Sửa'), onClick: () => setEdit(p) }, { sep: true }, { label: t('Xóa'), onClick: () => setDel(p), danger: true }] : []),
+                          ...(p.mine ? [{ label: t('Sửa'), onClick: () => setEdit(p) }, ...(onAskAI ? [{ label: t('Nhờ AI sửa'), onClick: () => onAskAI(editPrompt(p)) }] : []), { sep: true }, { label: t('Xóa'), onClick: () => setDel(p), danger: true }] : []),
                         ]}
                       />
                     </td>

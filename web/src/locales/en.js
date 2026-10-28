@@ -1206,4 +1206,7 @@ export default {
   'Dự án đã tạo từ quy trình này không bị ảnh hưởng.': 'Projects already created from this workflow are not affected.',
   'Thao tác với quy trình {n}': 'Actions for workflow {n}',
   'Xem chi tiết': 'View details',
+  'Làm quy trình cùng AI': 'Build a workflow with AI',
+  'Mô tả video bạn muốn, AI hỏi lại và dựng quy trình giúp bạn': 'Describe the video you want; the AI asks questions and builds the workflow for you',
+  'Nhờ AI sửa': 'Ask AI to edit',
 };
