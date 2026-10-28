@@ -1,0 +1,205 @@
+[
+ {
+  "id": "Q7XJO40lrbzqrkrnlA7V",
+  "name": "An - Warm Storyteller",
+  "category": "professional",
+  "desc": "vi · female · northern · calm",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/database/workspace/11882438b78e43e6ab66c45becee8f13/voices/Q7XJO40lrbzqrkrnlA7V/84738fcd-ee86-40ab-b6cd-f53487f5ca05.mp3"
+ },
+ {
+  "id": "eZ248pfac00g3092s7h8",
+  "name": "Huy Le - Calm, Clear and Professional",
+  "category": "professional",
+  "desc": "vi · male · northern · calm",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/eZ248pfac00g3092s7h8/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiJkYzgxZDdjNDEyNDQ0YTYwYmM3NmM0MmVmZDVmZGY1NCIsImZpbGVuYW1lIjoibFF3N2JyMGgxa1JGY3BpV2RnRHoubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "ObhtJZSfI8Ps4i8lwyVx",
+  "name": "Minh Son - Commentary & Review",
+  "category": "professional",
+  "desc": "vi · male · northern · calm",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/database/workspace/9990bf976bb5431f9d0dfbc64bde6538/voices/ObhtJZSfI8Ps4i8lwyVx/QoXyGE7egpSY58gYU1an.mp3"
+ },
+ {
+  "id": "LD1UihCXvSlUL4h8DOmk",
+  "name": "Nguyen Nhung - Hanoi Female ",
+  "category": "professional",
+  "desc": "vi · female · northern · casual",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/database/workspace/f9aa0f65e43a45c58b22aff3e34df6e1/voices/LD1UihCXvSlUL4h8DOmk/G75Yt14yPwlvopMyPKkL.mp3"
+ },
+ {
+  "id": "6adFm46eyy74snVn6YrT",
+  "name": "Nhật Phong - Narrative & Compelling",
+  "category": "professional",
+  "desc": "vi · male · northern · neutral",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/6adFm46eyy74snVn6YrT/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiIwNTQ1NTBkODc4YzI0MTQ2YTA1MDM4ZjAyNTVkZWNmMyIsImZpbGVuYW1lIjoiSzB5MFdLS01JdHp3b3FxMnBrbVMubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "ZsjEJaLQy3sgvwxicmDx",
+  "name": "Quang Toan - Deep Vietnamese Storyteller",
+  "category": "professional",
+  "desc": "vi · male · southern · calm",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/database/workspace/d34501e492854e51876b1e466f1e9254/voices/ZsjEJaLQy3sgvwxicmDx/ArqPV7irBkPMVFekCK5q.mp3"
+ },
+ {
+  "id": "2cSdN5zhDhPvHMEZsZpm",
+  "name": "Tu - Young & Friendly ",
+  "category": "professional",
+  "desc": "vi · male · northern · confident",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/database/workspace/556d6a91caba4105a2e2dc149494fb7e/voices/2cSdN5zhDhPvHMEZsZpm/kBi0tHJeHaU7K6O4dDOP.mp3"
+ },
+ {
+  "id": "HG0MlJIknmaXREpTckfK",
+  "name": "Tuan Anh - Deep & Narrative",
+  "category": "professional",
+  "desc": "vi · male · northern · calm",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/HG0MlJIknmaXREpTckfK/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiIyOGY3Y2NjMWMwMGM0YmYzYTBhYjAxMjhiMWQ1OTFjOCIsImZpbGVuYW1lIjoiU2NQc0pTRnE3T1UzR205TndjZWQubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "pNInz6obpgDQGcFmaJgB",
+  "name": "Adam - Dominant, Firm",
+  "category": "premade",
+  "desc": "en · male · american · social_media",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/pNInz6obpgDQGcFmaJgB/d6905d7a-dd26-4187-bfff-1bd3a5ea7cac.mp3"
+ },
+ {
+  "id": "Xb7hH8MSUJpSbSDYk0k2",
+  "name": "Alice - Clear, Engaging Educator",
+  "category": "premade",
+  "desc": "en · female · british · professional",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/Xb7hH8MSUJpSbSDYk0k2/d10f7534-11f6-41fe-a012-2de1e482d336.mp3"
+ },
+ {
+  "id": "hpp4J3VqNfWAUOO0d1Us",
+  "name": "Bella - Professional, Bright, Warm",
+  "category": "premade",
+  "desc": "en · female · american · professional",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/hpp4J3VqNfWAUOO0d1Us/dab0f5ba-3aa4-48a8-9fad-f138fea1126d.mp3"
+ },
+ {
+  "id": "pqHfZKP75CvOlQylNhV4",
+  "name": "Bill - Wise, Mature, Balanced",
+  "category": "premade",
+  "desc": "en · male · american · crisp",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/pqHfZKP75CvOlQylNhV4/d782b3ff-84ba-4029-848c-acf01285524d.mp3"
+ },
+ {
+  "id": "nPczCjzI2devNBz1zQrb",
+  "name": "Brian - Deep, Resonant and Comforting",
+  "category": "premade",
+  "desc": "en · male · american · classy",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/nPczCjzI2devNBz1zQrb/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiIyZGQzZTcyYy00ZmQzLTQyZjEtOTNlYS1hYmM1ZDRlNWFhMWQubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "N2lVS1w4EtoT3dr4eOWO",
+  "name": "Callum - Husky Trickster",
+  "category": "premade",
+  "desc": "en · male · american · characters_animation",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/N2lVS1w4EtoT3dr4eOWO/ac833bd8-ffda-4938-9ebc-b0f99ca25481.mp3"
+ },
+ {
+  "id": "IKne3meq5aSn9XLyUdCD",
+  "name": "Charlie - Deep, Confident, Energetic",
+  "category": "premade",
+  "desc": "en · male · australian · hyped",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/IKne3meq5aSn9XLyUdCD/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiIxMDJkZTZmMi0yMmVkLTQzZTAtYTFmMS0xMTFmYTc1YzU0ODEubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "iP95p4xoKVk53GoZ742B",
+  "name": "Chris - Charming, Down-to-Earth",
+  "category": "premade",
+  "desc": "en · male · american · casual",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/iP95p4xoKVk53GoZ742B/3f4bde72-cc48-40dd-829f-57fbf906f4d7.mp3"
+ },
+ {
+  "id": "onwK4e9ZLuTAKqWW03F9",
+  "name": "Daniel - Steady Broadcaster",
+  "category": "premade",
+  "desc": "en · male · british · formal",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/onwK4e9ZLuTAKqWW03F9/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiI3ZWVlMDIzNi0xYTcyLTRiODYtYjMwMy01ZGNhZGMwMDdiYTkubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "cjVigY5qzO86Huf0OWal",
+  "name": "Eric - Smooth, Trustworthy",
+  "category": "premade",
+  "desc": "en · male · american · classy",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/cjVigY5qzO86Huf0OWal/d098fda0-6456-4030-b3d8-63aa048c9070.mp3"
+ },
+ {
+  "id": "JBFqnCBsd6RMkjVDRZzb",
+  "name": "George - Warm, Captivating Storyteller",
+  "category": "premade",
+  "desc": "en · male · british · mature",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/JBFqnCBsd6RMkjVDRZzb/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiJlNjIwNmQxYS0wNzIxLTQ3ODctYWFmYi0wNmE2ZTcwNWNhYzUubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "SOYHLrjzK2X1ezoPC6cr",
+  "name": "Harry - Fierce Warrior",
+  "category": "premade",
+  "desc": "en · male · american · rough",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/SOYHLrjzK2X1ezoPC6cr/86d178f6-f4b6-4e0e-85be-3de19f490794.mp3"
+ },
+ {
+  "id": "cgSgspJ2msm6clMCkdW9",
+  "name": "Jessica - Playful, Bright, Warm",
+  "category": "premade",
+  "desc": "en · female · american · cute",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/cgSgspJ2msm6clMCkdW9/56a97bf8-b69b-448f-846c-c3a11683d45a.mp3"
+ },
+ {
+  "id": "FGY2WhTYpPnrIDTdsKH5",
+  "name": "Laura - Enthusiast, Quirky Attitude",
+  "category": "premade",
+  "desc": "en · female · american · sassy",
+  "preview": "https://api.us.elevenlabs.io/v1/voices/FGY2WhTYpPnrIDTdsKH5/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiI2NzM0MTc1OS1hZDA4LTQxYTUtYmU2ZS1kZTEyZmU0NDg2MTgubXAzIiwidGltZXN0YW1wIjoxNzkzMTc0NDAwMDAwMDAwfQ%3D%3D"
+ },
+ {
+  "id": "TX3LPaxmHKxFdv7VOQHJ",
+  "name": "Liam - Energetic, Social Media Creator",
+  "category": "premade",
+  "desc": "en · male · american · confident",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/TX3LPaxmHKxFdv7VOQHJ/63148076-6363-42db-aea8-31424308b92c.mp3"
+ },
+ {
+  "id": "pFZP5JQG7iQjIQuC4Bku",
+  "name": "Lily - Velvety Actress",
+  "category": "premade",
+  "desc": "en · female · british · confident",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/pFZP5JQG7iQjIQuC4Bku/89b68b35-b3dd-4348-a84a-a3c13a3c2b30.mp3"
+ },
+ {
+  "id": "XrExE9yKIg1WjnnlVkGX",
+  "name": "Matilda - Knowledgable, Professional",
+  "category": "premade",
+  "desc": "en · female · american · upbeat",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/XrExE9yKIg1WjnnlVkGX/b930e18d-6b4d-466e-bab2-0ae97c6d8535.mp3"
+ },
+ {
+  "id": "SAz9YHcvj6GT2YYXdXww",
+  "name": "River - Relaxed, Neutral, Informative",
+  "category": "premade",
+  "desc": "en · neutral · american · calm",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/SAz9YHcvj6GT2YYXdXww/e6c95f0b-2227-491a-b3d7-2249240decb7.mp3"
+ },
+ {
+  "id": "CwhRBWXzGAHq8TQ4Fs17",
+  "name": "Roger - Laid-Back, Casual, Resonant",
+  "category": "premade",
+  "desc": "en · male · american · classy",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/CwhRBWXzGAHq8TQ4Fs17/58ee3ff5-f6f2-4628-93b8-e38eb31806b0.mp3"
+ },
+ {
+  "id": "EXAVITQu4vr4xnSDxMaL",
+  "name": "Sarah - Mature, Reassuring, Confident",
+  "category": "premade",
+  "desc": "en · female · american · professional",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/01a3e33c-6e99-4ee7-8543-ff2216a32186.mp3"
+ },
+ {
+  "id": "bIHbv24MWmeRgasZH58o",
+  "name": "Will - Relaxed Optimist",
+  "category": "premade",
+  "desc": "en · male · american · chill",
+  "preview": "https://storage.googleapis.com/eleven-public-prod/premade/voices/bIHbv24MWmeRgasZH58o/8caf8f3d-ad29-4980-af41-53f20c72d7a4.mp3"
+ }
+]

@@ -1390,8 +1390,9 @@ export default {
   ', bấm dấu ba chấm (⋯) cạnh giọng → "Copy voice ID" rồi dán vào ô ID giọng.': ', click the three dots (⋯) next to a voice → "Copy voice ID" and paste it into Voice ID.',
   'Lấy khóa API ở': 'Get the API key at',
   ' → "Create API Key" (bật quyền Text to Speech) rồi dán vào ô Khóa API.': ' → "Create API Key" (enable Text to Speech access) and paste it into API key.',
-  'Tải danh sách giọng từ ElevenLabs': 'Load voices from ElevenLabs',
-  'Nhập khóa API bên dưới trước (khóa cần quyền "Voices: Read"), rồi bấm để chọn giọng thay vì tự tìm ID.': 'Enter the API key below first (it needs the "Voices: Read" permission), then click to pick a voice instead of hunting for the ID.',
   'Chọn giọng': 'Pick a voice',
   'Chọn giọng ({n})': 'Pick a voice ({n})',
+  'Xem danh sách giọng': 'Browse voices',
+  'Chưa có khóa vẫn xem được các giọng gợi ý (gồm giọng tiếng Việt). Nhập khóa có quyền "Voices: Read" để xem giọng trong tài khoản của bạn.': 'You can browse suggested voices (including Vietnamese ones) without a key. Enter a key with "Voices: Read" to see the voices in your own account.',
+  'Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.': 'This is a suggested list. Vietnamese voices come from the community library: click "Add to my voices" in your ElevenLabs account (a paid plan may be required) before they can be used.',
 };

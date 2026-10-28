@@ -3,7 +3,10 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+// Danh sách giọng gợi ý đi kèm app (giọng có sẵn của ElevenLabs + giọng tiếng Việt); không chứa khóa API.
+const BUNDLED_VOICES = fileURLToPath(new URL('./tts-voices.json', import.meta.url));
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const KINDS = new Set(['elevenlabs', 'http', 'command']);
 const RESPONSES = new Set(['audio', 'json-base64', 'json-url']);
@@ -236,7 +239,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
   // Danh sách giọng của ElevenLabs: dùng khóa vừa nhập (chưa lưu) hoặc khóa đã lưu của nhà cung cấp `id`.
   async function voices({ id = null, key = '' } = {}) {
     const k = String(key || '').trim() || (id ? await keyOf(id) : null);
-    if (!k) throw fail(400, 'no_key', 'Nhập khóa API trước để tải danh sách giọng.');
+    if (!k) return { voices: JSON.parse(fs.readFileSync(BUNDLED_VOICES, 'utf8')), bundled: true };
     const res = await fetchImpl('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': k, accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
     if (res.status === 401) {
       const j = await res.json().catch(() => ({}));
@@ -245,13 +248,13 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     }
     if (!res.ok) throw fail(502, 'tts_failed', `ElevenLabs trả lỗi ${res.status}.`);
     const j = await res.json();
-    return (Array.isArray(j.voices) ? j.voices : []).map((v) => ({
+    return { voices: (Array.isArray(j.voices) ? j.voices : []).map((v) => ({
       id: v.voice_id,
       name: v.name,
       category: v.category || '',
       desc: [v.labels?.language, v.labels?.gender, v.labels?.accent, v.labels?.descriptive || v.labels?.use_case].filter(Boolean).join(' · '),
       preview: v.preview_url || '',
-    })).filter((v) => v.id && v.name);
+    })).filter((v) => v.id && v.name) };
   }
 
   // Nhà cung cấp mặc định cho runner: không lộ khóa.

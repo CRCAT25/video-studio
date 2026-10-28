@@ -23,12 +23,15 @@ function Editor({ init, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [voices, setVoices] = useState(null);
+  const [bundled, setBundled] = useState(false);
   const [loadingV, setLoadingV] = useState(false);
   const loadVoices = async () => {
     setLoadingV(true);
     setErr(null);
     try {
-      setVoices((await api.ttsVoices({ id: init.id || null, key })).voices);
+      const r = await api.ttsVoices({ id: init.id || null, key });
+      setVoices(r.voices);
+      setBundled(!!r.bundled);
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -109,11 +112,12 @@ function Editor({ init, onClose, onSaved }) {
         </label>
         {p.kind === 'elevenlabs' ? (
           <div className="fld">
-            <button type="button" className="btn sm" onClick={loadVoices} disabled={busy || loadingV || (!key.trim() && !init.hasKey)}>{loadingV ? t('Đang tải…') : t('Tải danh sách giọng từ ElevenLabs')}</button>
-            <span className="hint">{t('Nhập khóa API bên dưới trước (khóa cần quyền "Voices: Read"), rồi bấm để chọn giọng thay vì tự tìm ID.')}</span>
+            <button type="button" className="btn sm" onClick={loadVoices} disabled={busy || loadingV}>{loadingV ? t('Đang tải…') : t('Xem danh sách giọng')}</button>
+            <span className="hint">{t('Chưa có khóa vẫn xem được các giọng gợi ý (gồm giọng tiếng Việt). Nhập khóa có quyền "Voices: Read" để xem giọng trong tài khoản của bạn.')}</span>
             {voices ? (
               <>
                 <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} placeholder={t('Chọn giọng ({n})', { n: voices.length })} options={voices.map((v) => ({ value: v.id, label: v.name, meta: v.desc || v.category }))} />
+                {bundled ? <span className="hint">{t('Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.')}</span> : null}
                 {picked?.preview ? <audio controls src={picked.preview} style={{ width: '100%', marginTop: 8 }} /> : null}
               </>
             ) : null}
