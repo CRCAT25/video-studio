@@ -659,18 +659,21 @@ export function RowMenu({ label, items }) {
     if (!open) {
       const r = btn.current.getBoundingClientRect();
       const below = window.innerHeight - r.bottom;
-      setPos({ right: Math.max(8, window.innerWidth - r.right), ...(below < 150 ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
+      setPos({ right: Math.max(8, window.innerWidth - r.right), ...(below < 220 ? { top: 'auto', bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
     }
     setOpen((v) => !v);
   };
   useEffect(() => {
     if (!open) return undefined;
     const shut = () => close(false);
+    const onScroll = (e) => {
+      if (!menu.current?.contains(e.target)) close(false);
+    };
     window.addEventListener('resize', shut);
-    window.addEventListener('scroll', shut, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', shut);
-      window.removeEventListener('scroll', shut, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
   useEffect(() => {
@@ -679,7 +682,7 @@ export function RowMenu({ label, items }) {
       if (!wrap.current?.contains(e.target)) close(false);
     };
     document.addEventListener('mousedown', onDown, true);
-    menu.current?.querySelector('[role^="menuitem"]')?.focus();
+    menu.current?.querySelector('[role^="menuitem"]')?.focus({ preventScroll: true });
     return () => document.removeEventListener('mousedown', onDown, true);
   }, [open]);
   const onKey = (e) => {
