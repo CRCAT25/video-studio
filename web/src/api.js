@@ -139,6 +139,8 @@ export const api = {
     return request('GET', `/api/pipeline/suggest?${q}`, undefined, opts);
   },
   savePipeline: (pipeline, name) => request('POST', '/api/pipelines', { pipeline, name }),
+  pipeline: (id) => request('GET', `/api/pipelines/${enc(id)}`),
+  updatePipeline: (id, pipeline, name) => request('PUT', `/api/pipelines/${enc(id)}`, { pipeline, name }),
   deletePipeline: (id) => request('DELETE', `/api/pipelines/${enc(id)}`, {}), // thân {} để có Content-Type JSON (chặn CSRF)
   projects: (opts) => request('GET', '/api/projects', undefined, opts),
   pickDir: () => request('POST', '/api/pick-dir', {}),

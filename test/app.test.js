@@ -388,6 +388,15 @@ test('quy trình: catalog, suggest (mặc định + lỗi), lưu/xóa "Quy trìn
   assert.equal(list.find((p) => p.id === 'kenh-xe-dien').mine, true);
   assert.equal(list.find((p) => p.id === 'e2e-short').mine, false);
 
+  // sửa: đọc bản gốc, đổi tên + bỏ 1 bước, ghi đè giữ nguyên id
+  const got = (await req({ url: '/api/pipelines/kenh-xe-dien' })).json().pipeline;
+  assert.equal(got.id, 'kenh-xe-dien');
+  const put = await req({ method: 'PUT', url: '/api/pipelines/kenh-xe-dien', payload: { pipeline: { ...got, steps: got.steps.slice(0, -1) }, name: 'Kênh xe đã sửa' } });
+  assert.equal(put.statusCode, 200, put.body);
+  assert.deepEqual(put.json(), { id: 'kenh-xe-dien', name: 'Kênh xe đã sửa' });
+  assert.equal((await req({ url: '/api/pipelines/kenh-xe-dien' })).json().pipeline.steps.length, got.steps.length - 1);
+  assert.equal((await req({ method: 'PUT', url: '/api/pipelines/e2e-short', payload: { pipeline: got, name: 'x' } })).statusCode, 404, 'mẫu có sẵn không sửa được');
+
   for (const [payload, status, code] of [
     [{ name: 'x' }, 400, 'invalid_body'],
     [{ pipeline: pl, name: '' }, 400, 'invalid_format'],

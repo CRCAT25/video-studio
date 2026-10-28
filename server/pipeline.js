@@ -220,6 +220,44 @@ export function savePipeline(home, raw, name) {
   return { id, name: title, file };
 }
 
+// Tìm file YAML của quy trình của tôi theo id (chỉ trong <home>/presets).
+function findPipelineFile(home, id) {
+  if (!isValidSlug(id)) throw notFound('Không tìm thấy quy trình.');
+  const dir = path.join(home, 'presets');
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => /\.ya?ml$/i.test(n) && !/^channels\.ya?ml$/i.test(n));
+  } catch {
+    /* chưa có thư mục */
+  }
+  for (const n of names) {
+    const file = path.join(dir, n);
+    try {
+      const raw = YAML.parse(fs.readFileSync(file, 'utf8'));
+      if (raw?.id === id) return { file, raw };
+    } catch {
+      /* file lỗi: bỏ qua */
+    }
+  }
+  throw notFound('Không tìm thấy quy trình.');
+}
+
+// Đọc nguyên văn quy trình đã lưu để sửa (bước đều bật).
+export function readPipeline(home, id) {
+  const { raw } = findPipelineFile(home, id);
+  return { ...raw, steps: (raw.steps || []).map((s) => ({ enabled: true, ...s })) };
+}
+
+// Ghi đè quy trình đã lưu (giữ id và file); dự án đã tạo không bị đổi vì có bản chụp riêng.
+export function updatePipeline(home, id, raw, name) {
+  const { file } = findPipelineFile(home, id);
+  const title = String(name ?? raw?.name ?? '').trim();
+  if (!title || title.length > 80) throw formatError('Tên quy trình phải có 1–80 ký tự.');
+  const { raw: clean } = preparePipeline({ ...raw, id, name: title });
+  fs.writeFileSync(file, `# Quy trình của tôi — tạo bởi Video Studio\n${YAML.stringify(clean, { lineWidth: 0 })}`);
+  return { id, name: title, file };
+}
+
 // Xóa quy trình đã lưu: tìm file YAML trong <home>/presets có đúng id (chỉ thư mục này, không đụng repo).
 export function deletePipeline(home, id) {
   if (!isValidSlug(id)) throw notFound('Không tìm thấy quy trình.');

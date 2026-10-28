@@ -1202,4 +1202,6 @@ export default {
   'Lệnh và đối số': 'Command and arguments',
   'Lệnh hoặc URL': 'Command or URL',
   'Model và effort': 'Model and effort',
+  'Sửa quy trình': 'Edit workflow',
+  'Dự án đã tạo từ quy trình này không bị ảnh hưởng.': 'Projects already created from this workflow are not affected.',
 };

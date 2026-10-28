@@ -43,7 +43,7 @@ function costText(c) {
 }
 
 // Thẻ một quy trình đã lưu; onDelete chỉ có với quy trình của tôi.
-function PresetCard({ p, channelName, onDelete }) {
+function PresetCard({ p, channelName, onDelete, onEdit }) {
   const t = useT();
   const steps = p.steps || [];
   const perms = p.permissions || {};
@@ -57,6 +57,11 @@ function PresetCard({ p, channelName, onDelete }) {
           <span className="mono" title={p.file || ''}>{p.id}</span> · {t('{n} bước', { n: steps.length })}{paidCount ? ` · ${t('{n} tốn tiền', { n: paidCount })}` : ''}
           {p.mine ? null : ` · ${t('có sẵn')}`}
         </span>
+        {onEdit ? (
+          <button type="button" className="btn sm ghost" onClick={onEdit}>
+            {t('Sửa')}
+          </button>
+        ) : null}
         {onDelete ? (
           <button type="button" className="btn sm ghost bp-del" onClick={onDelete}>
             {t('Xóa')}
@@ -283,6 +288,71 @@ function SuggestMainSkeleton() {
   );
 }
 
+// Hộp thoại sửa một quy trình đã lưu: nạp bản gốc, chỉnh bước/skills/tên rồi ghi đè.
+function EditModal({ preset, onClose, onSaved }) {
+  const t = useT();
+  const toast = useToast();
+  const { catalog } = useCatalog();
+  const [draft, setDraft] = useState(null);
+  const [name, setName] = useState(preset.name);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    api.pipeline(preset.id).then((r) => setDraft(r.pipeline), (e) => setErr({ message: e.message }));
+  }, [preset.id]);
+  const enabled = (draft?.steps || []).filter((s) => s.enabled !== false);
+  const nameT = name.trim();
+  const canSave = !!draft && enabled.length > 0 && !enabled.some((s) => stepProblem(s)) && nameT && nameT.length <= 80 && !busy;
+  const save = async (e) => {
+    e.preventDefault();
+    if (!canSave) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.updatePipeline(preset.id, draft, nameT);
+      toast(t('Đã lưu quy trình "{n}".', { n: r.name }), 'ok');
+      onSaved?.();
+      onClose();
+    } catch (e2) {
+      setErr({ message: e2.message, problems: e2.data?.problems || null });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={t('Sửa quy trình')} onClose={onClose} busy={busy} xwide>
+      {!draft || !catalog ? (
+        err ? <div className="err-note" role="alert">{err.message}</div> : <span className="spinner" aria-hidden="true" />
+      ) : (
+        <form onSubmit={save} noValidate>
+          <p className="note">{t('Dự án đã tạo từ quy trình này không bị ảnh hưởng.')}</p>
+          <StepEditor steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
+          <div className="fld">
+            <span className="fld-l">Skills</span>
+            <SkillPicker channelId={draft.channel || null} value={draft.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy} />
+          </div>
+          <div className="sg-save">
+            <span className="fld-l" style={{ flex: '0 0 100%', margin: 0 }}>{t('Tên quy trình')}<Req /></span>
+            <input type="text" required aria-required="true" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-label={t('Tên quy trình')} disabled={busy} />
+          </div>
+          {err ? (
+            <div className="err-note" role="alert">
+              {err.message}
+              {err.problems?.length > 1 ? <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{err.problems.map((m, i) => <li key={i}>{m}</li>)}</ul> : null}
+            </div>
+          ) : null}
+          <div className="modal-acts">
+            <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
+            <button type="submit" className="btn primary" disabled={!canSave}>
+              {busy ? <span className="spinner" aria-hidden="true" /> : null}{t('Lưu')}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 // Trang Quy trình: gợi ý, quy trình đã lưu, lỗi file YAML, nút tải lại.
 export default function Pipelines({ data, error, channels = [], onReload }) {
   const t = useT();
@@ -291,6 +361,7 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
   const errors = data?.errors || [];
   const chName = (id) => channels.find((c) => c.id === id)?.name;
   const [del, setDel] = useState(null);
+  const [edit, setEdit] = useState(null);
   const [delBusy, setDelBusy] = useState(false);
   const [delErr, setDelErr] = useState(null);
 
@@ -354,9 +425,10 @@ export default function Pipelines({ data, error, channels = [], onReload }) {
       ) : null}
       <div className="bp-list">
         {presets.map((p) => (
-          <PresetCard key={p.id} p={p} channelName={chName(p.channel)} onDelete={p.mine ? () => setDel(p) : null} />
+          <PresetCard key={p.id} p={p} channelName={chName(p.channel)} onDelete={p.mine ? () => setDel(p) : null} onEdit={p.mine ? () => setEdit(p) : null} />
         ))}
       </div>
+      {edit ? <EditModal preset={edit} onClose={() => setEdit(null)} onSaved={onReload} /> : null}
       {del ? (
         <Modal title={t('Xóa quy trình?')} onClose={() => setDel(null)} busy={delBusy}>
           <p className="note">

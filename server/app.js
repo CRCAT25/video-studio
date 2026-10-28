@@ -10,7 +10,7 @@ import { readIdentity, runDoctor } from './doctor.js';
 import { mediaHandler, resolveMediaPath } from './media.js';
 import { extractFrames } from './frames.js';
 import { isInside, safeJoin } from './paths.js';
-import { deletePipeline, formatCatalog, readDefaultModel, savePipeline, suggestPipeline, validateGrantRule, writeDefaultModel } from './pipeline.js';
+import { deletePipeline, formatCatalog, readDefaultModel, readPipeline, savePipeline, updatePipeline, suggestPipeline, validateGrantRule, writeDefaultModel } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
 import { createSkills } from './skills.js';
 import { HttpError } from './projects.js';
@@ -826,6 +826,20 @@ export async function buildApp({
     const saved = pipelineCall(() => savePipeline(home, b.pipeline, b.name));
     presets.invalidate?.();
     return reply.code(201).send({ id: saved.id, name: saved.name });
+  });
+
+  app.get('/api/pipelines/:id', async (req) => {
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    return { pipeline: pipelineCall(() => readPipeline(home, req.params.id)) };
+  });
+
+  app.put('/api/pipelines/:id', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || !isObject(b.pipeline)) throw badBody('Cần gửi JSON {pipeline, name}.');
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    const saved = pipelineCall(() => updatePipeline(home, req.params.id, b.pipeline, b.name));
+    presets.invalidate?.();
+    return { id: saved.id, name: saved.name };
   });
 
   app.delete('/api/pipelines/:id', async (req) => {
