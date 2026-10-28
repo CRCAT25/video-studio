@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Modal from '../components/Modal.jsx';
 import Select from '../components/Select.jsx';
+import { langOf } from '../lib/langs.js';
 import Req from '../components/Req.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
@@ -39,9 +40,15 @@ function Editor({ init, onClose, onSaved }) {
     }
   };
   const picked = voices?.find((v) => v.id === p.voice);
-  // Giọng tiếng Việt lên đầu, có tiêu đề nhóm — đỡ phải cuộn dài.
-  const isVi = (v) => /^vi\b/.test(v.desc || '');
-  const voiceOptions = [...(voices || [])].sort((x, y) => isVi(y) - isVi(x)).map((v) => ({ value: v.id, label: v.name, meta: v.desc || v.category, group: isVi(v) ? t('Tiếng Việt') : t('Ngôn ngữ khác') }));
+  // Nhóm theo ngôn ngữ (tiếng Việt lên đầu), mỗi giọng có cờ nước của ngôn ngữ đó.
+  const voiceOptions = [...(voices || [])]
+    .map((v) => {
+      const [code, ...rest] = String(v.desc || '').split(' · ');
+      const l = langOf(code);
+      return { l, o: { value: v.id, label: v.name, meta: (l.code ? rest : [code, ...rest]).filter(Boolean).join(' · ') || v.category, icon: l.flag, group: `${l.flag} ${l.known ? t(l.name) : l.name}` } };
+    })
+    .sort((x, y) => (y.l.code === 'vi') - (x.l.code === 'vi') || x.o.group.localeCompare(y.o.group))
+    .map((x) => x.o);
   const set = (patch) => setP((x) => ({ ...x, ...patch }));
   const setHttp = (patch) => setP((x) => ({ ...x, http: { ...x.http, ...patch } }));
   const hdr = Object.entries(p.http?.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
