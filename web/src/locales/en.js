@@ -901,6 +901,7 @@ export default {
   'Lệnh đã hết hạn.': 'The command expired.',
   'Model mặc định': 'Default model',
   'Đang thực hiện': 'In progress',
+  'Chưa hoàn thành': 'Unfinished',
   'Effort mặc định': 'Default effort',
   'Model': 'Model',
   'Effort': 'Effort',

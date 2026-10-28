@@ -1,5 +1,5 @@
 /* Tổng quan: số liệu, việc chờ bạn, danh sách dự án */
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}
 .stat{padding:14px 16px;display:flex;flex-direction:column;gap:4px}
 .stat .lbl{font-size:var(--fs-sm);color:var(--muted)}
 .stat .num{font-size:var(--fs-2xl);font-weight:500;font-variant-numeric:tabular-nums;line-height:1.2}
@@ -33,7 +33,7 @@
 .proj-now{margin:0;font-size:var(--fs-sm);color:var(--muted);overflow-wrap:anywhere}
 
 @media (max-width: 640px){
-  .stats{gap:8px}
+  .stats{gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
   .stat{padding:12px}
   .stat .num{font-size:var(--fs-xl)}
   .wait-item{grid-template-columns:auto minmax(0,1fr)}

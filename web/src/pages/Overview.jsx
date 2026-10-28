@@ -141,7 +141,7 @@ function OverviewSkeleton() {
   return (
     <SkZone label={t('Đang tải dự án')}>
       <div className="stats">
-        {['5em', '4em', '7em'].map((w) => (
+        {['5em', '4em', '6em', '7em'].map((w) => (
           <div key={w} className="card stat">
             <span className="lbl">
               <Sk w={w} />
@@ -185,8 +185,13 @@ function StatCards({ stats, projects }) {
   for (const p of projects) for (const s of p.steps || []) if (s.state in waitBy) waitBy[s.state] += 1;
   const runningLines = projects.filter((p) => p.running_run_id || p.current?.state === 'running').length;
   const waiting = st.waiting ?? waitBy.needs_input + waitBy.failed + waitBy.manual;
+  const unfinished = projects.filter((p) => p.status !== 'done').length;
   return (
     <div className="stats">
+      <div className="card stat">
+        <span className="lbl">{t('Chưa hoàn thành')}</span>
+        <span className="num">{fmtNum(unfinished)}</span>
+      </div>
       <div className="card stat">
         <span className="lbl">{t('Đang chạy')}</span>
         <span className="num">{fmtNum(st.running ?? runningLines)}</span>
