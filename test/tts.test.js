@@ -1,0 +1,70 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createTts, chunkText, splitCommand } from '../server/tts.js';
+import { fileStore } from '../server/keychain.js';
+
+const mk = (fetchImpl) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-tts-'));
+  return { home, tts: createTts({ home, secrets: fileStore(path.join(home, 'secrets.json')), fetchImpl }) };
+};
+const audioRes = (b = 'AUDIO') => ({ ok: true, status: 200, arrayBuffer: async () => Buffer.from(b), json: async () => ({}) });
+
+test('chunkText cắt theo câu và không vượt giới hạn', () => {
+  const t = Array.from({ length: 50 }, (_, i) => `Câu số ${i} khá dài một chút.`).join(' ');
+  const parts = chunkText(t, 200);
+  assert.ok(parts.length > 1);
+  assert.ok(parts.every((p) => p.length <= 200));
+  assert.deepEqual(chunkText('  '), []);
+});
+
+test('splitCommand tách dấu nháy', () => {
+  assert.deepEqual(splitCommand('say -o "{out} x" --f \'{in}\''), ['say', '-o', '{out} x', '--f', '{in}']);
+});
+
+test('ElevenLabs: lưu, khóa không nằm trong tts.json, synth gọi đúng API', async () => {
+  let call;
+  const { home, tts } = mk(async (url, init) => { call = { url, init }; return audioRes(); });
+  const p = await tts.save({ name: 'Eleven', kind: 'elevenlabs', voice: 'v123' }, 'SECRET');
+  assert.equal(p.id, 'eleven');
+  assert.ok(!fs.readFileSync(path.join(home, 'tts.json'), 'utf8').includes('SECRET'));
+  assert.equal((await tts.list()).providers[0].hasKey, true);
+  const out = path.join(home, 'o.mp3');
+  const r = await tts.synth({ text: 'Xin chào', out });
+  assert.equal(fs.readFileSync(out, 'utf8'), 'AUDIO');
+  assert.match(call.url, /text-to-speech\/v123/);
+  assert.equal(call.init.headers['xi-api-key'], 'SECRET');
+  assert.equal(r.cost, 8);
+});
+
+test('http: thân JSON thoát ký tự, đọc base64 theo jsonPath', async () => {
+  let body;
+  const { home, tts } = mk(async (url, init) => { body = init.body; return { ok: true, status: 200, json: async () => ({ d: { a: Buffer.from('HELLO').toString('base64') } }) }; });
+  await tts.save({ name: 'X', kind: 'http', http: { url: 'https://x.test/tts', headers: { Authorization: 'Bearer {key}' }, body: '{"t":"{text}"}', response: 'json-base64', jsonPath: 'd.a' } }, 'k');
+  const out = path.join(home, 'o.mp3');
+  const r = await tts.synth({ text: 'a "b"\nc', out });
+  assert.deepEqual(JSON.parse(body), { t: 'a "b"\nc' });
+  assert.equal(fs.readFileSync(out, 'utf8'), 'HELLO');
+  assert.equal(r.paid, false);
+});
+
+test('command: chạy lệnh không qua shell, đọc {in} ghi {out}', async () => {
+  const { home, tts } = mk();
+  await tts.save({ name: 'Cp', kind: 'command', command: 'cp {in} {out}' });
+  const out = path.join(home, 'c.mp3');
+  await tts.synth({ text: 'abc', out });
+  assert.equal(fs.readFileSync(out, 'utf8'), 'abc');
+});
+
+test('lỗi: không có provider, lệnh thiếu {out}, xóa chuyển mặc định', async () => {
+  const { home, tts } = mk();
+  await assert.rejects(tts.synth({ text: 'a', out: path.join(home, 'x.mp3') }), { code: 'no_provider' });
+  await assert.rejects(tts.save({ name: 'B', kind: 'command', command: 'echo' }), { code: 'bad_command' });
+  await tts.save({ name: 'A', kind: 'command', command: 'cp {in} {out}' });
+  await tts.save({ name: 'B', kind: 'command', command: 'cp {in} {out}' });
+  assert.equal((await tts.list()).default, 'a');
+  await tts.remove('a');
+  assert.equal((await tts.list()).default, 'b');
+});
