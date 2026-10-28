@@ -125,3 +125,19 @@ test('ElevenLabs: lỗi khi đọc được giải thích rõ (thiếu quyền, 
   assert.match(await run(402, { status: 'paid_plan_required', message: 'Free users cannot use library voices via the API' }), /gói miễn phí/);
   assert.match(await run(404, { status: 'voice_not_found' }), /ID giọng/);
 });
+
+test('ElevenLabs: gói free chỉ giữ giọng dùng được; đọc thử câu ngắn', async () => {
+  const list = { voices: [{ voice_id: 'a', name: 'Premade', category: 'premade' }, { voice_id: 'b', name: 'Lib', category: 'professional' }] };
+  const { tts } = mk(async (url) => {
+    if (url.endsWith('/v1/voices')) return { ok: true, status: 200, json: async () => list };
+    if (url.endsWith('/v1/user/subscription')) return { ok: true, status: 200, json: async () => ({ tier: 'free' }) };
+    return audioRes('MP3');
+  });
+  const r = await tts.voices({ key: 'K' });
+  assert.deepEqual(r.voices.map((v) => v.id), ['a']);
+  assert.equal(r.hidden, 1);
+  const s = await tts.sample({ key: 'K', voice: 'a', text: 'Chào bạn' });
+  assert.equal(s.audio.toString(), 'MP3');
+  assert.equal(s.cost, 8);
+  await assert.rejects(tts.sample({ key: 'K' }), { code: 'no_voice' });
+});

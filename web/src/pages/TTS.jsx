@@ -26,6 +26,9 @@ function Editor({ init, onClose, onSaved }) {
   const [voices, setVoices] = useState(null);
   const [bundled, setBundled] = useState(false);
   const [loadingV, setLoadingV] = useState(false);
+  const [hidden, setHidden] = useState(0);
+  const [sample, setSample] = useState(null);
+  const [sampling, setSampling] = useState(false);
   const loadVoices = async () => {
     setLoadingV(true);
     setErr(null);
@@ -33,6 +36,7 @@ function Editor({ init, onClose, onSaved }) {
       const r = await api.ttsVoices({ id: init.id || null, key });
       setVoices(r.voices);
       setBundled(!!r.bundled);
+      setHidden(r.hidden || 0);
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -42,8 +46,21 @@ function Editor({ init, onClose, onSaved }) {
   // Mở hộp thoại ElevenLabs → nạp sẵn danh sách gợi ý (không cần khóa).
   useEffect(() => {
     if (init.kind !== 'elevenlabs') return;
-    api.ttsVoices({}).then((r) => { setVoices(r.voices); setBundled(!!r.bundled); }).catch(() => setVoices([]));
-  }, [init.kind]);
+    if (init.hasKey) loadVoices(); // đã có khóa → hiện luôn giọng dùng được của tài khoản
+    else api.ttsVoices({}).then((r) => { setVoices(r.voices); setBundled(!!r.bundled); }).catch(() => setVoices([]));
+  }, [init.kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  const readSample = async () => {
+    setSampling(true);
+    setErr(null);
+    setSample(null);
+    try {
+      setSample(await api.ttsSample({ id: init.id || null, key, voice: p.voice }));
+    } catch (e2) {
+      setErr(e2.message);
+    } finally {
+      setSampling(false);
+    }
+  };
   const picked = voices?.find((v) => v.id === p.voice);
   // Nhóm theo ngôn ngữ (tiếng Việt lên đầu), mỗi giọng có cờ nước của ngôn ngữ đó.
   const voiceOptions = [...(voices || [])]
@@ -128,7 +145,7 @@ function Editor({ init, onClose, onSaved }) {
         {p.kind !== 'command' ? (
           <label className="fld">
             <span className="fld-l">{t('Khóa API')}</span>
-            <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
+            <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} onBlur={() => { if (p.kind === 'elevenlabs' && key.trim()) loadVoices(); }} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
             <span className="hint">{t('Khóa chỉ lưu trong Keychain/kho bí mật của máy này, không gửi cho Claude.')}</span>
           </label>
         ) : null}
@@ -137,11 +154,18 @@ function Editor({ init, onClose, onSaved }) {
             <span className="fld-l">{t('Chọn giọng')}</span>
             <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy || !voices} label={t('Chọn giọng')} placeholder={voices ? t('Chọn giọng ({n})', { n: voices.length }) : t('Đang tải…')} options={voiceOptions} />
             {picked?.preview ? <audio className="tts-audio" controls src={picked.preview} /> : null}
-            {bundled ? <span className="hint">{t('Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.')}</span> : <span className="hint">{t('Danh sách giọng trong tài khoản ElevenLabs của bạn.')}</span>}
+            {p.voice && (key || init.hasKey) ? (
+              <div className="tts-more">
+                <button type="button" className="btn sm" onClick={readSample} disabled={busy || sampling}>{sampling ? t('Đang đọc…') : t('Đọc thử một câu ngắn')}</button>
+                <span className="hint">{t('Đọc câu "Xin chào, đây là giọng đọc thử." bằng giọng đã chọn — tốn khoảng 31 credit.')}</span>
+                {sample ? <audio className="tts-audio" controls autoPlay src={sample.audio} /> : null}
+              </div>
+            ) : null}
+            {bundled ? <span className="hint">{t('Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.')}</span> : <span className="hint">{hidden > 0 ? t('Chỉ hiện giọng dùng được với gói của bạn (đã ẩn {n} giọng thư viện cần gói trả phí).', { n: hidden }) : t('Giọng dùng được trong tài khoản ElevenLabs của bạn.')}</span>}
             {key || init.hasKey ? (
               <div className="tts-more">
-                <button type="button" className="btn sm" onClick={() => loadVoices()} disabled={busy || loadingV}>{loadingV ? t('Đang tải…') : t('Lấy giọng từ tài khoản của tôi')}</button>
-                <span className="hint">{t('Cần khóa có quyền "Voices: Read". Gói trả phí sẽ thấy đầy đủ giọng hơn.')}</span>
+                <button type="button" className="btn sm" onClick={() => loadVoices()} disabled={busy || loadingV}>{loadingV ? t('Đang tải…') : t('Tải lại danh sách giọng')}</button>
+                <span className="hint">{t('Cần khóa có quyền "Voices: Read".')}</span>
               </div>
             ) : null}
           </div>

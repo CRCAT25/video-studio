@@ -131,6 +131,7 @@ export const api = {
   ttsDefault: (id) => request('POST', '/api/tts/default', { id }),
   ttsVoices: (b) => request('POST', '/api/tts/voices', b),
   ttsTest: (b) => request('POST', '/api/tts/test', b),
+  ttsSample: (b) => request('POST', '/api/tts/sample', b),
   skillRepoInit: (b) => request('POST', '/api/skill-repo/init', b),
   skillRepoScan: (names) => request('POST', '/api/skill-repo/scan', { names }),
   skillRepoPublish: (b) => request('POST', '/api/skill-repo/publish', b),

@@ -272,13 +272,27 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     }
     if (!res.ok) throw fail(502, 'tts_failed', `ElevenLabs trả lỗi ${res.status}.`);
     const j = await res.json();
-    return { voices: (Array.isArray(j.voices) ? j.voices : []).map((v) => ({
+    // Gói miễn phí không đọc được giọng thư viện/chuyên nghiệp qua API → chỉ giữ giọng dùng được. Không đọc được gói thì giữ tất cả.
+    const tier = await fetchImpl('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': k, accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) })
+      .then((r) => (r.ok ? r.json() : null)).then((x) => String(x?.tier || '')).catch(() => '');
+    const all = Array.isArray(j.voices) ? j.voices : [];
+    const usable = tier === 'free' ? all.filter((v) => !['professional', 'famous'].includes(v.category) && !v.sharing?.public_owner_id) : all;
+    return { tier, hidden: all.length - usable.length, voices: usable.map((v) => ({
       id: v.voice_id,
       name: v.name,
       category: v.category || '',
       desc: [v.labels?.language, v.labels?.gender, v.labels?.accent, v.labels?.descriptive || v.labels?.use_case].filter(Boolean).join(' · '),
       preview: v.preview_url || '',
     })).filter((v) => v.id && v.name) };
+  }
+
+  // Đọc thử một câu ngắn với giọng/khóa đang nhập (chưa lưu) — trả mp3 dạng buffer + chi phí ước tính.
+  async function sample({ id = null, key = '', voice = '', text = '' } = {}) {
+    const k = checkKey(key) || (id ? await keyOf(id) : null);
+    if (!voice) throw fail(400, 'no_voice', 'Hãy chọn giọng trước.');
+    const body = String(text || 'Xin chào, đây là giọng đọc thử.').trim().slice(0, 120);
+    const audio = await callApi({ kind: 'elevenlabs', name: 'ElevenLabs', model: 'eleven_multilingual_v2' }, body, voice, k);
+    return { audio, chars: body.length, cost: body.length, label: 'credit' };
   }
 
   // Nhà cung cấp mặc định cho runner: không lộ khóa.
@@ -288,5 +302,5 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '' } : null;
   }
 
-  return { voices, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
+  return { voices, sample, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
 }

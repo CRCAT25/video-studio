@@ -778,6 +778,12 @@ export async function buildApp({
         fs.rmSync(out, { force: true });
       }
     }));
+  // Đọc thử câu ngắn bằng giọng đang chọn trong hộp thoại (chưa cần lưu).
+  app.post('/api/tts/sample', async (req) =>
+    ttsCall(async (t) => {
+      const r = await t.sample({ id: req.body?.id || null, key: req.body?.key || '', voice: String(req.body?.voice || ''), text: String(req.body?.text || '') });
+      return { audio: `data:audio/mpeg;base64,${r.audio.toString('base64')}`, chars: r.chars, cost: r.cost, label: r.label };
+    }));
   app.get('/api/skill-repo', async () => repoCall((r) => r.status()));
   app.post('/api/skill-repo/init', async (req) => repoCall((r) => r.init(skillBody(req))));
   app.post('/api/skill-repo/scan', async (req) => repoCall((r) => ({ findings: r.scan(skillBody(req).names) })));
