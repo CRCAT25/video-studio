@@ -157,18 +157,35 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
   const loadRef = useRef(loadStats);
   loadRef.current = loadStats;
   const hasLive = live.length > 0;
+  // Chu kỳ tính theo mốc "Cập nhật" thật (không phải đồng hồ riêng): quá 5 phút là làm mới ngay, kể cả khi tab vừa hiện lại
+  // sau lúc bị ẩn/máy ngủ (trình duyệt làm chậm hẹn giờ của tab nền nên không thể chỉ trông vào setInterval).
+  const fetchedRef = useRef(null);
+  const lastTry = useRef(0);
+  fetchedRef.current = fetched ? Date.parse(fetched) : null;
   useEffect(() => {
     if (auto !== '5' || !hasLive) return undefined;
-    const timer = setInterval(async () => {
+    const tick = async () => {
       if (document.hidden || busyRef.current) return;
+      const at = fetchedRef.current;
+      if (at != null && Date.now() - at < AUTO_MS) return;
+      if (Date.now() - lastTry.current < AUTO_MS) return; // lượt trước lỗi/chưa ra số mới: đợi hết chu kỳ rồi thử lại
+      lastTry.current = Date.now();
       busyRef.current = true;
       try {
         await loadRef.current(true);
       } finally {
         busyRef.current = false;
       }
-    }, AUTO_MS);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(tick, 30_000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    tick();
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+    };
   }, [auto, hasLive]);
 
   const reloadAll = async () => {
