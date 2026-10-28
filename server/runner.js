@@ -34,6 +34,10 @@ export const STEP_RESULT_SCHEMA = {
       },
     },
     questions: { type: 'array', items: { type: 'string' } },
+    suggested_replies: {
+      type: 'array',
+      items: { type: 'object', properties: { label: { type: 'string' }, text: { type: 'string' } }, required: ['label', 'text'] },
+    },
     notes_for_next_step: { type: 'string' },
   },
   required: ['status', 'summary'],
@@ -43,7 +47,7 @@ export const STUDIO_PROTOCOL = [
   'Bạn đang chạy trong Video Studio — một dây chuyền làm video theo từng bước. Mỗi lượt bạn nhận đúng MỘT bước.',
   '1. Chỉ làm đúng bước được giao trong tin nhắn; không làm trước bước sau.',
   '2. Ghi mọi đầu ra vào thư mục dự án (cwd), đúng các đường dẫn ở mục "Đầu ra bắt buộc".',
-  '3. Không có người ngồi trả lời giữa chừng. Nếu cần người dùng quyết định, dừng lại và kết thúc với status "needs_input" kèm danh sách câu hỏi cụ thể.',
+  '3. Không có người ngồi trả lời giữa chừng. Nếu cần người dùng quyết định, dừng lại và kết thúc với status "needs_input" kèm danh sách câu hỏi cụ thể, và suggested_replies: 2–4 câu trả lời mẫu ngắn (label ≤ 40 ký tự, text là câu người dùng sẽ gửi nguyên văn cho bạn, vd "Đồng ý, làm giọng") để người dùng bấm một cái là trả lời; câu trả lời đó sẽ được gửi vào đúng phiên này và bạn tiếp tục từ chỗ đang dừng.',
   '4. Lệnh bị chặn quyền thì không tìm đường vòng; ghi lại trong summary.',
   '5. Không chạy dịch vụ tốn tiền (ElevenLabs, sinh ảnh/video trả phí, upload) trừ khi tin nhắn ghi "ĐÃ DUYỆT CHI PHÍ".',
   '6. Tiết kiệm token: khi cần xem ảnh để kiểm tra, chỉ xem tối đa 3 ảnh mẫu (thu nhỏ trước khi xem, vd 800px), không xem lại từng ảnh sau mỗi lần sửa; kiểm hàng loạt bằng code (kích thước, màu, tệp có đủ).',
@@ -113,11 +117,24 @@ export function templateCtx({ project, preset, feedback, prev }) {
 }
 
 // Prompt người dùng của một lượt đúng định dạng §8.2 (allowPaid là tham số thêm để ghi dòng "ĐÃ DUYỆT CHI PHÍ").
-export function buildPrompt({ project, preset, step, feedback, prev, allowPaid = false, freshSession = false, style = '' }) {
+export function buildPrompt({ project, preset, step, feedback, prev, allowPaid = false, freshSession = false, style = '', reply = null }) {
   const ctx = templateCtx({ project, preset, feedback, prev });
   const steps = Array.isArray(preset?.steps) ? preset.steps : [];
   const idx = Number.isInteger(step?.ord) ? step.ord : Math.max(0, steps.findIndex((s) => s.key === step?.key));
   const outputs = (step?.outputs ?? []).map((o) => renderTemplate(o, ctx));
+  if (typeof reply === 'string' && reply.trim()) {
+    // Trả lời nhanh: phiên cũ đã có toàn bộ bối cảnh, chỉ gửi câu trả lời ngắn (tiết kiệm token)
+    const out = [
+      `# Bước ${idx + 1}/${steps.length || 1}: ${step?.name ?? step?.key} (id: ${step?.key}) — người dùng trả lời câu hỏi của bạn`,
+      '## Câu trả lời của người dùng',
+      reply.trim(),
+      '',
+      'Hãy tiếp tục bước này từ chỗ đang dừng, không làm lại phần đã xong. Vẫn theo giao thức Video Studio và kết thúc bằng kết quả có cấu trúc.',
+      `Đầu ra bắt buộc: ${JSON.stringify(outputs)}`,
+    ];
+    if (allowPaid === true && step?.cost) out.push(`ĐÃ DUYỆT CHI PHÍ: người dùng đã đồng ý chi phí dịch vụ ${step.cost.service} cho lượt này.`);
+    return out.join('\n') + '\n';
+  }
   const lines = [
     `# Bước ${idx + 1}/${steps.length || 1}: ${step?.name ?? step?.key} (id: ${step?.key})`,
     `Dự án: ${project?.title ?? ''} — slug: ${project?.id ?? ''}`,
@@ -459,7 +476,7 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
   }
 
   // Bắt đầu một lượt: canRun → lock → beginRun → spawn; trả run ngay (throw HttpError 404/409/412).
-  function start(projectId, stepKey, { feedback = null, allowPaid = false, allowOnce = [] } = {}) {
+  function start(projectId, stepKey, { feedback = null, allowPaid = false, allowOnce = [], reply = false } = {}) {
     if (closing) throw new HttpError(503, 'shutting_down', 'Server đang tắt — không chạy thêm lượt mới.');
     const chk = projects.canRun(projectId, stepKey, { allowPaid });
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
@@ -472,13 +489,15 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
 
     const fb = typeof feedback === 'string' && feedback.trim() ? feedback : null;
     const prev = prevOf(projectId, stepRow);
-    const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', style: home ? readStyle(home) : '' });
     // Phiên mỗi bước: chạy lại cùng bước thì tiếp tục phiên cũ của bước; bước mới mở phiên mới (tiết kiệm token)
     let session = null;
     if (preset.defaults?.session === 'step') {
       const last = store.listRunsByStep(stepRow.id).find((r) => r.session_id);
       session = last ? { id: last.session_id, resume: true } : { id: crypto.randomUUID(), resume: false };
     }
+    // Trả lời nhanh chỉ dùng được khi có phiên cũ để tiếp tục và lượt trước đang chờ trả lời; ngược lại chạy lại đủ prompt
+    const canReply = reply === true && !!fb && stepRow.state === 'needs_input' && (session ? session.resume : project.session_started === 1 || project.session_started === true);
+    const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', style: home ? readStyle(home) : '', reply: canReply ? fb : null });
     const args = buildArgs({ project, preset, step, allowPaid, model: model || readDefaultModel(home), allowOnce: [...readGlobalAllow(home), ...allowOnce], session });
 
     acquireLock(dir, projectId);

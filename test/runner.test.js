@@ -790,3 +790,12 @@ test('buildArgs: phiên riêng của bước thay cho phiên dự án', () => {
   assert.equal(at(again, '--resume'), 'step-sid');
   assert.equal(at(buildArgs({ project, preset: {}, step: {} }), '--resume'), 'proj-sid');
 });
+
+test('buildPrompt reply: chỉ gửi câu trả lời ngắn, vẫn có đầu ra bắt buộc và dòng duyệt chi phí', () => {
+  const step = { key: 'draft', name: 'Nháp', ord: 0, outputs: ['exports/a.mp4'], prompt: 'RẤT DÀI', cost: { service: 'ElevenLabs' } };
+  const p = buildPrompt({ project: { id: 'p', title: 'T', dir: '/x' }, preset: { id: 'x', steps: [step] }, step, feedback: 'Đồng ý', reply: 'Đồng ý', allowPaid: true });
+  assert.match(p, /Đồng ý/);
+  assert.match(p, /exports\/a\.mp4/);
+  assert.match(p, /ĐÃ DUYỆT CHI PHÍ/);
+  assert.doesNotMatch(p, /RẤT DÀI/);
+});

@@ -399,11 +399,11 @@ function StepPage({ projectId, stepKey }) {
   };
 
 
-  const doRun = async (fb, allowPaid = false, allowOnce = undefined) => {
+  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false) => {
     setBusy('run');
     setActionErr(null);
     try {
-      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce });
+      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply });
       setCostAsk(null);
       if (fb) setFeedback('');
       setSelRunId(null);
@@ -412,7 +412,7 @@ function StepPage({ projectId, stepKey }) {
       await load();
     } catch (e) {
       if (e.status === 412) {
-        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce });
+        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce, reply });
       } else {
         setCostAsk(null);
         setActionErr(e.message);
@@ -425,12 +425,21 @@ function StepPage({ projectId, stepKey }) {
   };
 
   // Bước tốn tiền → luôn mở modal xác nhận trước; Hủy không gọi API.
-  const requestRun = (fb) => {
+  const requestRun = (fb, reply = false) => {
     if (paid) {
-      setCostAsk({ cost: step.cost, feedback: fb });
+      setCostAsk({ cost: step.cost, feedback: fb, reply });
       return;
     }
-    doRun(fb, false);
+    doRun(fb, false, undefined, reply);
+  };
+
+  // Chỉ gửi câu trả lời (prompt ngắn, tiếp tục phiên cũ) — khác "Chạy lại" là chạy lại cả bước
+  const sendReply = () => {
+    if (!fbTrim) {
+      fbRef.current?.focus();
+      return;
+    }
+    requestRun(fbTrim, true);
   };
 
   const runWithFeedback = () => {
@@ -600,8 +609,19 @@ function StepPage({ projectId, stepKey }) {
     ? { granted, grantedAll, busy: grantBusy || busy, onGrant, onOnce: canRun.ok && RUNNABLE.has(st) ? (rules) => doRun(undefined, false, rules) : null, onRerun: canRun.ok && RUNNABLE.has(st) ? () => doRun(undefined) : null }
     : null;
 
+  const sugg = decide && Array.isArray(selRun?.result?.suggested_replies) ? selRun.result.suggested_replies.filter((x) => x && x.label && x.text).slice(0, 4) : [];
+  if (decide && !sugg.length) sugg.push({ label: t('Đồng ý, tiếp tục'), text: t('Đồng ý, bạn cứ làm tiếp.') });
   const feedbackBox = (
     <>
+      {decide ? (
+        <div className="chips" role="group" aria-label={t('Câu trả lời gợi ý')}>
+          {sugg.map((x, i) => (
+            <button key={i} type="button" className="chip" title={x.text} onClick={() => { setFeedback(x.text); fbRef.current?.focus(); }}>
+              {x.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <label className="sr-only" htmlFor="fb">
         {t('Góp ý cho lượt sau')}
       </label>
@@ -617,16 +637,23 @@ function StepPage({ projectId, stepKey }) {
         <span className="num small dim">
           {fmtNum(feedback.length)}/{fmtNum(FEEDBACK_MAX)}
         </span>
-        <button
-          type="button"
-          className={`btn sm ${paid ? 'paid' : 'primary'}`}
-          onClick={runWithFeedback}
-          disabled={!!busy || !fbTrim || !canRun.ok || st === 'running'}
-          title={!canRun.ok ? canRun.message || '' : ''}
-        >
-          {paid ? '$ ' : ''}
-          {runs.length ? t('Chạy lại kèm góp ý') : t('Chạy kèm góp ý')}
-        </button>
+        <span className="acts">
+          {decide ? (
+            <button type="button" className={`btn sm ${paid ? 'paid' : 'primary'}`} onClick={sendReply} disabled={!!busy || !fbTrim || !canRun.ok || st === 'running'} title={t('Chỉ gửi câu trả lời, Claude tiếp tục từ chỗ đang dừng (ít tốn token)')}>
+              {paid ? '$ ' : ''}{t('Gửi câu trả lời')}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`btn sm ${paid ? 'paid' : decide ? '' : 'primary'}`}
+            onClick={runWithFeedback}
+            disabled={!!busy || !fbTrim || !canRun.ok || st === 'running'}
+            title={decide ? t('Chạy lại cả bước kèm góp ý (tốn token hơn)') : !canRun.ok ? canRun.message || '' : ''}
+          >
+            {paid ? '$ ' : ''}
+            {runs.length ? t('Chạy lại kèm góp ý') : t('Chạy kèm góp ý')}
+          </button>
+        </span>
       </div>
     </>
   );
@@ -859,7 +886,7 @@ function StepPage({ projectId, stepKey }) {
           withFeedback={!!costAsk.feedback}
           busy={busy === 'run'}
           onClose={() => setCostAsk(null)}
-          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce)}
+          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce, !!costAsk.reply)}
         />
       ) : null}
     </>

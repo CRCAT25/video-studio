@@ -1324,4 +1324,10 @@ export default {
   'Dán địa chỉ repo vừa tạo': 'Paste the address of the repo you just created',
   'Kết nối': 'Connect',
   'Đang kết nối…': 'Connecting…',
+  'Câu trả lời gợi ý': 'Suggested replies',
+  'Đồng ý, tiếp tục': 'Agree, continue',
+  'Đồng ý, bạn cứ làm tiếp.': 'Agreed, go ahead.',
+  'Gửi câu trả lời': 'Send reply',
+  'Chỉ gửi câu trả lời, Claude tiếp tục từ chỗ đang dừng (ít tốn token)': 'Sends only your reply; Claude continues where it stopped (fewer tokens)',
+  'Chạy lại cả bước kèm góp ý (tốn token hơn)': 'Re-runs the whole step with your feedback (more tokens)',
 };
