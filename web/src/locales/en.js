@@ -1162,6 +1162,7 @@ export default {
   'xem bằng project_images và view_images': 'view with project_images and view_images',
   'Kéo cả thư mục ảnh này vào khung chat Trợ lý': 'Drag this whole image folder into the Assistant chat',
   'Mặc định của máy': 'Machine default',
+  'Model mặc định (model mặc định của máy)': 'Default model (machine default model)',
   'Model của bước này': 'Model for this step',
   'Opus giỏi hơn nhưng tốn lượt dùng gói nhiều hơn.': 'Opus is stronger but uses more of your plan.',
   'Model mặc định cho các bước': 'Default model for steps',

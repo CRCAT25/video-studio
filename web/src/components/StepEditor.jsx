@@ -32,7 +32,7 @@ function freeId(steps, base) {
 }
 
 export const MODELS = [
-  ['', T('Mặc định của máy')],
+  ['', T('Model mặc định (model mặc định của máy)')],
   ['opus', 'Opus'],
   ['sonnet', 'Sonnet'],
   ['haiku', 'Haiku'],
