@@ -1336,4 +1336,5 @@ export default {
   '← Câu trước': '← Previous',
   'Câu tiếp →': 'Next →',
   '(bỏ qua)': '(skipped)',
+  'Nhấn Tab để dùng câu gợi ý.': 'Press Tab to use the suggested reply.',
 };

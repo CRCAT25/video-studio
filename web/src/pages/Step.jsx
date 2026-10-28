@@ -251,14 +251,22 @@ function QAStepper({ questions, suggestions, paid, busy, disabled, onSend, onRer
     <div className="qa">
       <h3>{t('Câu {i}/{n}', { i: i + 1, n: questions.length })}</h3>
       <p className="qa-q">{questions[i]}</p>
-      {chips.length ? (
+      {chips.length > 1 ? (
         <div className="chips" role="group" aria-label={t('Câu trả lời gợi ý')}>
-          {chips.map((x, k) => (
+          {chips.slice(1).map((x, k) => (
             <button key={k} type="button" className="chip" title={x.text} onClick={() => set(x.text)}>{x.label}</button>
           ))}
         </div>
       ) : null}
-      <textarea value={ans[i]} maxLength={FEEDBACK_MAX} onChange={(e) => set(e.target.value)} aria-label={t('Câu trả lời của bạn')} placeholder={t('Trả lời câu này…')} />
+      <textarea
+        value={ans[i]}
+        maxLength={FEEDBACK_MAX}
+        onChange={(e) => set(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Tab' && !e.shiftKey && !ans[i] && chips[0]) { e.preventDefault(); set(chips[0].text); } }}
+        aria-label={t('Câu trả lời của bạn')}
+        placeholder={chips[0] ? chips[0].text : t('Trả lời câu này…')}
+      />
+      {chips[0] && !ans[i] ? <p className="note">{t('Nhấn Tab để dùng câu gợi ý.')}</p> : null}
       <div className="acts" style={{ marginTop: 8, justifyContent: 'space-between' }}>
         <span className="acts">
           {i > 0 ? <button type="button" className="btn sm" onClick={() => setI(i - 1)}>{t('← Câu trước')}</button> : null}
@@ -654,11 +662,12 @@ function StepPage({ projectId, stepKey }) {
   const multiQ = qList.length > 1;
   const sugg = decide && Array.isArray(selRun?.result?.suggested_replies) ? selRun.result.suggested_replies.filter((x) => x && x.label && x.text).slice(0, 12) : [];
   if (decide && !sugg.length) sugg.push({ label: t('Đồng ý, tiếp tục'), text: t('Đồng ý, bạn cứ làm tiếp.') });
+  const single = sugg.filter((x) => x.q == null || x.q === 1);
   const feedbackBox = (
     <>
-      {decide ? (
+      {decide && single.length > 1 ? (
         <div className="chips" role="group" aria-label={t('Câu trả lời gợi ý')}>
-          {sugg.filter((x) => x.q == null || x.q === 1).map((x, i) => (
+          {single.slice(1).map((x, i) => (
             <button key={i} type="button" className="chip" title={x.text} onClick={() => { setFeedback(x.text); fbRef.current?.focus(); }}>
               {x.label}
             </button>
@@ -674,8 +683,10 @@ function StepPage({ projectId, stepKey }) {
         value={feedback}
         maxLength={FEEDBACK_MAX}
         onChange={(e) => setFeedback(e.target.value)}
-        placeholder={decide ? t('Trả lời Claude hoặc góp ý…') : t('Vd: đoạn mở đầu ngắn lại, giọng ấm hơn')}
+        onKeyDown={(e) => { if (decide && e.key === 'Tab' && !e.shiftKey && !feedback && single[0]) { e.preventDefault(); setFeedback(single[0].text); } }}
+        placeholder={decide ? (single[0] ? single[0].text : t('Trả lời Claude hoặc góp ý…')) : t('Vd: đoạn mở đầu ngắn lại, giọng ấm hơn')}
       />
+      {decide && single[0] && !feedback ? <p className="note">{t('Nhấn Tab để dùng câu gợi ý.')}</p> : null}
       <div className="acts" style={{ marginTop: 8, justifyContent: 'space-between' }}>
         <span className="num small dim">
           {fmtNum(feedback.length)}/{fmtNum(FEEDBACK_MAX)}
