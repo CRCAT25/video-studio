@@ -107,3 +107,9 @@ test('ElevenLabs: tải danh sách giọng bằng khóa vừa nhập, báo thi�
   await assert.rejects(bad.tts.voices({ key: 'K' }), /Voices: Read/);
   assert.equal((await bad.tts.voices({})).bundled, true);
 });
+
+test('khóa API có ký tự không phải ASCII bị từ chối rõ ràng', async () => {
+  const { tts } = mk(async () => audioRes());
+  await assert.rejects(tts.save({ name: 'E', kind: 'elevenlabs', voice: 'v' }, 'sk_abcẽ'), { code: 'bad_key' });
+  await assert.rejects(tts.voices({ key: 'sk abc' }), { code: 'bad_key' });
+});

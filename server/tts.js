@@ -15,6 +15,12 @@ const CHUNK = 2500;
 const TIMEOUT_MS = 120_000;
 
 const fail = (status, code, message) => Object.assign(new Error(message), { status, code });
+// Khóa API chỉ gồm ký tự ASCII in được; gõ nhầm bộ gõ tiếng Việt (ẽ, ế…) sẽ làm fetch văng lỗi 500.
+const checkKey = (k) => {
+  const v = String(k ?? '').trim();
+  if (v && !/^[\x21-\x7e]+$/.test(v)) throw fail(400, 'bad_key', 'Khóa API có ký tự lạ (dấu tiếng Việt hoặc khoảng trắng) — tắt bộ gõ tiếng Việt, hoặc copy-dán lại khóa từ ElevenLabs.');
+  return v;
+};
 const secretName = (id) => `tts:${id}`;
 
 // Cắt văn bản ≤ max ký tự theo câu/đoạn để mỗi lần gọi API không vượt giới hạn.
@@ -114,6 +120,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
   async function save(input, key) {
     const c = read();
     const p = cleanProvider(input);
+    if (typeof key === 'string') key = checkKey(key);
     if (!p.id) {
       const base = p.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'tts';
       let id = base, n = 2;
@@ -125,7 +132,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     if (!c.default) c.default = p.id;
     write(c);
     if (secrets && typeof key === 'string') {
-      if (key.trim()) await secrets.set(secretName(p.id), key.trim());
+      if (key) await secrets.set(secretName(p.id), key.trim());
       else await secrets.remove(secretName(p.id));
     }
     return p;
@@ -238,7 +245,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
 
   // Danh sách giọng của ElevenLabs: dùng khóa vừa nhập (chưa lưu) hoặc khóa đã lưu của nhà cung cấp `id`.
   async function voices({ id = null, key = '' } = {}) {
-    const k = String(key || '').trim() || (id ? await keyOf(id) : null);
+    const k = checkKey(key) || (id ? await keyOf(id) : null);
     if (!k) return { voices: JSON.parse(fs.readFileSync(BUNDLED_VOICES, 'utf8')), bundled: true };
     const res = await fetchImpl('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': k, accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
     if (res.status === 401) {
