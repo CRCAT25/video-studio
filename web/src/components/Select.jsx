@@ -32,6 +32,7 @@ export default function Select({ value, options = [], onChange, disabled = false
   const btn = useRef(null);
   const list = useRef(null);
   const typed = useRef({ s: '', t: 0 });
+  const byMouse = useRef(false); // dòng đang chọn đổi do rê chuột → không tự cuộn lại
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [pos, setPos] = useState(null);
@@ -68,10 +69,14 @@ export default function Select({ value, options = [], onChange, disabled = false
     };
     place();
     window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
+    // Cuộn bên trong chính danh sách thì không đặt lại vị trí (gây giật, kéo ngược).
+    const onScroll = (e) => {
+      if (!list.current?.contains(e.target)) place();
+    };
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 
@@ -87,7 +92,8 @@ export default function Select({ value, options = [], onChange, disabled = false
 
   // Giữ dòng đang chọn trong tầm nhìn.
   useEffect(() => {
-    if (open) list.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+    if (open && !byMouse.current) list.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+    byMouse.current = false;
   }, [open, active, pos]);
 
   // Gõ chữ để nhảy tới dòng bắt đầu bằng chữ đó.
@@ -189,7 +195,11 @@ export default function Select({ value, options = [], onChange, disabled = false
                 role="option"
                 aria-selected={selected ? selected(o.value) : o.value === value}
                 className={`sel-opt${i === active ? ' act' : ''}`}
-                onMouseMove={() => i !== active && setActive(i)}
+                onMouseMove={() => {
+                  if (i === active) return;
+                  byMouse.current = true;
+                  setActive(i);
+                }}
                 onClick={(e) => {
                   e.preventDefault(); // nằm trong <label>: không để label bấm lại nút
                   pick(i);
