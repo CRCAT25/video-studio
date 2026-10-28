@@ -8,8 +8,8 @@
 .modal .x:hover{color:var(--text);background:var(--surface-2)}
 .fld{display:block;margin-bottom:16px;min-width:0}
 .fld > span:not(.hint),.fld-l{display:block;font-size:var(--fs-sm);font-weight:500;color:var(--text);margin-bottom:6px}
-.fld input[type=text],.fld textarea{width:100%}
-.fld input[type=text]{height:36px}
+.fld input[type=text],.fld input[type=password],.fld textarea{width:100%}
+.fld input[type=text],.fld input[type=password]{height:36px}
 .fld .hint{display:block;font-size:var(--fs-sm);font-weight:400;color:var(--dim);margin:6px 0 0;overflow-wrap:anywhere}
 .fld .hint.bad{color:var(--err)}
 .fld .mono-in{font-family:var(--f-mono)!important;font-size:var(--fs-sm)!important}
@@ -64,3 +64,8 @@ details.adv:not([open]) > summary{margin-bottom:0}
 .tts-pick audio{width:100%}
 .tts-pick .hint{margin:0}
 .fld-row .btn{height:36px}
+.tts-card{margin-bottom:12px}
+.tts-head{justify-content:space-between}
+.tts-play{margin-top:10px}
+.tts-play audio{width:100%}
+.tts-kinds{padding-left:0}

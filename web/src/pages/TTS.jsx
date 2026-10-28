@@ -113,7 +113,7 @@ function Editor({ init, onClose, onSaved }) {
         {p.kind !== 'command' ? (
           <label className="fld">
             <span className="fld-l">{t('Khóa API')}</span>
-            <input type="password" style={{ width: '100%', height: 36 }} autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
+            <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
             <span className="hint">{t('Khóa chỉ lưu trong Keychain/kho bí mật của máy này, không gửi cho Claude.')}</span>
           </label>
         ) : null}
@@ -212,8 +212,8 @@ export default function TTS() {
             <input type="text" value={text} maxLength={300} onChange={(e) => setText(e.target.value)} aria-label={t('Câu đọc thử')} />
           </label>
           {list.map((p) => (
-            <div key={p.id} className="card pad" style={{ marginBottom: 12 }}>
-              <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div key={p.id} className="card pad tts-card">
+              <div className="row tts-head">
                 <div>
                   <b>{p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}
                   <p className="note">
@@ -230,8 +230,8 @@ export default function TTS() {
                 </div>
               </div>
               {audio?.id === p.id ? (
-                <div style={{ marginTop: 10 }}>
-                  <audio controls autoPlay src={audio.src} style={{ width: '100%' }} />
+                <div className="tts-play">
+                  <audio controls autoPlay src={audio.src} />
                   {audio.paid ? <p className="note">{t('Đã dùng khoảng {n} {l}.', { n: audio.cost, l: audio.label || '' })}</p> : null}
                 </div>
               ) : null}
@@ -241,7 +241,7 @@ export default function TTS() {
       ) : null}
       {kindPick ? (
         <Modal title={t('Bạn muốn dùng dịch vụ nào?')} onClose={() => setKindPick(false)}>
-          <div className="sk-steps" style={{ paddingLeft: 0 }}>
+          <div className="sk-steps tts-kinds">
             <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.elevenlabs); }}>ElevenLabs</button>
             <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.http); }}>{t('Dịch vụ khác có API (nâng cao)')}</button>
             <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.command); }}>{t('Lệnh có sẵn trên máy (nâng cao)')}</button>
