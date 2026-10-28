@@ -900,6 +900,7 @@ export default {
   'Trang Video Studio không phản hồi (tab có thể đã đóng). Nhờ người dùng mở lại trang rồi thử lại.': 'The Video Studio page did not respond (the tab may be closed). Ask the user to reopen the page and retry.',
   'Lệnh đã hết hạn.': 'The command expired.',
   'Model mặc định': 'Default model',
+  'Đang thực hiện': 'In progress',
   'Effort mặc định': 'Default effort',
   'Model': 'Model',
   'Effort': 'Effort',

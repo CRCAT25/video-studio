@@ -46,6 +46,8 @@ function nowText(p) {
 function lineState(p) {
   if (p.status === 'done') return { cls: 'L-ok', label: tr('Hoàn tất') };
   const st = p.current?.state;
+  // đã xong vài bước, bước kế đang chờ chạy → dự án đang trong quá trình làm
+  if ((st === 'ready' || st === 'pending') && (p.progress?.done || 0) > 0) return { cls: 'L-run', label: tr('Đang thực hiện') };
   return { cls: LINE_CLASS[st] || 'L-idle', label: STATE_LABEL[st] || tr('Chưa rõ') };
 }
 
