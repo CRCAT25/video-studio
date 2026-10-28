@@ -123,9 +123,11 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
   const loadStats = useCallback(
     async (refresh = false) => {
       const res = await Promise.allSettled(
-        live.map((c) => Promise.all([api.ytStats(c.id, refresh, range), refresh ? api.ytVideos(c.id, true) : null])),
+        live.map((c) => Promise.all([api.ytStats(c.id, refresh, range), api.ytVideos(c.id, refresh).catch(() => null)])),
       );
-      setStats(Object.fromEntries(live.map((c, i) => [c.id, res[i].status === 'fulfilled' ? res[i].value[0] : false])));
+      // Đếm video dài / Shorts từ danh sách video (cache); lỗi thì chỉ thiếu hai cột này.
+      const kinds = (v) => v && { video: v.videos.filter((x) => !isShort(x)).length, short: v.videos.filter(isShort).length, more: !!v.truncated };
+      setStats(Object.fromEntries(live.map((c, i) => [c.id, res[i].status === 'fulfilled' ? { ...res[i].value[0], kinds: kinds(res[i].value[1]) } : false])));
       return res.filter((r) => r.status === 'rejected').length;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,6 +267,7 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
                 <th>{t('Kênh')}</th>
                 <th className="num">{t('Người đăng ký')}</th>
                 <th className="num hide-sm">{t('Video')}</th>
+                <th className="num hide-sm">{t('Shorts')}</th>
                 <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
                 <th>
                   <span className="sr-only">{t('Thao tác')}</span>
@@ -284,6 +287,9 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
                   </td>
                   <td className="num">
                     <Sk w="3em" />
+                  </td>
+                  <td className="num hide-sm">
+                    <Sk w="2em" />
                   </td>
                   <td className="num hide-sm">
                     <Sk w="2em" />
@@ -458,6 +464,7 @@ function ChannelList({ channels, stats, range, onNew, onDelete }) {
             <th>{t('Kênh')}</th>
             <th className="num">{t('Người đăng ký')}</th>
             <th className="num hide-sm">{t('Video')}</th>
+            <th className="num hide-sm">{t('Shorts')}</th>
             <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
             <th>
               <span className="sr-only">{t('Thao tác')}</span>
@@ -481,6 +488,8 @@ function ChannelRow({ c, s, onNew, onDelete }) {
   const st = chState(c);
   const ch = s?.channel;
   const cell = (v) => (s === undefined ? <Sk w="3em" /> : s === false ? '—' : v);
+  // Danh sách video chỉ lấy tối đa số mới nhất: bị cắt thì thêm dấu "+" (kênh quá nhiều video).
+  const kind = (n) => (n == null ? '—' : fmtNum(n) + (s?.kinds?.more ? '+' : ''));
   return (
     <tr>
       <td>
@@ -492,7 +501,8 @@ function ChannelRow({ c, s, onNew, onDelete }) {
         </span>
       </td>
       <td className="num">{ok ? cell(ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)) : '—'}</td>
-      <td className="num hide-sm">{ok ? cell(fmtNum(ch?.videos)) : '—'}</td>
+      <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.video)) : '—'}</td>
+      <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.short)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
       <td className="yt-chact">
         <RowMenu
