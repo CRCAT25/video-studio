@@ -163,7 +163,7 @@ export default function StepEditor({ steps, library = [], onChange, disabled = f
             onToggleOpen={() => setOpenId(openId === s.id ? null : s.id)}
             onChange={(patch) => update(i, patch)}
             onMove={(d) => move(i, d)}
-            onRemove={added.has(s.id) ? () => onChange(steps.filter((_, j) => j !== i)) : null}
+            onRemove={() => onChange(steps.filter((_, j) => j !== i))}
             disabled={disabled}
           />
         ))}
