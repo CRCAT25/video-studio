@@ -186,7 +186,9 @@ details.yaml pre{margin-top:8px}
 .sg-style{display:flex;flex-wrap:wrap;gap:8px 16px;border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;margin:0}
 .sg-style legend{font-size:12px;padding:0 4px;opacity:.7}
 .sg-style label{display:flex;align-items:center;gap:6px;font-size:13px}
-.page-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.page-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+/* nút trong thanh tác vụ đầu trang cùng cao với nút chính (34px), kể cả nút "…" cỡ nhỏ */
+.page-acts .btn.sm{height:34px;padding:0 14px;font-size:var(--fs-md)}
 
 /* ===== Tạo quy trình theo bước hỏi-đáp (chế độ Đơn giản) ===== */
 .wz{display:flex;flex-direction:column;gap:16px;padding:20px}
