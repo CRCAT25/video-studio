@@ -22,6 +22,20 @@ function Editor({ init, onClose, onSaved }) {
   const [price, setPrice] = useState(String(init.price?.perChar ?? (init.kind === 'elevenlabs' ? 1 : 0)));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [voices, setVoices] = useState(null);
+  const [loadingV, setLoadingV] = useState(false);
+  const loadVoices = async () => {
+    setLoadingV(true);
+    setErr(null);
+    try {
+      setVoices((await api.ttsVoices({ id: init.id || null, key })).voices);
+    } catch (e2) {
+      setErr(e2.message);
+    } finally {
+      setLoadingV(false);
+    }
+  };
+  const picked = voices?.find((v) => v.id === p.voice);
   const set = (patch) => setP((x) => ({ ...x, ...patch }));
   const setHttp = (patch) => setP((x) => ({ ...x, http: { ...x.http, ...patch } }));
   const hdr = Object.entries(p.http?.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
@@ -93,6 +107,18 @@ function Editor({ init, onClose, onSaved }) {
           <span className="fld-l">{p.kind === 'elevenlabs' ? t('ID giọng') : t('Giọng mặc định')}{p.kind === 'elevenlabs' ? <Req /> : null}</span>
           <input type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
         </label>
+        {p.kind === 'elevenlabs' ? (
+          <div className="fld">
+            <button type="button" className="btn sm" onClick={loadVoices} disabled={busy || loadingV || (!key.trim() && !init.hasKey)}>{loadingV ? t('Đang tải…') : t('Tải danh sách giọng từ ElevenLabs')}</button>
+            <span className="hint">{t('Nhập khóa API bên dưới trước (khóa cần quyền "Voices: Read"), rồi bấm để chọn giọng thay vì tự tìm ID.')}</span>
+            {voices ? (
+              <>
+                <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} placeholder={t('Chọn giọng ({n})', { n: voices.length })} options={voices.map((v) => ({ value: v.id, label: v.name, meta: v.desc || v.category }))} />
+                {picked?.preview ? <audio controls src={picked.preview} style={{ width: '100%', marginTop: 8 }} /> : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
         {p.kind !== 'command' ? (
           <label className="fld">
             <span className="fld-l">{t('Khóa API')}</span>

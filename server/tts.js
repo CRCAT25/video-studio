@@ -233,6 +233,27 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return { out, provider: p.id, ...estimate(p, body) };
   }
 
+  // Danh sách giọng của ElevenLabs: dùng khóa vừa nhập (chưa lưu) hoặc khóa đã lưu của nhà cung cấp `id`.
+  async function voices({ id = null, key = '' } = {}) {
+    const k = String(key || '').trim() || (id ? await keyOf(id) : null);
+    if (!k) throw fail(400, 'no_key', 'Nhập khóa API trước để tải danh sách giọng.');
+    const res = await fetchImpl('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': k, accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status === 401) {
+      const j = await res.json().catch(() => ({}));
+      const missing = /voices_read|missing_permissions/.test(JSON.stringify(j));
+      throw fail(400, 'tts_failed', missing ? 'Khóa API thiếu quyền đọc danh sách giọng — tạo khóa mới và bật quyền "Voices: Read".' : 'Khóa API không đúng.');
+    }
+    if (!res.ok) throw fail(502, 'tts_failed', `ElevenLabs trả lỗi ${res.status}.`);
+    const j = await res.json();
+    return (Array.isArray(j.voices) ? j.voices : []).map((v) => ({
+      id: v.voice_id,
+      name: v.name,
+      category: v.category || '',
+      desc: [v.labels?.language, v.labels?.gender, v.labels?.accent, v.labels?.descriptive || v.labels?.use_case].filter(Boolean).join(' · '),
+      preview: v.preview_url || '',
+    })).filter((v) => v.id && v.name);
+  }
+
   // Nhà cung cấp mặc định cho runner: không lộ khóa.
   function runInfo() {
     const c = read();
@@ -240,5 +261,5 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '' } : null;
   }
 
-  return { list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
+  return { voices, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
 }

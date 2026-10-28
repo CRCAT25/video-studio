@@ -96,3 +96,14 @@ test('studio-tts CLI: ghi file và in JSON', async () => {
   assert.equal(r.ok, true);
   assert.equal(fs.readFileSync(out, 'utf8'), 'xin chào');
 });
+
+test('ElevenLabs: tải danh sách giọng bằng khóa vừa nhập, báo thiếu quyền', async () => {
+  let hdr;
+  const ok = mk(async (url, init) => { hdr = init.headers['xi-api-key']; return { ok: true, status: 200, json: async () => ({ voices: [{ voice_id: 'a1', name: 'An', labels: { language: 'vi', gender: 'female' }, preview_url: 'https://x/p.mp3' }, { name: 'bỏ' }] }) }; });
+  const v = await ok.tts.voices({ key: 'K1' });
+  assert.equal(hdr, 'K1');
+  assert.deepEqual(v, [{ id: 'a1', name: 'An', category: '', desc: 'vi · female', preview: 'https://x/p.mp3' }]);
+  const bad = mk(async () => ({ ok: false, status: 401, json: async () => ({ detail: { status: 'missing_permissions', message: 'voices_read' } }) }));
+  await assert.rejects(bad.tts.voices({ key: 'K' }), /Voices: Read/);
+  await assert.rejects(bad.tts.voices({}), { code: 'no_key' });
+});

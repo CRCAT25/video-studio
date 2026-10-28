@@ -129,6 +129,7 @@ export const api = {
   ttsSave: (b) => request('PUT', '/api/tts/providers', b),
   ttsRemove: (id) => request('DELETE', `/api/tts/providers/${encodeURIComponent(id)}`, {}),
   ttsDefault: (id) => request('POST', '/api/tts/default', { id }),
+  ttsVoices: (b) => request('POST', '/api/tts/voices', b),
   ttsTest: (b) => request('POST', '/api/tts/test', b),
   skillRepoInit: (b) => request('POST', '/api/skill-repo/init', b),
   skillRepoScan: (names) => request('POST', '/api/skill-repo/scan', { names }),

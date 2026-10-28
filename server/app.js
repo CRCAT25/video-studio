@@ -765,6 +765,7 @@ export async function buildApp({
     }));
   app.delete('/api/tts/providers/:id', async (req) => ttsCall(async (t) => (await t.remove(req.params.id), t.list())));
   app.post('/api/tts/default', async (req) => ttsCall(async (t) => (t.setDefault(String(req.body?.id || '')), t.list())));
+  app.post('/api/tts/voices', async (req) => ttsCall(async (t) => ({ voices: await t.voices({ id: req.body?.id || null, key: req.body?.key || '' }) })));
   // Đọc thử một câu ngắn; trả âm thanh dạng data URL để nghe ngay trong trang.
   app.post('/api/tts/test', async (req) =>
     ttsCall(async (t) => {

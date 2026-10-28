@@ -1390,4 +1390,8 @@ export default {
   ', bấm dấu ba chấm (⋯) cạnh giọng → "Copy voice ID" rồi dán vào ô ID giọng.': ', click the three dots (⋯) next to a voice → "Copy voice ID" and paste it into Voice ID.',
   'Lấy khóa API ở': 'Get the API key at',
   ' → "Create API Key" (bật quyền Text to Speech) rồi dán vào ô Khóa API.': ' → "Create API Key" (enable Text to Speech access) and paste it into API key.',
+  'Tải danh sách giọng từ ElevenLabs': 'Load voices from ElevenLabs',
+  'Nhập khóa API bên dưới trước (khóa cần quyền "Voices: Read"), rồi bấm để chọn giọng thay vì tự tìm ID.': 'Enter the API key below first (it needs the "Voices: Read" permission), then click to pick a voice instead of hunting for the ID.',
+  'Chọn giọng': 'Pick a voice',
+  'Chọn giọng ({n})': 'Pick a voice ({n})',
 };
