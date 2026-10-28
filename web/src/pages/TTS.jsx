@@ -194,23 +194,42 @@ function Editor({ init, onClose, onSaved }) {
   );
 }
 
-// Quyền của khóa API: Text to Speech / Voices / User, kèm gói và credit còn lại.
+// Cột quyền của khóa API: mỗi quyền một dòng có dấu ✓/✕/?.
 function Perms({ i, onRetry }) {
   const t = useT();
   if (!i || i.busy) return <p className="note" role="status">{t('Đang kiểm tra quyền của khóa…')}</p>;
-  if (i.error) return <p className="note">{i.error} <button type="button" className="btn sm" onClick={onRetry}>{t('Kiểm tra lại')}</button></p>;
-  if (!i.valid) return <div className="tts-perms"><span className="sel-badge bad">{t('Khóa không hợp lệ hoặc đã bị thu hồi')}</span></div>;
-  const mark = (v) => (v === 'yes' ? 'ok' : v === 'no' ? 'bad' : '');
-  const word = (v) => (v === 'yes' ? t('có') : v === 'no' ? t('thiếu') : t('chưa rõ'));
-  const left = i.credits?.limit ? Math.max(0, i.credits.limit - i.credits.used) : null;
+  if (i.error) return <div className="tts-perms"><p className="note">{i.error}</p><button type="button" className="btn sm" onClick={onRetry}>{t('Kiểm tra lại')}</button></div>;
+  if (!i.valid) return <span className="sel-badge bad">{t('Khóa không hợp lệ hoặc đã bị thu hồi')}</span>;
+  const rows = [
+    [i.perms.tts, t('Text to Speech')],
+    [i.perms.voices, t('Đọc danh sách giọng')],
+    [i.perms.user, t('Xem gói và credit')],
+  ];
   return (
-    <div className="tts-perms">
-      <span className={`sel-badge ${mark(i.perms.tts)}`}>{t('Text to Speech')}: {word(i.perms.tts)}</span>
-      <span className={`sel-badge ${mark(i.perms.voices)}`}>{t('Đọc danh sách giọng')}: {word(i.perms.voices)}</span>
-      <span className={`sel-badge ${mark(i.perms.user)}`}>{t('Xem gói và credit')}: {word(i.perms.user)}</span>
-      {i.tier ? <span className="sel-badge">{t('Gói')} {i.tier}</span> : null}
-      {left !== null ? <span className="sel-badge">{t('Còn {n} credit', { n: left.toLocaleString() })}</span> : null}
-    </div>
+    <ul className="tts-perms">
+      {rows.map(([v, label]) => (
+        <li key={label} className={v === 'yes' ? 'ok' : v === 'no' ? 'bad' : ''}>
+          <i aria-hidden="true">{v === 'yes' ? '✓' : v === 'no' ? '✕' : '?'}</i>
+          <span>{label}</span>
+          <span className="sr-only">{v === 'yes' ? t('có') : v === 'no' ? t('thiếu') : t('chưa rõ')}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Cột gói & chi phí: gói, credit còn lại (nếu khóa xem được), giá mỗi ký tự.
+function Plan({ p, i }) {
+  const t = useT();
+  const left = i?.credits?.limit ? Math.max(0, i.credits.limit - i.credits.used) : null;
+  const price = p.price?.perChar > 0 ? `${p.price.perChar} ${p.price.label || ''}/${t('ký tự')}` : t('miễn phí');
+  return (
+    <dl className="tts-kv">
+      {i?.tier ? <><dt>{t('Gói')}</dt><dd>{i.tier}</dd></> : null}
+      {left !== null ? <><dt>{t('Credit còn')}</dt><dd>{left.toLocaleString()} / {i.credits.limit.toLocaleString()}</dd></> : null}
+      <dt>{t('Chi phí')}</dt><dd>{price}</dd>
+      {p.kind === 'elevenlabs' && i?.valid && i.perms.user !== 'yes' ? <dd className="hint tts-kv-wide">{t('Khóa chưa có quyền User (Read) nên không xem được gói và credit — vẫn đọc bình thường.')}</dd> : null}
+    </dl>
   );
 }
 
@@ -266,7 +285,7 @@ export default function TTS() {
           <button type="button" className="btn sm primary" onClick={() => setKindPick(true)}>{t('Thêm giọng đọc')}</button>
         </div>
       </div>
-      <p className="note">{t('Chọn dịch vụ biến văn bản thành giọng nói. Khi một bước cần lồng tiếng, Claude sẽ dùng giọng mặc định ở đây — khóa API không bao giờ đi qua Claude.')}</p>
+      <p className="note tts-intro">{t('Chọn dịch vụ biến văn bản thành giọng nói. Khi một bước cần lồng tiếng, Claude sẽ dùng giọng mặc định ở đây — khóa API không bao giờ đi qua Claude.')}</p>
       {err ? <div className="err-note" role="alert">{err}</div> : null}
       {!data && !err ? <p className="note" role="status">{t('Đang tải…')}</p> : null}
       {data && !list.length ? (
@@ -283,17 +302,25 @@ export default function TTS() {
           </label>
           {list.map((p) => (
             <div key={p.id} className="card pad tts-card">
-              <div className="row tts-head">
-                <div>
-                  <b>{p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}
+              <div className="tts-grid">
+                <div className="tts-col">
+                  <span className="tts-col-h">{t('Dịch vụ')}</span>
+                  <div><b>{p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}</div>
                   <p className="note">
                     {p.kind === 'elevenlabs' ? 'ElevenLabs' : p.kind === 'http' ? t('API tự định nghĩa') : t('Lệnh trên máy')}
                     {p.kind !== 'command' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
-                    {p.price?.perChar > 0 ? ` · ${p.price.perChar} ${p.price.label || ''}/${t('ký tự')}` : ` · ${t('miễn phí')}`}
                   </p>
-                  {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} /> : null}
                 </div>
-                <div className="sk-acts">
+                <div className="tts-col">
+                  <span className="tts-col-h">{t('Quyền của khóa')}</span>
+                  {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} />
+                    : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : t('Không áp dụng')}</p>}
+                </div>
+                <div className="tts-col">
+                  <span className="tts-col-h">{t('Gói & chi phí')}</span>
+                  <Plan p={p} i={info[p.id]} />
+                </div>
+                <div className="sk-acts tts-acts">
                   <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>
                   {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
                   <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>

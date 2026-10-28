@@ -1437,4 +1437,11 @@ export default {
   'Xem gói và credit': 'View plan and credits',
   'Gói': 'Plan',
   'Còn {n} credit': '{n} credits left',
+  'Dịch vụ': 'Service',
+  'Quyền của khóa': 'Key permissions',
+  'Gói & chi phí': 'Plan & cost',
+  'Chưa có khóa': 'No key yet',
+  'Không áp dụng': 'Not applicable',
+  'Credit còn': 'Credits left',
+  'Khóa chưa có quyền User (Read) nên không xem được gói và credit — vẫn đọc bình thường.': 'The key lacks User (Read) permission, so plan and credits can’t be shown — reading still works.',
 };
