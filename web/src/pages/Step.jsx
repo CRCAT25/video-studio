@@ -237,6 +237,12 @@ function ResultBody({ run, live = false, grant = null, hideQuestions = false }) 
   );
 }
 
+// Gợi ý dự phòng khi Claude không kèm suggested_replies: câu hỏi có đoạn trong ngoặc kép ("ĐÃ DUYỆT CHI PHÍ") thì gợi ý đúng đoạn đó.
+function guessReply(q, t) {
+  const m = /["“”]([^"“”]{2,80})["“”]/.exec(String(q || ''));
+  return m ? { label: m[1], text: m[1] } : { label: t('Đồng ý, tiếp tục'), text: t('Đồng ý, bạn cứ làm tiếp.') };
+}
+
 // Nhiều câu hỏi → hỏi từng câu một ở cuối khung; trả lời xong câu cuối mới gửi một lần.
 function QAStepper({ questions, suggestions, paid, busy, disabled, onSend, onRerun }) {
   const t = useT();
@@ -244,7 +250,8 @@ function QAStepper({ questions, suggestions, paid, busy, disabled, onSend, onRer
   const [ans, setAns] = useState(() => questions.map(() => ''));
   const last = i === questions.length - 1;
   const cur = (ans[i] || '').trim();
-  const chips = suggestions.filter((x) => x.q == null || x.q === i + 1);
+  const own = suggestions.filter((x) => x.q === i + 1);
+  const chips = own.length ? own : [guessReply(questions[i], t)];
   const set = (v) => setAns((a) => a.map((x, k) => (k === i ? v : x)));
   const compose = () => questions.map((q, k) => `${k + 1}. ${q}\n→ ${(ans[k] || '').trim() || t('(bỏ qua)')}`).join('\n\n');
   return (
@@ -661,7 +668,7 @@ function StepPage({ projectId, stepKey }) {
   const qList = decide && Array.isArray(selRun?.result?.questions) ? selRun.result.questions.filter(Boolean).map(String) : [];
   const multiQ = qList.length > 1;
   const sugg = decide && Array.isArray(selRun?.result?.suggested_replies) ? selRun.result.suggested_replies.filter((x) => x && x.label && x.text).slice(0, 12) : [];
-  if (decide && !sugg.length) sugg.push({ label: t('Đồng ý, tiếp tục'), text: t('Đồng ý, bạn cứ làm tiếp.') });
+  if (decide && !sugg.length) sugg.push(guessReply(qList[0], t));
   const single = sugg.filter((x) => x.q == null || x.q === 1);
   const feedbackBox = (
     <>
