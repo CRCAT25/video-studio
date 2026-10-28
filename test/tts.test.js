@@ -113,3 +113,15 @@ test('khóa API có ký tự không phải ASCII bị từ chối rõ ràng', as
   await assert.rejects(tts.save({ name: 'E', kind: 'elevenlabs', voice: 'v' }, 'sk_abcẽ'), { code: 'bad_key' });
   await assert.rejects(tts.voices({ key: 'sk abc' }), { code: 'bad_key' });
 });
+
+test('ElevenLabs: lỗi khi đọc được giải thích rõ (thiếu quyền, sai khóa, giọng thư viện)', async () => {
+  const run = async (status, detail) => {
+    const { tts } = mk(async () => ({ ok: false, status, json: async () => ({ detail }) }));
+    await tts.save({ name: 'E', kind: 'elevenlabs', voice: 'v' }, 'K');
+    return tts.synth({ text: 'a', out: path.join(os.tmpdir(), 'x.mp3') }).then(() => '', (e) => e.message);
+  };
+  assert.match(await run(401, { status: 'missing_permissions', message: 'text_to_speech' }), /thiếu quyền "Text to Speech"/);
+  assert.match(await run(401, { status: 'invalid_api_key', message: 'Invalid API key' }), /không đúng hoặc đã bị thu hồi/);
+  assert.match(await run(402, { status: 'paid_plan_required', message: 'Free users cannot use library voices via the API' }), /gói miễn phí/);
+  assert.match(await run(404, { status: 'voice_not_found' }), /ID giọng/);
+});

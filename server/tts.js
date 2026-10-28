@@ -169,6 +169,21 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return { chars, paid: isPaid(p), cost: isPaid(p) ? Math.round(chars * p.price.perChar) : 0, label: p.price?.label || '' };
   };
 
+  // Đổi lỗi ElevenLabs thành câu dễ hiểu (đọc status/message trong thân phản hồi).
+  async function elevenError(res) {
+    const j = await res.json().catch(() => ({}));
+    const d = j?.detail || {};
+    const raw = JSON.stringify(j);
+    const msg = String(d.message || (typeof j?.detail === 'string' ? j.detail : '') || '').slice(0, 160);
+    const more = msg ? ` (${msg})` : '';
+    if (/missing_permissions|text_to_speech/i.test(raw) && res.status === 401) return `Khóa API thiếu quyền "Text to Speech" — tạo khóa mới và bật quyền này${more}.`;
+    if (res.status === 401) return `Khóa API không đúng hoặc đã bị thu hồi — dán lại khóa mới${more}.`;
+    if (res.status === 402 || /paid_plan_required|payment_required|library/i.test(raw)) return `Giọng này thuộc thư viện cộng đồng — gói miễn phí không dùng được qua API. Hãy nâng gói hoặc chọn giọng có sẵn (premade)${more}.`;
+    if (res.status === 404 || /voice_not_found/i.test(raw)) return `Không tìm thấy giọng này trong tài khoản — kiểm tra ID giọng${more}.`;
+    if (/quota_exceeded/i.test(raw)) return `Tài khoản ElevenLabs đã hết credit${more}.`;
+    if (res.status === 429) return 'ElevenLabs đang giới hạn số yêu cầu — đợi một lát rồi thử lại.';
+    return `ElevenLabs trả lỗi ${res.status}${more}.`;
+  }
   async function callApi(p, text, voice, key) {
     const ctl = AbortSignal.timeout(timeoutMs);
     let res;
@@ -180,7 +195,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
         body: JSON.stringify({ text, model_id: p.model || 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
         signal: ctl,
       });
-      if (!res.ok) throw fail(502, 'tts_failed', `ElevenLabs trả lỗi ${res.status}${res.status === 401 ? ' — kiểm tra khóa API' : ''}.`);
+      if (!res.ok) throw fail(502, 'tts_failed', await elevenError(res));
       return Buffer.from(await res.arrayBuffer());
     }
     const h = p.http;
