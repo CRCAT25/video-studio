@@ -39,6 +39,9 @@ function Editor({ init, onClose, onSaved }) {
     }
   };
   const picked = voices?.find((v) => v.id === p.voice);
+  // Giọng tiếng Việt lên đầu, có tiêu đề nhóm — đỡ phải cuộn dài.
+  const isVi = (v) => /^vi\b/.test(v.desc || '');
+  const voiceOptions = [...(voices || [])].sort((x, y) => isVi(y) - isVi(x)).map((v) => ({ value: v.id, label: v.name, meta: v.desc || v.category, group: isVi(v) ? t('Tiếng Việt') : t('Ngôn ngữ khác') }));
   const set = (patch) => setP((x) => ({ ...x, ...patch }));
   const setHttp = (patch) => setP((x) => ({ ...x, http: { ...x.http, ...patch } }));
   const hdr = Object.entries(p.http?.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
@@ -116,7 +119,7 @@ function Editor({ init, onClose, onSaved }) {
             <span className="hint">{t('Chưa có khóa vẫn xem được các giọng gợi ý (gồm giọng tiếng Việt). Nhập khóa có quyền "Voices: Read" để xem giọng trong tài khoản của bạn.')}</span>
             {voices ? (
               <>
-                <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} placeholder={t('Chọn giọng ({n})', { n: voices.length })} options={voices.map((v) => ({ value: v.id, label: v.name, meta: v.desc || v.category }))} />
+                <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} placeholder={t('Chọn giọng ({n})', { n: voices.length })} options={voiceOptions} />
                 {bundled ? <span className="hint">{t('Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.')}</span> : null}
                 {picked?.preview ? <audio controls src={picked.preview} style={{ width: '100%', marginTop: 8 }} /> : null}
               </>

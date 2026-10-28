@@ -1395,4 +1395,6 @@ export default {
   'Xem danh sách giọng': 'Browse voices',
   'Chưa có khóa vẫn xem được các giọng gợi ý (gồm giọng tiếng Việt). Nhập khóa có quyền "Voices: Read" để xem giọng trong tài khoản của bạn.': 'You can browse suggested voices (including Vietnamese ones) without a key. Enter a key with "Voices: Read" to see the voices in your own account.',
   'Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.': 'This is a suggested list. Vietnamese voices come from the community library: click "Add to my voices" in your ElevenLabs account (a paid plan may be required) before they can be used.',
+  'Tiếng Việt': 'Vietnamese',
+  'Ngôn ngữ khác': 'Other languages',
 };
