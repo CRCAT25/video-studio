@@ -39,6 +39,11 @@ function Editor({ init, onClose, onSaved }) {
       setLoadingV(false);
     }
   };
+  // Mở hộp thoại ElevenLabs → nạp sẵn danh sách gợi ý (không cần khóa).
+  useEffect(() => {
+    if (init.kind !== 'elevenlabs') return;
+    api.ttsVoices({}).then((r) => { setVoices(r.voices); setBundled(!!r.bundled); }).catch(() => setVoices([]));
+  }, [init.kind]);
   const picked = voices?.find((v) => v.id === p.voice);
   // Nhóm theo ngôn ngữ (tiếng Việt lên đầu), mỗi giọng có cờ nước của ngôn ngữ đó.
   const voiceOptions = [...(voices || [])]
@@ -49,7 +54,10 @@ function Editor({ init, onClose, onSaved }) {
     })
     .sort((x, y) => (y.l.code === 'vi') - (x.l.code === 'vi') || x.o.group.localeCompare(y.o.group))
     .map((x) => x.o);
-  const set = (patch) => setP((x) => ({ ...x, ...patch }));
+  const set = (patch) => {
+    setErr(null);
+    setP((x) => ({ ...x, ...patch }));
+  };
   const setHttp = (patch) => setP((x) => ({ ...x, http: { ...x.http, ...patch } }));
   const hdr = Object.entries(p.http?.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
   const save = async (e) => {
@@ -124,27 +132,25 @@ function Editor({ init, onClose, onSaved }) {
             <span className="hint">{t('Khóa chỉ lưu trong Keychain/kho bí mật của máy này, không gửi cho Claude.')}</span>
           </label>
         ) : null}
-        <div className="fld">
-          <label className="fld-l" htmlFor="tts-voice">{p.kind === 'elevenlabs' ? t('ID giọng') : t('Giọng mặc định')}{p.kind === 'elevenlabs' ? <Req /> : null}</label>
-          {p.kind === 'elevenlabs' ? (
-            <>
-              <div className="fld-row">
-                <input id="tts-voice" type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
-                <button type="button" className="btn" onClick={loadVoices} disabled={busy || loadingV}>{loadingV ? t('Đang tải…') : t('Chọn từ danh sách')}</button>
+        {p.kind === 'elevenlabs' ? (
+          <div className="fld">
+            <span className="fld-l">{t('Chọn giọng')}</span>
+            <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy || !voices} label={t('Chọn giọng')} placeholder={voices ? t('Chọn giọng ({n})', { n: voices.length }) : t('Đang tải…')} options={voiceOptions} />
+            {picked?.preview ? <audio className="tts-audio" controls src={picked.preview} /> : null}
+            {bundled ? <span className="hint">{t('Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.')}</span> : <span className="hint">{t('Danh sách giọng trong tài khoản ElevenLabs của bạn.')}</span>}
+            {key || init.hasKey ? (
+              <div className="tts-more">
+                <button type="button" className="btn sm" onClick={() => loadVoices()} disabled={busy || loadingV}>{loadingV ? t('Đang tải…') : t('Lấy giọng từ tài khoản của tôi')}</button>
+                <span className="hint">{t('Cần khóa có quyền "Voices: Read". Gói trả phí sẽ thấy đầy đủ giọng hơn.')}</span>
               </div>
-              <span className="hint">{t('Chưa có khóa vẫn xem được các giọng gợi ý (gồm giọng tiếng Việt). Nhập khóa có quyền "Voices: Read" để xem giọng trong tài khoản của bạn.')}</span>
-              {voices ? (
-                <div className="tts-pick">
-                  <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} placeholder={t('Chọn giọng ({n})', { n: voices.length })} options={voiceOptions} />
-                  {picked?.preview ? <audio controls src={picked.preview} /> : null}
-                  {bundled ? <span className="hint">{t('Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.')}</span> : null}
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <input id="tts-voice" type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
-          )}
-        </div>
+            ) : null}
+          </div>
+        ) : null}
+        <label className="fld">
+          <span className="fld-l">{p.kind === 'elevenlabs' ? t('ID giọng') : t('Giọng mặc định')}{p.kind === 'elevenlabs' ? <Req /> : null}</span>
+          <input type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
+          {p.kind === 'elevenlabs' ? <span className="hint">{t('Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.')}</span> : null}
+        </label>
         <label className="fld">
           <span className="fld-l">{p.kind === 'elevenlabs' ? t('Giá mỗi ký tự (credit)') : t('Giá mỗi ký tự (0 = miễn phí)')}</span>
           <input type="text" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} aria-label={t('Giá mỗi ký tự')} disabled={busy} />

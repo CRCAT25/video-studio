@@ -1419,4 +1419,8 @@ export default {
   'Tiếng Ba Lan': 'Polish',
   'Tiếng Hà Lan': 'Dutch',
   'Tiếng Thụy Điển': 'Swedish',
+  'Danh sách giọng trong tài khoản ElevenLabs của bạn.': 'The voices in your ElevenLabs account.',
+  'Lấy giọng từ tài khoản của tôi': 'Load voices from my account',
+  'Cần khóa có quyền "Voices: Read". Gói trả phí sẽ thấy đầy đủ giọng hơn.': 'Needs a key with "Voices: Read". Paid plans show a fuller list.',
+  'Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.': 'Filled in when you pick a voice above. You can also paste another voice ID.',
 };

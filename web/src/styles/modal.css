@@ -60,12 +60,12 @@ details.adv:not([open]) > summary{margin-bottom:0}
 
 .tts-guide{margin:0 0 16px;padding:12px 14px 12px 32px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;font-size:var(--fs-sm);color:var(--muted);line-height:1.55}
 .tts-guide li+li{margin-top:6px}
-.tts-pick{display:grid;gap:10px;margin-top:12px}
-.tts-pick audio{width:100%}
-.tts-pick .hint{margin:0}
 .fld-row .btn{height:36px}
 .tts-card{margin-bottom:12px}
 .tts-head{justify-content:space-between}
 .tts-play{margin-top:10px}
 .tts-play audio{width:100%}
 .tts-kinds{padding-left:0}
+.tts-audio{display:block;width:100%;margin-top:10px}
+.tts-more{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:12px}
+.tts-more .hint{margin:0}
