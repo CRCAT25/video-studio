@@ -1397,4 +1397,8 @@ export default {
   'Đây là danh sách gợi ý. Giọng tiếng Việt thuộc thư viện cộng đồng: cần bấm "Add to my voices" trong tài khoản ElevenLabs của bạn (có thể cần gói trả phí) thì mới đọc được.': 'This is a suggested list. Vietnamese voices come from the community library: click "Add to my voices" in your ElevenLabs account (a paid plan may be required) before they can be used.',
   'Tiếng Việt': 'Vietnamese',
   'Ngôn ngữ khác': 'Other languages',
+  'Chọn từ danh sách': 'Pick from list',
+  'Kết nối ElevenLabs để Claude đọc lời dẫn bằng giọng bạn chọn.': 'Connect ElevenLabs so Claude can narrate with the voice you pick.',
+  'Kết nối dịch vụ giọng đọc qua API HTTP.': 'Connect a text-to-speech service through its HTTP API.',
+  'Kết nối công cụ giọng đọc chạy trên máy bạn.': 'Connect a text-to-speech tool that runs on your machine.',
 };

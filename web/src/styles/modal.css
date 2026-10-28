@@ -57,3 +57,10 @@ details.adv:not([open]) > summary{margin-bottom:0}
 .pe-form{display:flex;flex-direction:column;gap:12px}
 .pe-form .note{margin:0}
 .pe-acts{position:sticky;bottom:-20px;margin:0 -20px -20px;padding:12px 20px;background:var(--surface);border-top:1px solid var(--line);border-radius:0 0 12px 12px}
+
+.tts-guide{margin:0 0 16px;padding:12px 14px 12px 32px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;font-size:var(--fs-sm);color:var(--muted);line-height:1.55}
+.tts-guide li+li{margin-top:6px}
+.tts-pick{display:grid;gap:10px;margin-top:12px}
+.tts-pick audio{width:100%}
+.tts-pick .hint{margin:0}
+.fld-row .btn{height:36px}
