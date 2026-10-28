@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { glob } from 'tinyglobby';
 import { childEnv, isOutsidePattern, runChecks, writeCheckLog } from './checks.js';
 import { isInside, safeJoin } from './paths.js';
@@ -12,6 +13,7 @@ import { readDefaultModel, readGlobalAllow } from './pipeline.js';
 import { renderTemplate } from './presets.js';
 import { skillsForChannel } from './skills.js';
 import { readStyle } from './style.js';
+import { createTts } from './tts.js';
 import { defaultIsAlive, HttpError } from './projects.js';
 import { createLineSplitter, isApiKeySource, logLineFor, normalizeLine, truncate } from './stream.js';
 
@@ -116,8 +118,19 @@ export function templateCtx({ project, preset, feedback, prev }) {
   };
 }
 
+// Nhà cung cấp giọng đọc mặc định (nếu có) + đường dẫn lệnh studio-tts cho Claude.
+const TTS_SCRIPT = fileURLToPath(new URL('./bin/studio-tts.mjs', import.meta.url));
+function ttsRunInfo(home) {
+  try {
+    const i = createTts({ home }).runInfo();
+    return i ? { ...i, script: TTS_SCRIPT } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Prompt người dùng của một lượt đúng định dạng §8.2 (allowPaid là tham số thêm để ghi dòng "ĐÃ DUYỆT CHI PHÍ").
-export function buildPrompt({ project, preset, step, feedback, prev, allowPaid = false, freshSession = false, style = '', reply = null }) {
+export function buildPrompt({ project, preset, step, feedback, prev, allowPaid = false, freshSession = false, style = '', reply = null, tts = null }) {
   const ctx = templateCtx({ project, preset, feedback, prev });
   const steps = Array.isArray(preset?.steps) ? preset.steps : [];
   const idx = Number.isInteger(step?.ord) ? step.ord : Math.max(0, steps.findIndex((s) => s.key === step?.key));
@@ -150,6 +163,9 @@ export function buildPrompt({ project, preset, step, feedback, prev, allowPaid =
   }
   if (freshSession) {
     lines.push('Phiên làm việc: đây là phiên Claude riêng của bước này, không nhớ các bước trước. Kết quả các bước trước đã lưu thành file trong thư mục dự án — chỉ đọc file thật sự cần.');
+  }
+  if (tts && (!tts.paid || allowPaid === true)) {
+    lines.push(`Giọng đọc: để tạo giọng đọc, chạy \`node ${tts.script} --in <file văn bản> --out <file .mp3>\` (nhà cung cấp "${tts.name}" đã được người dùng cấu hình; thêm --voice <id> để đổi giọng; kết quả in ra JSON). Không tự gọi API giọng đọc bằng cách khác.`);
   }
   lines.push(`Đầu ra bắt buộc: ${JSON.stringify(outputs)}`);
   lines.push('', '## Việc cần làm', renderTemplate(step?.prompt ?? '', ctx).trim());
@@ -497,8 +513,9 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     }
     // Trả lời nhanh chỉ dùng được khi có phiên cũ để tiếp tục và lượt trước đang chờ trả lời; ngược lại chạy lại đủ prompt
     const canReply = reply === true && !!fb && stepRow.state === 'needs_input' && (session ? session.resume : project.session_started === 1 || project.session_started === true);
-    const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', style: home ? readStyle(home) : '', reply: canReply ? fb : null });
-    const args = buildArgs({ project, preset, step, allowPaid, model: model || readDefaultModel(home), allowOnce: [...readGlobalAllow(home), ...allowOnce], session });
+    const ttsInfo = home ? ttsRunInfo(home) : null;
+    const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', style: home ? readStyle(home) : '', reply: canReply ? fb : null, tts: ttsInfo });
+    const args = buildArgs({ project, preset, step, allowPaid, model: model || readDefaultModel(home), allowOnce: [...readGlobalAllow(home), ...allowOnce, ...(ttsInfo && (!ttsInfo.paid || allowPaid === true) ? [`Bash(node ${ttsInfo.script}:*)`] : [])], session });
 
     acquireLock(dir, projectId);
     let run;

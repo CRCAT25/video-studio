@@ -16,6 +16,7 @@ import { createSkillSearch } from './skill-search.js';
 import { createDistill } from './distill.js';
 import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
+import { createTts } from './tts.js';
 import { openStore } from './db.js';
 import { runDoctor } from './doctor.js';
 import { expandHome, studioHome } from './paths.js';
@@ -277,8 +278,10 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       updateBin: env.VS_UPDATE_BIN ? path.resolve(env.VS_UPDATE_BIN) : null,
       restart: opts.service || env[SUPERVISED_ENV] === '1' ? () => closeRef?.().finally(() => process.exit(RESTART_CODE)) : null,
     });
+    const secretStore = createSecretStore({ home, platform: env.VS_SECRETS === 'file' ? 'file' : process.platform });
     app = await buildApp({
       store,
+      tts: createTts({ home, secrets: secretStore }),
       updater,
       projects,
       runner,

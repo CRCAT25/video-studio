@@ -131,6 +131,7 @@ export async function buildApp({
   skills = null,
   skillSearch = null,
   skillRepo = null,
+  tts = null,
   distill = null,
   pickDir = createDirPicker(),
   resetAll = null,
@@ -745,6 +746,37 @@ export async function buildApp({
       throw pipelineError(e);
     }
   };
+  const ttsCall = async (fn) => {
+    if (!tts) throw new HttpError(503, 'tts_unavailable', 'Giọng đọc chưa bật trên server này.');
+    try {
+      return await fn(tts);
+    } catch (e) {
+      if (Number.isInteger(e?.status) && e.code) throw new HttpError(e.status, e.code, e.message);
+      throw e;
+    }
+  };
+  app.get('/api/tts', async () => ttsCall((t) => t.list()));
+  app.put('/api/tts/providers', async (req) =>
+    ttsCall(async (t) => {
+      const b = req.body ?? {};
+      const p = await t.save(b.provider, typeof b.key === 'string' ? b.key : undefined);
+      if (b.makeDefault) t.setDefault(p.id);
+      return t.list();
+    }));
+  app.delete('/api/tts/providers/:id', async (req) => ttsCall(async (t) => (await t.remove(req.params.id), t.list())));
+  app.post('/api/tts/default', async (req) => ttsCall(async (t) => (t.setDefault(String(req.body?.id || '')), t.list())));
+  // Đọc thử một câu ngắn; trả âm thanh dạng data URL để nghe ngay trong trang.
+  app.post('/api/tts/test', async (req) =>
+    ttsCall(async (t) => {
+      const text = String(req.body?.text || 'Xin chào, đây là giọng đọc thử của Video Studio.').slice(0, 300);
+      const out = path.join(home || os.tmpdir(), `.tts-test-${process.pid}.mp3`);
+      try {
+        const r = await t.synth({ provider: req.body?.id || null, text, out });
+        return { ...r, out: undefined, audio: `data:audio/mpeg;base64,${fs.readFileSync(out).toString('base64')}` };
+      } finally {
+        fs.rmSync(out, { force: true });
+      }
+    }));
   app.get('/api/skill-repo', async () => repoCall((r) => r.status()));
   app.post('/api/skill-repo/init', async (req) => repoCall((r) => r.init(skillBody(req))));
   app.post('/api/skill-repo/scan', async (req) => repoCall((r) => ({ findings: r.scan(skillBody(req).names) })));
