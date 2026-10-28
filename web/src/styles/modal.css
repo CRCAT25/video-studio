@@ -28,12 +28,12 @@ details.adv:not([open]) > summary{margin-bottom:0}
 .cost-box .est small{font-size:var(--fs-sm);font-weight:400;color:var(--muted);margin-left:6px}
 .cost-box p{margin:6px 0 0;font-size:var(--fs-sm);color:var(--muted)}
 
-.toasts{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;width:max-content;max-width:calc(100% - 32px);pointer-events:none}
+.toasts{position:fixed;right:20px;top:20px;z-index:60;display:flex;flex-direction:column;gap:8px;align-items:flex-end;width:max-content;max-width:calc(100% - 40px);pointer-events:none}
 .toast{display:flex;align-items:center;gap:8px;background:#18181b;color:#f4f4f5;border:1px solid #2e2e33;padding:10px 14px;border-radius:8px;font-size:var(--fs-md);box-shadow:0 12px 30px rgba(0,0,0,.3);animation:toast-in .18s ease-out;overflow-wrap:anywhere;pointer-events:auto;max-width:100%}
 .toast:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#71717a}
 .toast.err:before{background:#f87171}
 .toast.ok:before{background:#34c76f}
-@keyframes toast-in{from{opacity:0;transform:translateY(8px)}}
+@keyframes toast-in{from{opacity:0;transform:translateX(12px)}}
 
 @media (max-width:520px){
   .modal-bg{padding:16px}
