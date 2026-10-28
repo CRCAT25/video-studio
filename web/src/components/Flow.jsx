@@ -102,7 +102,7 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
           const linkProps = staticMode ? {} : { href: stepHref(projectId, it.key) };
           const cur = it.key === currentKey;
           const box = (
-            <Tag key={it.key} className={`box ${it.cls}${cur ? ' cur' : ''}`} title={it.title} aria-current={cur ? 'step' : undefined} {...linkProps}>
+            <Tag key={it.key} className={`box ${it.cls}${cur ? ' cur' : ''}`} title={it.title} aria-current={cur ? 'step' : undefined} style={{ '--i': i }} {...linkProps}>
               <span className="no">
                 {two(i + 1)}
                 {it.cost ? (
@@ -113,8 +113,10 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
                 {staticMode ? null : <i className="lamp" />}
               </span>
               <span className="nm">{tr(it.name)}</span>
-              {staticMode || !(it.model || defModel) ? null : <span className="mdl" title={t('Model dùng ở bước này')}>{cap(it.model || defModel)}</span>}
-              <span className="st">{it.label}{it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}</span>
+              <span className="ft">
+                {staticMode || !(it.model || defModel) ? null : <span className="mdl" title={t('Model dùng ở bước này')}>{cap(it.model || defModel)}</span>}
+                <span className="st">{it.label}{it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}</span>
+              </span>
               {it.state === 'running' ? (
                 it.pct != null ? <i className="pg" style={{ width: `${Math.max(3, Math.min(100, Number(it.pct)))}%` }} /> : <i className="pg ind" />
               ) : null}

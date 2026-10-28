@@ -87,7 +87,7 @@ details > summary{cursor:pointer}
 .sk-col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .sk-flow .belt{gap:28px}
 .sk.sk-box{width:128px;height:72px;flex:none}
-.flow.lg .sk.sk-box{width:148px;height:76px}
+.flow.lg .sk.sk-box{width:100%;height:96px}
 
 /* show-m: chỉ hiện ở màn hẹp (cặp với hide-m) */
 .show-m{display:none}

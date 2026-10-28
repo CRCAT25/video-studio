@@ -33,3 +33,29 @@ a.box:hover{border-color:var(--line-2);background:var(--surface-2)}
 .conn:before{content:"";position:absolute;left:4px;right:6px;top:5.5px;height:1px;background:var(--line-2)}
 .conn:after{content:"";position:absolute;right:4px;top:2px;width:6px;height:6px;border-top:1px solid var(--line-2);border-right:1px solid var(--line-2);transform:rotate(45deg)}
 .conn.done:before{background:var(--ok)} .conn.done:after{border-color:var(--ok)}
+
+/* chân ô: model bên trái, trạng thái bên phải */
+.box .ft{margin-top:auto;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 8px}
+.box .ft .mdl,.box .ft .st{margin-top:0}
+
+/* ===== Sơ đồ lớn (trang bước): lưới đều cột, vạch trạng thái trên đầu ô, chuyển động nhẹ ===== */
+.flow.lg .belt{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:12px;row-gap:12px}
+.flow.lg .conn{display:none}
+.flow.lg .box{width:auto;min-height:96px;padding:14px 14px 12px;border-radius:10px;gap:6px;box-shadow:var(--shadow);
+  transition:transform .18s cubic-bezier(.2,.7,.3,1),box-shadow .18s,border-color .15s,background .15s;
+  animation:box-in .42s cubic-bezier(.2,.7,.3,1) both;animation-delay:calc(var(--i,0) * 45ms)}
+.flow.lg .box:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--line-2);opacity:.7;transition:background .2s,opacity .2s}
+.flow.lg .box.s-done:before{background:var(--ok);opacity:1}
+.flow.lg .box.s-running:before{background:var(--run);opacity:1}
+.flow.lg .box.s-needs_input:before,.flow.lg .box.s-manual:before{background:var(--ask);opacity:1}
+.flow.lg .box.s-failed:before{background:var(--err);opacity:1}
+.flow.lg a.box:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.flow.lg a.box:active{transform:translateY(-1px)}
+.flow.lg .box .nm{font-size:var(--fs-md);font-weight:600;line-height:1.3}
+.flow.lg .box .no{font-size:var(--fs-xs);letter-spacing:.04em}
+.flow.lg .box .mdl{font-size:var(--fs-xs);padding:1px 7px;border-radius:999px;background:var(--surface-2)}
+.flow.lg .box.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 6px 22px -8px var(--accent);animation:box-in .42s cubic-bezier(.2,.7,.3,1) both,cur-glow 2.8s ease-in-out 1s infinite}
+.flow.lg .box.cur:before{background:var(--accent);opacity:1}
+@keyframes box-in{from{opacity:0;transform:translateY(8px) scale(.97)}}
+@keyframes cur-glow{50%{box-shadow:0 0 0 1px var(--accent),0 6px 26px -4px var(--accent)}}
+@media (prefers-reduced-motion:reduce){.flow.lg .box,.flow.lg .box.cur{animation:none;transition:none}.flow.lg a.box:hover{transform:none}}
