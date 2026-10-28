@@ -1342,7 +1342,6 @@ export default {
   'Thêm giọng đọc': 'Add a voice',
   'Sửa giọng đọc': 'Edit voice',
   'Tên gọi': 'Name',
-  'Lấy khóa API ở elevenlabs.io → Profile → API Keys; ID giọng ở mục Voices → nút ID cạnh giọng bạn chọn.': 'Get the API key at elevenlabs.io → Profile → API Keys; the voice ID is under Voices → the ID button next to your chosen voice.',
   'Dùng được với dịch vụ có API trả về âm thanh. Trong địa chỉ, tiêu đề và thân có thể dùng {text} (văn bản), {voice} (giọng), {key} (khóa API).': 'Works with any service whose API returns audio. In the URL, headers and body you can use {text} (the text), {voice} (the voice), {key} (the API key).',
   'Địa chỉ API': 'API URL',
   'Tiêu đề (mỗi dòng một cái)': 'Headers (one per line)',
@@ -1387,4 +1386,8 @@ export default {
   'Bạn muốn dùng dịch vụ nào?': 'Which service do you want to use?',
   'Dịch vụ khác có API (nâng cao)': 'Another service with an API (advanced)',
   'Lệnh có sẵn trên máy (nâng cao)': 'A command already on this machine (advanced)',
+  'Chọn giọng ở': 'Pick a voice at',
+  ', bấm dấu ba chấm (⋯) cạnh giọng → "Copy voice ID" rồi dán vào ô ID giọng.': ', click the three dots (⋯) next to a voice → "Copy voice ID" and paste it into Voice ID.',
+  'Lấy khóa API ở': 'Get the API key at',
+  ' → "Create API Key" (bật quyền Text to Speech) rồi dán vào ô Khóa API.': ' → "Create API Key" (enable Text to Speech access) and paste it into API key.',
 };

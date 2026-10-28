@@ -46,7 +46,10 @@ function Editor({ init, onClose, onSaved }) {
           <input type="text" value={p.name} maxLength={60} onChange={(e) => set({ name: e.target.value })} aria-label={t('Tên gọi')} disabled={busy} />
         </label>
         {p.kind === 'elevenlabs' ? (
-          <p className="note">{t('Lấy khóa API ở elevenlabs.io → Profile → API Keys; ID giọng ở mục Voices → nút ID cạnh giọng bạn chọn.')}</p>
+          <ol className="note" style={{ paddingLeft: 20, margin: '0 0 16px' }}>
+            <li>{t('Chọn giọng ở')} <a href="https://elevenlabs.io/app/voices" target="_blank" rel="noopener noreferrer">elevenlabs.io/app/voices</a>{t(', bấm dấu ba chấm (⋯) cạnh giọng → "Copy voice ID" rồi dán vào ô ID giọng.')}</li>
+            <li>{t('Lấy khóa API ở')} <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener noreferrer">elevenlabs.io/app/settings/api-keys</a>{t(' → "Create API Key" (bật quyền Text to Speech) rồi dán vào ô Khóa API.')}</li>
+          </ol>
         ) : null}
         {p.kind === 'http' ? (
           <>
@@ -93,7 +96,7 @@ function Editor({ init, onClose, onSaved }) {
         {p.kind !== 'command' ? (
           <label className="fld">
             <span className="fld-l">{t('Khóa API')}</span>
-            <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
+            <input type="password" style={{ width: '100%', height: 36 }} autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
             <span className="hint">{t('Khóa chỉ lưu trong Keychain/kho bí mật của máy này, không gửi cho Claude.')}</span>
           </label>
         ) : null}
@@ -103,7 +106,7 @@ function Editor({ init, onClose, onSaved }) {
           <span className="hint">{t('Nếu có giá, bước dùng giọng đọc sẽ chỉ chạy sau khi bạn bấm duyệt chi phí.')}</span>
         </label>
         {err ? <div className="err-note" role="alert">{err}</div> : null}
-        <div className="row">
+        <div className="row" style={{ gap: 8 }}>
           <button type="submit" className="btn primary" disabled={busy}>{busy ? <><i className="spinner on-acc" aria-hidden="true" />{t('Đang lưu…')}</> : t('Lưu')}</button>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
         </div>
