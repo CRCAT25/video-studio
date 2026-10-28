@@ -52,7 +52,10 @@ test('init từ chối url không phải GitHub và thư mục có sẵn nội d
 });
 
 test('init nối remote khi có url GitHub', async () => {
-  await repo.init({ url: 'https://github.com/me/my-skills', dir: path.join(tmp, 'kho') });
+  const fake = 'https://github.com/me/my-skills';
+  const { run } = await import('../server/skill-repo.js');
+  const r1 = createSkillRepo({ home, exec: (c, a, o) => run(c, a[0] === 'ls-remote' ? a.map((x) => (x === fake ? remote : x)) : a, o) });
+  await r1.init({ url: fake, dir: path.join(tmp, 'kho') });
   assert.equal(git(path.join(tmp, 'kho'), 'remote', 'get-url', 'origin'), 'https://github.com/me/my-skills');
 });
 
@@ -128,4 +131,23 @@ test('API: GET /api/skill-repo và lỗi khi chưa tạo kho', async () => {
   assert.equal(q.statusCode, 409);
   assert.equal(q.json().findings.length, 1);
   await app.close();
+});
+
+test('init với repo đã có skill: tải về, skill hiện là chỉ-có-trên-kho, apply lấy vào thư viện', async () => {
+  const seed = path.join(tmp, 'seed');
+  git(tmp, 'clone', remote, seed);
+  mk(seed, 'san', md('san', 'Có sẵn'));
+  git(seed, 'add', '-A');
+  git(seed, 'commit', '-m', 'seed');
+  git(seed, 'push', 'origin', 'HEAD:main');
+  const fake = 'https://github.com/me/my-skills';
+  const { run } = await import('../server/skill-repo.js');
+  const exec = (cmd, args, o) => run(cmd, args.map((a) => (a === fake ? remote : a)), o);
+  const r2 = createSkillRepo({ home, exec, gh: async () => ({ code: -1, out: '', err: '' }) });
+  const st = await r2.init({ url: fake, dir: path.join(tmp, 'kho') });
+  assert.deepEqual(st.skills.map((s) => [s.name, s.state]), [['san', 'repo_only']]);
+  assert.ok(fs.existsSync(path.join(tmp, 'kho', 'sync.sh')));
+  r2.apply({ names: ['san'] });
+  assert.ok(fs.existsSync(path.join(lib, 'san', 'SKILL.md')));
+  await assert.rejects(createSkillRepo({ home: path.join(tmp, 'h2'), exec: (c, a, o) => run(c, a.map((x) => (x === fake ? path.join(tmp, 'none.git') : x)), o) }).init({ url: fake, dir: path.join(tmp, 'k2') }), { code: 'remote_unreachable' });
 });

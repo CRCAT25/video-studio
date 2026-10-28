@@ -31,7 +31,7 @@ function Wizard({ st, onDone }) {
       {!st.hasGit ? <div className="err-note" role="alert">{t('Máy chưa cài git — cài git rồi mở lại cửa sổ này.')}</div> : null}
       <ol className="sk-steps">
         <li>
-          <b>{t('Tạo repo trống trên GitHub')}</b>
+          <b>{t('Chưa có repo? Tạo repo trống trên GitHub')}</b>
           <p className="note">{t('Mở trang tạo repo (đã điền sẵn tên my-skills), bấm "Create repository" và đừng thêm README.')}</p>
           <a className="btn sm" href={NEW_REPO} target="_blank" rel="noopener noreferrer">{t('Mở github.com/new')}</a>
           {st.ghLoggedIn ? (
@@ -39,7 +39,8 @@ function Wizard({ st, onDone }) {
           ) : null}
         </li>
         <li>
-          <b>{t('Dán địa chỉ repo vừa tạo')}</b>
+          <b>{t('Dán địa chỉ repo (mới tạo hoặc đã có sẵn)')}</b>
+          <p className="note">{t('Nếu repo đã có skill, app sẽ tải về và bạn chọn skill nào lấy vào thư viện.')}</p>
           <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/ten-ban/my-skills" aria-label={t('Địa chỉ repo GitHub')} disabled={busy} />
         </li>
         <li>

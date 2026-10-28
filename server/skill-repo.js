@@ -272,8 +272,19 @@ export function createSkillRepo({ home, libRoot = path.join(home, 'skills'), exe
     if (createWithGh && !/^[\w.-]{1,100}$/.test(String(name))) throw fail(400, 'invalid_name', 'Tên repo không hợp lệ.');
     if (fs.existsSync(target) && fs.readdirSync(target).length && !fs.existsSync(path.join(target, '.git'))) throw fail(409, 'dir_not_empty', 'Thư mục đã có nội dung nhưng chưa phải repo git.');
     if ((await exec('git', ['--version'])).code !== 0) throw fail(400, 'git_missing', 'Máy chưa có git.');
-    fs.mkdirSync(target, { recursive: true });
     const c = { dir: target, url };
+    // Repo đã có sẵn nội dung trên GitHub → tải về thay vì tạo mới (tránh đẩy bị từ chối vì lịch sử khác nhau).
+    let cloned = false;
+    if (url && !createWithGh && !fs.existsSync(path.join(target, '.git'))) {
+      const ls = await exec('git', ['ls-remote', '--heads', url], { timeoutMs: 30_000 });
+      if (ls.code !== 0) throw fail(502, 'remote_unreachable', 'Không truy cập được repo này — kiểm tra địa chỉ, hoặc đăng nhập git nếu repo riêng tư.');
+      if (ls.out) {
+        const r = await exec('git', ['clone', url, target], { timeoutMs: 120_000 });
+        if (r.code !== 0) throw fail(502, 'clone_failed', r.err.slice(0, 300) || 'Không tải được repo.');
+        cloned = true;
+      }
+    }
+    fs.mkdirSync(target, { recursive: true });
     if (!fs.existsSync(path.join(target, '.git'))) {
       const r = await git(target, ['init', '-b', 'main']);
       if (r.code !== 0) throw fail(500, 'git_init_failed', r.err || 'Không khởi tạo được repo.');
@@ -288,12 +299,12 @@ export function createSkillRepo({ home, libRoot = path.join(home, 'skills'), exe
     put('sync.sh', SYNC_SH, 0o755);
     put('sync.ps1', SYNC_PS1);
     writeReadmeTable(c);
-    await commit(c, 'Initial commit');
+    await commit(c, cloned ? 'Add sync scripts' : 'Initial commit');
     if (createWithGh) {
       const r = await gh(['repo', 'create', String(name), '--public', '--source=.', '--remote=origin'], { cwd: target, timeoutMs: 90_000 });
       if (r.code !== 0) throw fail(502, 'gh_failed', r.err || 'gh không tạo được repo. Chạy "gh auth login" rồi thử lại.');
       c.url = (await git(target, ['remote', 'get-url', 'origin'])).out.replace(/\.git$/, '');
-    } else if (url) {
+    } else if (url && !cloned) {
       const has = await git(target, ['remote', 'get-url', 'origin']);
       const r = await git(target, ['remote', has.code === 0 ? 'set-url' : 'add', 'origin', url]);
       if (r.code !== 0) throw fail(500, 'remote_failed', r.err || 'Không nối được remote.');
@@ -327,7 +338,8 @@ export function createSkillRepo({ home, libRoot = path.join(home, 'skills'), exe
     let hint = '';
     if (!c.url) hint = 'no_remote';
     else {
-      const r = await git(c.dir, ['push', '-u', 'origin', 'main'], { timeoutMs: 120_000 });
+      const branch = (await git(c.dir, ['rev-parse', '--abbrev-ref', 'HEAD'])).out || 'main';
+      const r = await git(c.dir, ['push', '-u', 'origin', branch], { timeoutMs: 120_000 });
       pushed = r.code === 0;
       if (!pushed) hint = r.err.slice(0, 300) || 'push_failed';
     }

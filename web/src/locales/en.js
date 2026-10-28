@@ -1312,4 +1312,8 @@ export default {
   'Khác nhau': 'Different',
   'Giống nhau': 'Same',
   'Chỉ có trên kho': 'Only in the repo',
+  'Chưa có repo? Tạo repo trống trên GitHub': 'No repo yet? Create an empty repo on GitHub',
+  'Dán địa chỉ repo (mới tạo hoặc đã có sẵn)': 'Paste the repo URL (new or existing)',
+  'Nếu repo đã có skill, app sẽ tải về và bạn chọn skill nào lấy vào thư viện.': 'If the repo already has skills, the app downloads it and you choose which ones to bring into the library.',
+  'Không truy cập được repo này — kiểm tra địa chỉ, hoặc đăng nhập git nếu repo riêng tư.': 'Cannot access this repo — check the URL, or log in to git if the repo is private.',
 };
