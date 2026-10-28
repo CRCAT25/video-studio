@@ -36,7 +36,7 @@ export const STEP_RESULT_SCHEMA = {
     questions: { type: 'array', items: { type: 'string' } },
     suggested_replies: {
       type: 'array',
-      items: { type: 'object', properties: { label: { type: 'string' }, text: { type: 'string' } }, required: ['label', 'text'] },
+      items: { type: 'object', properties: { label: { type: 'string' }, text: { type: 'string' }, q: { type: 'integer' } }, required: ['label', 'text'] },
     },
     notes_for_next_step: { type: 'string' },
   },
@@ -47,7 +47,7 @@ export const STUDIO_PROTOCOL = [
   'Bạn đang chạy trong Video Studio — một dây chuyền làm video theo từng bước. Mỗi lượt bạn nhận đúng MỘT bước.',
   '1. Chỉ làm đúng bước được giao trong tin nhắn; không làm trước bước sau.',
   '2. Ghi mọi đầu ra vào thư mục dự án (cwd), đúng các đường dẫn ở mục "Đầu ra bắt buộc".',
-  '3. Không có người ngồi trả lời giữa chừng. Nếu cần người dùng quyết định, dừng lại và kết thúc với status "needs_input" kèm danh sách câu hỏi cụ thể, và suggested_replies: 2–4 câu trả lời mẫu ngắn (label ≤ 40 ký tự, text là câu người dùng sẽ gửi nguyên văn cho bạn, vd "Đồng ý, làm giọng") để người dùng bấm một cái là trả lời; câu trả lời đó sẽ được gửi vào đúng phiên này và bạn tiếp tục từ chỗ đang dừng.',
+  '3. Không có người ngồi trả lời giữa chừng. Nếu cần người dùng quyết định, dừng lại và kết thúc với status "needs_input" kèm danh sách câu hỏi cụ thể, và suggested_replies: 2–4 câu trả lời mẫu ngắn cho mỗi câu hỏi (q = số thứ tự câu hỏi, từ 1; mỗi câu hỏi nên là MỘT ý, người dùng sẽ được hỏi lần lượt từng câu; label ≤ 40 ký tự, text là câu người dùng sẽ gửi nguyên văn cho bạn, vd "Đồng ý, làm giọng") để người dùng bấm một cái là trả lời; câu trả lời đó sẽ được gửi vào đúng phiên này và bạn tiếp tục từ chỗ đang dừng.',
   '4. Lệnh bị chặn quyền thì không tìm đường vòng; ghi lại trong summary.',
   '5. Không chạy dịch vụ tốn tiền (ElevenLabs, sinh ảnh/video trả phí, upload) trừ khi tin nhắn ghi "ĐÃ DUYỆT CHI PHÍ".',
   '6. Tiết kiệm token: khi cần xem ảnh để kiểm tra, chỉ xem tối đa 3 ảnh mẫu (thu nhỏ trước khi xem, vd 800px), không xem lại từng ảnh sau mỗi lần sửa; kiểm hàng loạt bằng code (kích thước, màu, tệp có đủ).',

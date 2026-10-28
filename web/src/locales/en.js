@@ -1330,4 +1330,10 @@ export default {
   'Gửi câu trả lời': 'Send reply',
   'Chỉ gửi câu trả lời, Claude tiếp tục từ chỗ đang dừng (ít tốn token)': 'Sends only your reply; Claude continues where it stopped (fewer tokens)',
   'Chạy lại cả bước kèm góp ý (tốn token hơn)': 'Re-runs the whole step with your feedback (more tokens)',
+  'Câu {i}/{n}': 'Question {i}/{n}',
+  'Câu trả lời của bạn': 'Your answer',
+  'Trả lời câu này…': 'Answer this question…',
+  '← Câu trước': '← Previous',
+  'Câu tiếp →': 'Next →',
+  '(bỏ qua)': '(skipped)',
 };

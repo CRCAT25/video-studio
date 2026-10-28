@@ -196,7 +196,7 @@ function GrantBar({ denials, grant }) {
 }
 
 // Thân kết quả lượt: lỗi, tóm tắt, câu hỏi, ghi chú cho bước sau, các lần bị chặn quyền.
-function ResultBody({ run, live = false, grant = null }) {
+function ResultBody({ run, live = false, grant = null, hideQuestions = false }) {
   const t = useT();
   const r = run.result || {};
   const questions = Array.isArray(r.questions) ? r.questions.filter(Boolean) : [];
@@ -206,7 +206,7 @@ function ResultBody({ run, live = false, grant = null }) {
     <div className="result">
       {run.error ? <div className="err-note">{tr(run.error)}</div> : null}
       {summary ? <p>{summary}</p> : !live && !run.error ? <p className="muted">{t('Lượt này không có tóm tắt.')}</p> : null}
-      {questions.length ? (
+      {questions.length && !hideQuestions ? (
         <>
           <h3>{t('Claude hỏi')}</h3>
           <ul>
@@ -233,6 +233,47 @@ function ResultBody({ run, live = false, grant = null }) {
           <GrantBar denials={denials} grant={grant} />
         </>
       ) : null}
+    </div>
+  );
+}
+
+// Nhiều câu hỏi → hỏi từng câu một ở cuối khung; trả lời xong câu cuối mới gửi một lần.
+function QAStepper({ questions, suggestions, paid, busy, disabled, onSend, onRerun }) {
+  const t = useT();
+  const [i, setI] = useState(0);
+  const [ans, setAns] = useState(() => questions.map(() => ''));
+  const last = i === questions.length - 1;
+  const cur = (ans[i] || '').trim();
+  const chips = suggestions.filter((x) => x.q == null || x.q === i + 1);
+  const set = (v) => setAns((a) => a.map((x, k) => (k === i ? v : x)));
+  const compose = () => questions.map((q, k) => `${k + 1}. ${q}\n→ ${(ans[k] || '').trim() || t('(bỏ qua)')}`).join('\n\n');
+  return (
+    <div className="qa">
+      <h3>{t('Câu {i}/{n}', { i: i + 1, n: questions.length })}</h3>
+      <p className="qa-q">{questions[i]}</p>
+      {chips.length ? (
+        <div className="chips" role="group" aria-label={t('Câu trả lời gợi ý')}>
+          {chips.map((x, k) => (
+            <button key={k} type="button" className="chip" title={x.text} onClick={() => set(x.text)}>{x.label}</button>
+          ))}
+        </div>
+      ) : null}
+      <textarea value={ans[i]} maxLength={FEEDBACK_MAX} onChange={(e) => set(e.target.value)} aria-label={t('Câu trả lời của bạn')} placeholder={t('Trả lời câu này…')} />
+      <div className="acts" style={{ marginTop: 8, justifyContent: 'space-between' }}>
+        <span className="acts">
+          {i > 0 ? <button type="button" className="btn sm" onClick={() => setI(i - 1)}>{t('← Câu trước')}</button> : null}
+        </span>
+        <span className="acts">
+          {last ? (
+            <>
+              <button type="button" className={`btn sm ${paid ? 'paid' : 'primary'}`} disabled={!!busy || disabled || !cur} onClick={() => onSend(compose())} title={t('Chỉ gửi câu trả lời, Claude tiếp tục từ chỗ đang dừng (ít tốn token)')}>{paid ? '$ ' : ''}{t('Gửi câu trả lời')}</button>
+              <button type="button" className={`btn sm ${paid ? 'paid' : ''}`} disabled={!!busy || disabled || !cur} onClick={() => onRerun(compose())} title={t('Chạy lại cả bước kèm góp ý (tốn token hơn)')}>{paid ? '$ ' : ''}{t('Chạy lại kèm góp ý')}</button>
+            </>
+          ) : (
+            <button type="button" className="btn sm primary" disabled={!cur} onClick={() => setI(i + 1)}>{t('Câu tiếp →')}</button>
+          )}
+        </span>
+      </div>
     </div>
   );
 }
@@ -609,13 +650,15 @@ function StepPage({ projectId, stepKey }) {
     ? { granted, grantedAll, busy: grantBusy || busy, onGrant, onOnce: canRun.ok && RUNNABLE.has(st) ? (rules) => doRun(undefined, false, rules) : null, onRerun: canRun.ok && RUNNABLE.has(st) ? () => doRun(undefined) : null }
     : null;
 
-  const sugg = decide && Array.isArray(selRun?.result?.suggested_replies) ? selRun.result.suggested_replies.filter((x) => x && x.label && x.text).slice(0, 4) : [];
+  const qList = decide && Array.isArray(selRun?.result?.questions) ? selRun.result.questions.filter(Boolean).map(String) : [];
+  const multiQ = qList.length > 1;
+  const sugg = decide && Array.isArray(selRun?.result?.suggested_replies) ? selRun.result.suggested_replies.filter((x) => x && x.label && x.text).slice(0, 12) : [];
   if (decide && !sugg.length) sugg.push({ label: t('Đồng ý, tiếp tục'), text: t('Đồng ý, bạn cứ làm tiếp.') });
   const feedbackBox = (
     <>
       {decide ? (
         <div className="chips" role="group" aria-label={t('Câu trả lời gợi ý')}>
-          {sugg.map((x, i) => (
+          {sugg.filter((x) => x.q == null || x.q === 1).map((x, i) => (
             <button key={i} type="button" className="chip" title={x.text} onClick={() => { setFeedback(x.text); fbRef.current?.focus(); }}>
               {x.label}
             </button>
@@ -774,8 +817,12 @@ function StepPage({ projectId, stepKey }) {
       {decide ? (
         <div className="card pad decide ask side" style={{ marginBottom: 16 }}>
           <h2>{t('Claude cần bạn trả lời')}</h2>
-          <ResultBody run={selRun} grant={grant} />
-          {feedbackBox}
+          <ResultBody run={selRun} grant={grant} hideQuestions={multiQ} />
+          {multiQ ? (
+            <QAStepper key={selRun.id} questions={qList} suggestions={sugg} paid={paid} busy={busy} disabled={!canRun.ok || st === 'running'} onSend={(txt) => requestRun(txt, true)} onRerun={(txt) => requestRun(txt)} />
+          ) : (
+            feedbackBox
+          )}
         </div>
       ) : live || selRun?.error || selRun?.denials?.length ? (
         <div className="side" style={{ marginBottom: 16 }}>

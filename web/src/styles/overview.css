@@ -40,3 +40,7 @@
   .wait-item .kind,.wait-item .age{grid-column:2}
 }
 .L-idle .lst,.wait-item.L-idle .kind{color:var(--muted)}
+.qa{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.qa h3{margin:0 0 6px}
+.qa-q{margin:0 0 10px;font-weight:600}
+.qa textarea{width:100%}
