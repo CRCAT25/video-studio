@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Flow from '../components/Flow.jsx';
 import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatalog, useSuggestion } from '../components/FormatPicker.jsx';
+import PipelineWizard from '../components/PipelineWizard.jsx';
 import Modal from '../components/Modal.jsx';
 import { RowMenu } from './Channels.jsx';
 import { PresetErrors } from '../components/NewProjectModal.jsx';
@@ -286,7 +287,7 @@ function SuggestMainSkeleton() {
 }
 
 // Hộp thoại sửa một quy trình đã lưu: nạp bản gốc, chỉnh bước/skills/tên rồi ghi đè.
-function EditModal({ preset, onClose, onSaved }) {
+function EditModal({ preset, adv, onClose, onSaved }) {
   const t = useT();
   const toast = useToast();
   const { catalog } = useCatalog();
@@ -327,7 +328,7 @@ function EditModal({ preset, onClose, onSaved }) {
             <span className="fld-l">{t('Tên quy trình')}<Req /></span>
             <input type="text" required aria-required="true" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-label={t('Tên quy trình')} disabled={busy} />
           </label>
-          <StepEditor steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
+          <StepEditor simple={!adv} steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
           <details className="bp-more">
             <summary>Skills{draft.skills?.length ? ` (${draft.skills.length})` : ''}</summary>
             <SkillPicker channelId={draft.channel || null} value={draft.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy} />
@@ -423,6 +424,13 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
   const [delBusy, setDelBusy] = useState(false);
   const [delErr, setDelErr] = useState(null);
   const [styleOpen, setStyleOpen] = useState(false);
+  const [adv, setAdv] = useState(() => {
+    try { return localStorage.getItem('vs-pipe-adv') === '1'; } catch { return false; }
+  });
+  const toggleAdv = (v) => {
+    setAdv(v);
+    try { localStorage.setItem('vs-pipe-adv', v ? '1' : '0'); } catch { /* không lưu được thì thôi */ }
+  };
   const fileRef = useRef(null);
 
   const dup = async (p) => {
@@ -475,18 +483,27 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
       <div className="page-h">
         <h1>{t('Quy trình')}</h1>
         <div className="page-acts">
-        <button type="button" className="btn" onClick={() => setStyleOpen(true)}>{t('Phong cách của tôi')}</button>
-        <button type="button" className="btn" onClick={() => fileRef.current?.click()}>{t('Nhập')}</button>
-        <input ref={fileRef} type="file" accept=".yaml,.yml,text/yaml" hidden onChange={onFile} />
-        {onAskAI ? (
-          <button type="button" className="btn" disabled={aiBusy} onClick={() => onAskAI(NEW_PROMPT)} title={t('Điền sẵn lời nhắc vào ô chat của Trợ lý để bạn sửa; chỉ tốn token khi bạn bấm Gửi. Nên dùng để tinh chỉnh quy trình đã dựng sẵn.')}>
-            <span aria-hidden="true">✦ </span>{t('Làm quy trình cùng AI')}
-          </button>
-        ) : null}
+          <label className="chk mode-sw" title={t('Hiện thêm lựa chọn kỹ thuật: lời dặn AI, model, YAML')}>
+            <input type="checkbox" checked={adv} onChange={(e) => toggleAdv(e.target.checked)} />
+            <span>{t('Nâng cao')}</span>
+          </label>
+          <RowMenu
+            label={t('Thêm')}
+            items={[
+              { label: t('Phong cách của tôi'), onClick: () => setStyleOpen(true) },
+              { label: t('Nhập từ file YAML'), onClick: () => fileRef.current?.click() },
+            ]}
+          />
+          <input ref={fileRef} type="file" accept=".yaml,.yml,text/yaml" hidden onChange={onFile} />
+          {onAskAI ? (
+            <button type="button" className="btn primary" disabled={aiBusy} onClick={() => onAskAI(NEW_PROMPT)} title={t('Điền sẵn lời nhắc vào ô chat của Trợ lý để bạn sửa; chỉ tốn token khi bạn bấm Gửi. Nên dùng để tinh chỉnh quy trình đã dựng sẵn.')}>
+              <span aria-hidden="true">✦ </span>{t('Làm quy trình cùng AI')}
+            </button>
+          ) : null}
         </div>
       </div>
-      <h2 className="sec-h">{t('Gợi ý')}</h2>
-      <Suggest onSaved={onReload} />
+      <h2 className="sec-h">{t('Tạo quy trình mới')}</h2>
+      {adv ? <Suggest onSaved={onReload} /> : <PipelineWizard onSaved={onReload} />}
 
       <div className="page-h sec">
         <h2 className="sec-h">{t('Quy trình của tôi')}</h2>
@@ -521,53 +538,39 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
         </SkZone>
       ) : null}
       {data && !presets.length ? (
-        <div className="card empty">{t('Chưa có quy trình nào. Chọn định dạng ở trên, tùy chỉnh rồi bấm Lưu.')}</div>
+        <div className="card empty">{t('Chưa có quy trình nào. Trả lời vài câu hỏi ở trên rồi bấm Lưu.')}</div>
       ) : null}
       {presets.length ? (
-        <div className="tbl-wrap yt-chlist">
-          <table className="yt-tbl">
-            <thead>
-              <tr>
-                <th>{t('Quy trình')}</th>
-                <th className="num">{t('Bước')}</th>
-                <th className="num hide-sm">{t('Tốn tiền')}</th>
-                <th className="hide-sm">{t('Định dạng')}</th>
-                <th>
-                  <span className="sr-only">{t('Thao tác')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {presets.map((p) => {
-                const n = (p.steps || []).length;
-                const paid = (p.steps || []).filter((s) => s.cost).length;
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <button type="button" className="yt-chname link-btn" onClick={() => setView(p)}>{tr(p.name)}</button>
-                      <span className="muted small yt-chst">
-                        <span className="mono" title={p.file || ''}>{p.id}</span>{p.mine ? '' : ` · ${t('có sẵn')}`}
-                      </span>
-                    </td>
-                    <td className="num">{n}</td>
-                    <td className="num hide-sm">{paid || '—'}</td>
-                    <td className="hide-sm">{formatText(p)}</td>
-                    <td className="yt-chact">
-                      <RowMenu
-                        label={t('Thao tác với quy trình {n}', { n: p.name })}
-                        items={[
-                          { label: t('Xem chi tiết'), onClick: () => setView(p) },
-                          { label: t('Nhân bản'), onClick: () => dup(p) },
-                          { label: t('Xuất YAML'), onClick: () => exp(p) },
-                          ...(p.mine ? [{ label: t('Sửa'), onClick: () => setEdit(p) }, ...(onAskAI && !aiBusy ? [{ label: t('Nhờ AI sửa'), onClick: () => onAskAI(editPrompt(p)) }] : []), { sep: true }, { label: t('Xóa'), onClick: () => setDel(p), danger: true }] : []),
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="pc-list">
+          {presets.map((p) => {
+            const n = (p.steps || []).length;
+            const paid = (p.steps || []).filter((s) => s.cost).length;
+            return (
+              <div key={p.id} className="card pc">
+                <div>
+                  <h3>{tr(p.name)}</h3>
+                  <div className="pc-sub">
+                    {formatText(p)} · {t('{n} bước', { n })}{paid ? ` · ${t('{n} bước tốn tiền (luôn hỏi trước)', { n: paid })}` : ''}{p.mine ? '' : ` · ${t('có sẵn')}`}
+                  </div>
+                  {adv ? <div className="pc-id" title={p.file || ''}>{p.id}</div> : null}
+                </div>
+                <p className="pc-steps">{flowSteps(p.steps).map((x) => tr(x.name)).join(' → ')}</p>
+                <div className="pc-acts">
+                  {p.mine ? <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button> : null}
+                  <button type="button" className="btn sm" onClick={() => setView(p)}>{t('Xem chi tiết')}</button>
+                  <span className="grow" />
+                  <RowMenu
+                    label={t('Thao tác với quy trình {n}', { n: p.name })}
+                    items={[
+                      { label: t('Nhân bản'), onClick: () => dup(p) },
+                      { label: t('Xuất YAML'), onClick: () => exp(p) },
+                      ...(p.mine ? [...(onAskAI && !aiBusy ? [{ label: t('Nhờ AI sửa'), onClick: () => onAskAI(editPrompt(p)) }] : []), { sep: true }, { label: t('Xóa'), onClick: () => setDel(p), danger: true }] : []),
+                    ]}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : null}
       {view ? (
@@ -576,7 +579,7 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
         </Modal>
       ) : null}
       {styleOpen ? <StyleModal onClose={() => setStyleOpen(false)} /> : null}
-      {edit ? <EditModal preset={edit} onClose={() => setEdit(null)} onSaved={onReload} /> : null}
+      {edit ? <EditModal preset={edit} adv={adv} onClose={() => setEdit(null)} onSaved={onReload} /> : null}
       {del ? (
         <Modal title={t('Xóa quy trình?')} onClose={() => setDel(null)} busy={delBusy}>
           <p className="note">

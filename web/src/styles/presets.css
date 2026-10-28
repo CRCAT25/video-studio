@@ -187,3 +187,34 @@ details.yaml pre{margin-top:8px}
 .sg-style legend{font-size:12px;padding:0 4px;opacity:.7}
 .sg-style label{display:flex;align-items:center;gap:6px;font-size:13px}
 .page-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+
+/* ===== Tạo quy trình theo bước hỏi-đáp (chế độ Đơn giản) ===== */
+.wz{display:flex;flex-direction:column;gap:16px;padding:20px}
+.wz-steps{display:flex;gap:8px 20px;flex-wrap:wrap;list-style:none;margin:0;padding:0;font-size:var(--fs-sm);color:var(--muted)}
+.wz-steps li{display:flex;align-items:center;gap:6px}
+.wz-steps li span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1px solid var(--line-2);font-size:var(--fs-xs)}
+.wz-steps li.on{color:var(--text);font-weight:600}
+.wz-steps li.on span{background:var(--text);color:var(--bg);border-color:var(--text)}
+.wz-steps li.done span{border-color:var(--text)}
+.wz-q{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.wz-q legend,.wz-q h3{font-size:var(--fs-lg);font-weight:600;margin:0 0 4px;padding:0}
+.wz-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.wz-opt{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.wz-opt:hover{border-color:var(--line-2)}
+.wz-opt.on{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
+.wz-opt input{margin-top:3px;flex:none}
+.wz-opt b{display:block;font-weight:600}
+.wz-opt small{display:block;margin-top:2px;color:var(--muted);font-size:var(--fs-sm)}
+.wz-acts{display:flex;justify-content:space-between;gap:8px}
+
+/* ===== Thẻ quy trình ===== */
+.pc-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.pc{display:flex;flex-direction:column;gap:10px;padding:16px;min-width:0}
+.pc h3{margin:0;font-size:var(--fs-lg);overflow-wrap:anywhere}
+.pc-sub{color:var(--muted);font-size:var(--fs-sm)}
+.pc-id{font:var(--fs-xs) var(--f-mono);color:var(--dim);overflow-wrap:anywhere}
+.pc-acts{display:flex;gap:8px;align-items:center;margin-top:auto}
+.pc-acts .grow{flex:1}
+.mode-sw{font-size:var(--fs-sm)}
+.pc-steps{margin:0;font-size:var(--fs-sm);color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.se-gate{width:230px}

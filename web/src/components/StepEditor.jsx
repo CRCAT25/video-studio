@@ -9,6 +9,11 @@ const GATES = [
   ['auto_if_checks', T('Tự duyệt khi kiểm đạt')],
 ];
 
+const GATES_SIMPLE = [
+  ['manual', T('Chờ tôi duyệt')],
+  ['auto_if_checks', T('Tự đi tiếp nếu đủ kết quả')],
+];
+
 // Bước chưa đủ để chạy (bước tự động cần lời dặn + đầu ra) → câu báo; đủ → null.
 export function stepProblem(s) {
   if (s.enabled === false || s.manual) return null;
@@ -40,7 +45,7 @@ const parseOutputs = (t) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, disabled }) {
+function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, onRemove, disabled }) {
   const t = useT();
   const off = s.enabled === false;
   const problem = stepProblem(s);
@@ -61,7 +66,7 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
             size="sm"
             className="se-gate"
             value={gate}
-            options={[...GATES, ...(GATES.some(([v]) => v === gate) ? [] : [[gate, gate]])].map(([value, label]) => ({ value, label: t(label) }))}
+            options={[...(simple ? GATES_SIMPLE : GATES), ...(GATES.some(([v]) => v === gate) ? [] : [[gate, gate]])].map(([value, label]) => ({ value, label: t(label) }))}
             onChange={(mode) => onChange({ gate: { mode } })}
             disabled={disabled || off}
             label={t('Cổng duyệt bước {n}', { n: i + 1 })}
@@ -84,13 +89,15 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
       {open && !s.manual ? (
         <div className="se-edit">
           <label className="fld">
-            <span>{t('Lời dặn Claude')}</span>
+            <span>{simple ? t('Hướng dẫn cho AI') : t('Lời dặn Claude')}</span>
             <textarea rows={4} value={s.prompt || ''} onChange={(e) => onChange({ prompt: e.target.value })} disabled={disabled} />
-            <span className="hint">
-              {t('Dùng được')} <code>{'{title}'}</code>, <code>{'{feedback}'}</code>, <code>{'{vars.aspect}'}</code>, <code>{'{vars.duration_label}'}</code>.
-            </span>
+            {simple ? null : (
+              <span className="hint">
+                {t('Dùng được')} <code>{'{title}'}</code>, <code>{'{feedback}'}</code>, <code>{'{vars.aspect}'}</code>, <code>{'{vars.duration_label}'}</code>.
+              </span>
+            )}
           </label>
-          <label className="fld">
+          {simple ? null : <label className="fld">
             <span>{t('Đầu ra')}</span>
             <textarea
               rows={2}
@@ -103,8 +110,8 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
               disabled={disabled}
             />
             <span className="hint">{t('Mỗi dòng một file hoặc mẫu, vd: script.md, images/*')}</span>
-          </label>
-          <label className="fld">
+          </label>}
+          {simple ? null : <label className="fld">
             <span>{t('Model của bước này')}</span>
             <Select
               size="sm"
@@ -115,7 +122,7 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
               label={t('Model của bước này')}
             />
             <span className="hint">{t('Opus giỏi hơn nhưng tốn lượt dùng gói nhiều hơn.')}</span>
-          </label>
+          </label>}
           {problem ? <div className="hint bad">{problem}</div> : null}
         </div>
       ) : null}
@@ -124,7 +131,7 @@ function StepRow({ s, i, count, open, onToggleOpen, onChange, onMove, onRemove, 
 }
 
 // steps: mảng bước dạng YAML (id, name, prompt, outputs, gate, cost, manual, enabled); library: bước có thể thêm.
-export default function StepEditor({ steps, library = [], onChange, disabled = false }) {
+export default function StepEditor({ simple = false, steps, library = [], onChange, disabled = false }) {
   const t = useT();
   const [openId, setOpenId] = useState(null);
   const [added, setAdded] = useState(() => new Set());
@@ -142,7 +149,11 @@ export default function StepEditor({ steps, library = [], onChange, disabled = f
     const lib = library.find((s) => s.id === val);
     const step = lib
       ? { ...JSON.parse(JSON.stringify(lib)), enabled: true }
-      : { id: freeId(steps, 'buoc-moi'), name: t('Bước mới'), prompt: '', outputs: [], gate: { mode: 'manual' }, enabled: true };
+      : (() => {
+          const id = freeId(steps, 'buoc-moi');
+          // bản đơn giản không có ô "Đầu ra" → tự đặt một file kết quả
+          return { id, name: t('Bước mới'), prompt: '', outputs: simple ? [`${id}.md`] : [], gate: { mode: 'manual' }, enabled: true };
+        })();
     // bước tự thêm: chèn trước "Gói đăng" nếu có, để gói đăng luôn ở cuối
     const last = steps.length && steps[steps.length - 1].id === 'goi-dang' ? steps.length - 1 : steps.length;
     onChange([...steps.slice(0, last), step, ...steps.slice(last)]);
@@ -155,6 +166,7 @@ export default function StepEditor({ steps, library = [], onChange, disabled = f
       <ol className="se-list">
         {steps.map((s, i) => (
           <StepRow
+            simple={simple}
             key={s.id}
             s={s}
             i={i}
