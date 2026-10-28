@@ -141,3 +141,19 @@ test('ElevenLabs: gói free chỉ giữ giọng dùng được; đọc thử câ
   assert.equal(s.cost, 8);
   await assert.rejects(tts.sample({ key: 'K' }), { code: 'no_voice' });
 });
+
+test('ElevenLabs: kiểm tra quyền của khóa (không tốn credit)', async () => {
+  const json = (status, body) => ({ ok: status < 400, status, json: async () => body });
+  const { tts } = mk(async (url) => {
+    if (url.includes('/v1/voices')) return json(200, { voices: [] });
+    if (url.includes('/v1/user/subscription')) return json(200, { tier: 'free', character_count: 100, character_limit: 10000 });
+    return json(401, { detail: { status: 'missing_permissions' } });
+  });
+  const r = await tts.check({ key: 'sk_abc123' });
+  assert.equal(r.valid, true);
+  assert.deepEqual(r.perms, { tts: 'no', voices: 'yes', user: 'yes' });
+  assert.equal(r.tier, 'free');
+  assert.deepEqual(r.credits, { used: 100, limit: 10000 });
+  const bad = mk(async () => json(401, { detail: { status: 'invalid_api_key' } })).tts;
+  assert.equal((await bad.check({ key: 'sk_abc123' })).valid, false);
+});

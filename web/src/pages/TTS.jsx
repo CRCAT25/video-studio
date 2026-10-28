@@ -194,6 +194,26 @@ function Editor({ init, onClose, onSaved }) {
   );
 }
 
+// Quyền của khóa API: Text to Speech / Voices / User, kèm gói và credit còn lại.
+function Perms({ i, onRetry }) {
+  const t = useT();
+  if (!i || i.busy) return <p className="note" role="status">{t('Đang kiểm tra quyền của khóa…')}</p>;
+  if (i.error) return <p className="note">{i.error} <button type="button" className="btn sm" onClick={onRetry}>{t('Kiểm tra lại')}</button></p>;
+  if (!i.valid) return <div className="tts-perms"><span className="sel-badge bad">{t('Khóa không hợp lệ hoặc đã bị thu hồi')}</span></div>;
+  const mark = (v) => (v === 'yes' ? 'ok' : v === 'no' ? 'bad' : '');
+  const word = (v) => (v === 'yes' ? t('có') : v === 'no' ? t('thiếu') : t('chưa rõ'));
+  const left = i.credits?.limit ? Math.max(0, i.credits.limit - i.credits.used) : null;
+  return (
+    <div className="tts-perms">
+      <span className={`sel-badge ${mark(i.perms.tts)}`}>{t('Text to Speech')}: {word(i.perms.tts)}</span>
+      <span className={`sel-badge ${mark(i.perms.voices)}`}>{t('Đọc danh sách giọng')}: {word(i.perms.voices)}</span>
+      <span className={`sel-badge ${mark(i.perms.user)}`}>{t('Xem gói và credit')}: {word(i.perms.user)}</span>
+      {i.tier ? <span className="sel-badge">{t('Gói')} {i.tier}</span> : null}
+      {left !== null ? <span className="sel-badge">{t('Còn {n} credit', { n: left.toLocaleString() })}</span> : null}
+    </div>
+  );
+}
+
 export default function TTS() {
   const t = useT();
   const toast = useToast();
@@ -204,10 +224,19 @@ export default function TTS() {
   const [text, setText] = useState('');
   const [testing, setTesting] = useState(null);
   const [audio, setAudio] = useState(null);
+  const [info, setInfo] = useState({});
   const load = useCallback(() => {
     api.tts().then((d) => { setData(d); setErr(null); }).catch((e) => setErr(e.message));
   }, []);
   useEffect(load, [load]);
+  // Kiểm tra quyền của khóa ElevenLabs (không tốn credit) mỗi khi danh sách đổi.
+  const checkKey = useCallback((id) => {
+    setInfo((m) => ({ ...m, [id]: { busy: true } }));
+    api.ttsCheck({ id }).then((r) => setInfo((m) => ({ ...m, [id]: r })), (e) => setInfo((m) => ({ ...m, [id]: { error: e.message } })));
+  }, []);
+  useEffect(() => {
+    for (const p of data?.providers || []) if (p.kind === 'elevenlabs' && p.hasKey && !info[p.id]) checkKey(p.id);
+  }, [data, info, checkKey]);
   const act = async (fn, msg) => {
     try {
       setData(await fn());
@@ -262,6 +291,7 @@ export default function TTS() {
                     {p.kind !== 'command' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
                     {p.price?.perChar > 0 ? ` · ${p.price.perChar} ${p.price.label || ''}/${t('ký tự')}` : ` · ${t('miễn phí')}`}
                   </p>
+                  {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} /> : null}
                 </div>
                 <div className="sk-acts">
                   <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>

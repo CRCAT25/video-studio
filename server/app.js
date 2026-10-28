@@ -778,6 +778,8 @@ export async function buildApp({
         fs.rmSync(out, { force: true });
       }
     }));
+  // Kiểm tra quyền + gói của khóa đã lưu (hoặc khóa vừa nhập); không tốn credit.
+  app.post('/api/tts/check', async (req) => ttsCall((t) => t.check({ id: req.body?.id || null, key: req.body?.key || '' })));
   // Đọc thử câu ngắn bằng giọng đang chọn trong hộp thoại (chưa cần lưu).
   app.post('/api/tts/sample', async (req) =>
     ttsCall(async (t) => {

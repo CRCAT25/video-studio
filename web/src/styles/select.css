@@ -26,6 +26,7 @@
 .sel-meta{flex:none;font-size:var(--fs-sm);font-weight:400;font-variant-numeric:tabular-nums;color:var(--dim);white-space:nowrap}
 .sel-val .sel-meta{margin-left:auto}
 .sel-badge{flex:none;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-tx);font-size:var(--fs-xs);font-weight:500;white-space:nowrap}
+.sel-badge.bad{background:var(--err-soft);color:var(--err)}
 .sel-badge.ok{background:var(--ok-soft);color:var(--ok)}
 .sel-dot{flex:none;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 1.5px color-mix(in srgb,var(--text) 22%,transparent)}
 .sel-ic{flex:none;display:inline-flex;width:14px;color:var(--muted)}

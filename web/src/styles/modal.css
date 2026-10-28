@@ -62,6 +62,7 @@ details.adv:not([open]) > summary{margin-bottom:0}
 .tts-guide li+li{margin-top:6px}
 .fld-row .btn{height:36px}
 .tts-card{margin-bottom:12px}
+.tts-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tts-head{justify-content:space-between}
 .tts-play{margin-top:10px}
 .tts-play audio{width:100%}

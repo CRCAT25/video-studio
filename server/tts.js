@@ -286,6 +286,40 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     })).filter((v) => v.id && v.name) };
   }
 
+  // Kiểm tra khóa ElevenLabs: hợp lệ không, có những quyền nào (không tốn credit), gói + credit còn lại.
+  // Quyền Text to Speech thử bằng ID giọng không tồn tại: thiếu quyền → 401, đủ quyền → 404/422 (không đọc gì cả).
+  async function check({ id = null, key = '' } = {}) {
+    const k = checkKey(key) || (id ? await keyOf(id) : null);
+    if (!k) throw fail(400, 'no_key', 'Chưa có khóa API để kiểm tra.');
+    const H = { 'xi-api-key': k, accept: 'application/json' };
+    const go = (url, init = {}) => fetchImpl(url, { ...init, headers: { ...H, ...(init.headers || {}) }, signal: AbortSignal.timeout(timeoutMs) });
+    const perm = async (res) => {
+      if (res.status === 401) {
+        const raw = JSON.stringify(await res.json().catch(() => ({})));
+        return /missing_permissions/.test(raw) ? 'no' : 'invalid';
+      }
+      return res.status === 403 ? 'no' : res.status < 500 ? 'yes' : 'unknown';
+    };
+    const [v, u, s] = await Promise.all([
+      go('https://api.elevenlabs.io/v1/voices').then(perm, () => 'unknown'),
+      go('https://api.elevenlabs.io/v1/user/subscription'),
+      go('https://api.elevenlabs.io/v1/text-to-speech/vs-permission-probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: '.' }) }).then(perm, () => 'unknown'),
+    ].map((x) => x.catch?.(() => 'unknown') ?? x));
+    let sub = null;
+    let userPerm = 'unknown';
+    if (u && typeof u === 'object') {
+      userPerm = await perm(u);
+      if (u.ok) sub = await u.json().catch(() => null);
+    }
+    if ([v, s, userPerm].includes('invalid')) return { valid: false };
+    return {
+      valid: true,
+      perms: { tts: s, voices: v, user: userPerm },
+      tier: String(sub?.tier || ''),
+      credits: sub ? { used: Number(sub.character_count) || 0, limit: Number(sub.character_limit) || 0 } : null,
+    };
+  }
+
   // Đọc thử một câu ngắn với giọng/khóa đang nhập (chưa lưu) — trả mp3 dạng buffer + chi phí ước tính.
   async function sample({ id = null, key = '', voice = '', text = '' } = {}) {
     const k = checkKey(key) || (id ? await keyOf(id) : null);
@@ -302,5 +336,5 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '' } : null;
   }
 
-  return { voices, sample, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
+  return { voices, check, sample, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
 }
