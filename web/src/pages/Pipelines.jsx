@@ -474,6 +474,7 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
     <>
       <div className="page-h">
         <h1>{t('Quy trình')}</h1>
+        <div className="page-acts">
         <button type="button" className="btn" onClick={() => setStyleOpen(true)}>{t('Phong cách của tôi')}</button>
         <button type="button" className="btn" onClick={() => fileRef.current?.click()}>{t('Nhập')}</button>
         <input ref={fileRef} type="file" accept=".yaml,.yml,text/yaml" hidden onChange={onFile} />
@@ -482,6 +483,7 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
             <span aria-hidden="true">✦ </span>{t('Làm quy trình cùng AI')}
           </button>
         ) : null}
+        </div>
       </div>
       <h2 className="sec-h">{t('Gợi ý')}</h2>
       <Suggest onSaved={onReload} />
