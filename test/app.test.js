@@ -416,6 +416,32 @@ test('quy trình: catalog, suggest (mặc định + lỗi), lưu/xóa "Quy trìn
   assert.ok(!(await req({ url: '/api/presets' })).json().presets.some((p) => p.id === 'kenh-xe-dien'));
 });
 
+test('nhân bản / xuất / nhập quy trình + hồ sơ phong cách', async () => {
+  await makeApp({ presets: cachedPresets([FIXTURE_PRESETS, path.join(home, 'presets')], 60_000) });
+  const dup = await req({ method: 'POST', url: '/api/pipelines/e2e-short/duplicate', payload: {} });
+  assert.equal(dup.statusCode, 201);
+  const id = dup.json().id;
+  const pr = (await req({ url: '/api/presets' })).json();
+  assert.ok(pr.presets.find((p) => p.id === id)?.mine, JSON.stringify([id, pr.presets.map((p) => p.id), pr.errors]));
+  assert.equal((await req({ method: 'POST', url: '/api/pipelines/khong-co/duplicate', payload: {} })).statusCode, 404);
+
+  const ex = (await req({ url: `/api/pipelines/${id}/export` })).json();
+  assert.match(ex.filename, /\.yaml$/);
+  assert.ok(!/^skills:|^channel:/m.test(ex.yaml), 'không lộ skill/kênh riêng');
+  const imp = await req({ method: 'POST', url: '/api/pipelines/import', payload: { yaml: ex.yaml.replace(/^name:.*$/m, 'name: Bản nhập') } });
+  assert.equal(imp.statusCode, 201);
+  assert.equal(imp.json().name, 'Bản nhập');
+  assert.equal((await req({ method: 'POST', url: '/api/pipelines/import', payload: { yaml: 'a: [' } })).statusCode, 400);
+  assert.equal((await req({ method: 'POST', url: '/api/pipelines/import', payload: { yaml: 'name: x\nsteps: []' } })).statusCode, 400);
+
+  assert.equal((await req({ url: '/api/style' })).json().text, '');
+  assert.equal((await req({ method: 'PUT', url: '/api/style', payload: { text: 'Giọng ấm, câu ngắn.' } })).statusCode, 200);
+  assert.equal((await req({ url: '/api/style' })).json().text, 'Giọng ấm, câu ngắn.');
+  assert.equal((await req({ method: 'PUT', url: '/api/style', payload: { text: 'x'.repeat(21000) } })).statusCode, 400);
+  await req({ method: 'PUT', url: '/api/style', payload: { text: '' } });
+  assert.equal((await req({ url: '/api/style' })).json().text, '');
+});
+
 test('POST /api/projects với pipeline: kênh tùy chọn, saveAs lưu mẫu, lỗi invalid_pipeline kèm problems', async () => {
   await makeApp();
   const pl = (await req({ url: '/api/pipeline/suggest?length=short&duration=30' })).json().pipeline;

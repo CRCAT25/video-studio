@@ -233,7 +233,7 @@ function Shell() {
   if (route.name === 'step') {
     page = <Step key={`${route.params.id}/${route.params.key || ''}`} projectId={route.params.id} stepKey={route.params.key} />;
   } else if (route.name === 'presets') {
-    page = <Pipelines data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} onAskAI={(q) => { assistant.setOpen(true); assistant.send(q).catch(() => {}); }} />;
+    page = <Pipelines data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} onAskAI={assistant.prefill} aiBusy={!!assistant.data?.busy} />;
   } else if (route.name === 'skills') {
     page = <Skills onReloadPresets={loadPresets} />;
   } else if (route.name === 'channels') {

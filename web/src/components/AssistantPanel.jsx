@@ -60,6 +60,7 @@ export function useAssistant() {
   const [error, setError] = useState(null);
   const [ask, setAsk] = useState(null); // {desc, resolve} — thẻ xin phép đang chờ
   const queue = useRef(Promise.resolve());
+  const [draft, setDraft] = useState(null); // {text, n} — lời nhắc đặt sẵn vào ô nhập, chờ người dùng bấm Gửi
 
   const setOpen = useCallback((v) => {
     setOpenState((cur) => {
@@ -144,7 +145,11 @@ export function useAssistant() {
     ask?.resolve(ok);
     setAsk(null);
   };
-  return { open, setOpen, data, error, ask, answer, send, stop, reset, openChat, removeChat, settings, compact, command, permit, approvePlan, reload: load };
+  const prefill = (text) => {
+    setOpen(true);
+    setDraft({ text, n: Math.random() });
+  };
+  return { open, setOpen, draft, prefill, data, error, ask, answer, send, stop, reset, openChat, removeChat, settings, compact, command, permit, approvePlan, reload: load };
 }
 
 // Một dòng trong cuộc chat.
@@ -261,6 +266,12 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
     window.addEventListener('pointercancel', up);
   };
   const [text, setText] = useState('');
+  // Lời nhắc đặt sẵn từ trang khác: chỉ điền vào ô nhập, không tự gửi (tránh tốn token ngoài ý muốn).
+  useEffect(() => {
+    if (!a.draft) return;
+    setText(a.draft.text.slice(0, 4000));
+    setTimeout(() => input.current?.focus(), 0);
+  }, [a.draft]);
   const [imgs, setImgs] = useState([]); // ảnh đính kèm chờ gửi
   const [over, setOver] = useState(false);
   const fileIn = useRef(null);
@@ -728,6 +739,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
               <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
             </div>
             {ready && data?.context?.tokens ? <span className={`ai-ctx${ctxPct >= 80 ? ' hot' : ''}`} title={t('Ngữ cảnh đã dùng — tự nén khi đạt 80%')}>{ctxPct}%</span> : null}
+            {text.length > 300 ? <span className="ai-ctx" title={t('Ước tính token của tin nhắn này (chưa tính ngữ cảnh đã có)')}>{t('≈{n} token', { n: Math.ceil(text.length / 3) })}</span> : null}
             {busy && !text.trim() && !imgs.length ? (
               <button type="button" className="ai-send stop" onClick={() => act(a.stop)} aria-label={t('Dừng')} title={t('Dừng')}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">

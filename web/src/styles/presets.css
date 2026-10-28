@@ -183,3 +183,6 @@ details.yaml pre{margin-top:8px}
 .ref-tx b{font-weight:500;font-size:var(--fs-sm);overflow-wrap:anywhere}
 .ref-tx .hint{margin:2px 0 0!important}
 @media (max-width:520px){.ref-bar{grid-template-columns:minmax(0,1fr)}}
+.sg-style{display:flex;flex-wrap:wrap;gap:8px 16px;border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;margin:0}
+.sg-style legend{font-size:12px;padding:0 4px;opacity:.7}
+.sg-style label{display:flex;align-items:center;gap:6px;font-size:13px}

@@ -426,3 +426,44 @@ export function writeDefaultModel(home, model) {
   fs.writeFileSync(path.join(home, 'settings.json'), `${JSON.stringify({ ...cur, default_model: m }, null, 2)}\n`);
   return m;
 }
+
+// Bản chia sẻ được: bỏ đường dẫn skill (máy riêng) và kênh (id riêng) khỏi quy trình thô.
+function portable(raw, name) {
+  const out = clone(raw);
+  delete out.file;
+  delete out.yaml;
+  delete out.skills;
+  delete out.channel;
+  delete out.id;
+  if (name) out.name = name;
+  return out;
+}
+
+// Nhân bản một preset (có sẵn hoặc của tôi) thành quy trình của tôi mới.
+export function duplicatePipeline(home, preset, name) {
+  if (!preset?.yaml) throw notFound('Không tìm thấy quy trình.');
+  const title = String(name ?? `${preset.name} (bản sao)`).trim().slice(0, 80);
+  return savePipeline(home, portable(YAML.parse(preset.yaml), title), title);
+}
+
+// Xuất YAML chia sẻ được của một preset.
+export function exportPipeline(preset) {
+  if (!preset?.yaml) throw notFound('Không tìm thấy quy trình.');
+  const raw = portable(YAML.parse(preset.yaml));
+  return { filename: `${slugify(preset.name || preset.id) || 'quy-trinh'}.yaml`, yaml: `# Quy trình Video Studio — xuất để chia sẻ\n${YAML.stringify(raw, { lineWidth: 0 })}` };
+}
+
+// Nhập YAML của người khác thành quy trình của tôi (bỏ skill/kênh nếu có; kiểm hợp lệ như khi lưu).
+export function importPipeline(home, text) {
+  const src = String(text ?? '');
+  if (!src.trim() || src.length > 200 * 1024) throw formatError('Tệp quy trình trống hoặc quá lớn (tối đa 200 KB).');
+  let raw;
+  try {
+    raw = YAML.parse(src);
+  } catch (e) {
+    throw formatError(`Không đọc được YAML: ${e.message}`);
+  }
+  if (!isObj(raw)) throw formatError('Tệp không phải một quy trình.');
+  const title = String(raw.name ?? '').trim().slice(0, 80) || 'Quy trình nhập';
+  return savePipeline(home, portable(raw, title), title);
+}

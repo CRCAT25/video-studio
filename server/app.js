@@ -10,7 +10,8 @@ import { readIdentity, runDoctor } from './doctor.js';
 import { mediaHandler, resolveMediaPath } from './media.js';
 import { extractFrames } from './frames.js';
 import { isInside, safeJoin } from './paths.js';
-import { deletePipeline, formatCatalog, readDefaultModel, readPipeline, savePipeline, updatePipeline, suggestPipeline, validateGrantRule, writeDefaultModel } from './pipeline.js';
+import { MAX_STYLE, readStyle, writeStyle } from './style.js';
+import { deletePipeline, duplicatePipeline, exportPipeline, importPipeline, formatCatalog, readDefaultModel, readPipeline, savePipeline, updatePipeline, suggestPipeline, validateGrantRule, writeDefaultModel } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
 import { createSkills } from './skills.js';
 import { HttpError } from './projects.js';
@@ -826,6 +827,40 @@ export async function buildApp({
     const saved = pipelineCall(() => savePipeline(home, b.pipeline, b.name));
     presets.invalidate?.();
     return reply.code(201).send({ id: saved.id, name: saved.name });
+  });
+
+  // Tìm preset (có sẵn hoặc của tôi) theo id để nhân bản / xuất.
+  const presetById = (id) => {
+    const res = callList(presets) ?? {};
+    const list = Array.isArray(res) ? res : Array.isArray(res.presets) ? res.presets : [];
+    return list.find((p) => p.id === id) || null;
+  };
+
+  app.post('/api/pipelines/import', async (req, reply) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.yaml !== 'string') throw badBody('Cần gửi JSON {yaml}.');
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    const saved = pipelineCall(() => importPipeline(home, b.yaml));
+    presets.invalidate?.();
+    return reply.code(201).send({ id: saved.id, name: saved.name });
+  });
+
+  app.post('/api/pipelines/:id/duplicate', async (req, reply) => {
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    const saved = pipelineCall(() => duplicatePipeline(home, presetById(req.params.id), isObject(req.body) ? req.body.name : undefined));
+    presets.invalidate?.();
+    return reply.code(201).send({ id: saved.id, name: saved.name });
+  });
+
+  app.get('/api/pipelines/:id/export', async (req) => pipelineCall(() => exportPipeline(presetById(req.params.id))));
+
+  // Hồ sơ phong cách (style.md) — gắn vào lời nhắc của mọi bước.
+  app.get('/api/style', async () => ({ text: home ? readStyle(home) : '', max: MAX_STYLE }));
+  app.put('/api/style', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.text !== 'string') throw badBody('Cần gửi JSON {text}.');
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    return { text: pipelineCall(() => writeStyle(home, b.text)) };
   });
 
   app.get('/api/pipelines/:id', async (req) => {
