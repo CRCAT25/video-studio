@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import Select from '../components/Select.jsx';
-import { MODELS } from '../components/StepEditor.jsx';
+import { MODELS, defaultModelLabel } from '../components/StepEditor.jsx';
 import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
 import Modal from '../components/Modal.jsx';
@@ -278,6 +278,10 @@ function StepPage({ projectId, stepKey }) {
   const [selRunId, setSelRunId] = useState(null);
   const [rerunAsk, setRerunAsk] = useState(false); // hộp xác nhận trước khi Chạy lại một bước đã chạy
   const [tab, setTab] = useState(null);
+  const [defModel, setDefModel] = useState(null); // model mặc định để ghi vào nhãn
+  useEffect(() => {
+    api.defaultModel().then(setDefModel).catch(() => {});
+  }, []);
   const [pipeEdit, setPipeEdit] = useState(false); // hộp Sửa quy trình của dự án
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(null);
@@ -649,7 +653,7 @@ function StepPage({ projectId, stepKey }) {
             <Select
               size="sm"
               value={step.model || ''}
-              options={[...MODELS, ...(!step.model || MODELS.some(([v]) => v === step.model) ? [] : [[step.model, step.model]])].map(([value, label]) => ({ value, label: t(label) }))}
+              options={[...MODELS, ...(!step.model || MODELS.some(([v]) => v === step.model) ? [] : [[step.model, step.model]])].map(([value, label]) => ({ value, label: value === '' ? defaultModelLabel(t, defModel) : t(label) }))}
               onChange={async (m) => {
                 try {
                   await api.setStepModel(projectId, stepKey, m);

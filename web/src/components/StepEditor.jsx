@@ -31,8 +31,16 @@ function freeId(steps, base) {
   return id;
 }
 
+// Nhãn mục "mặc định" kèm tên model thật đang áp dụng (opus/sonnet/haiku) nếu biết.
+export const defaultModelLabel = (t, d) => {
+  const raw = d && (d.model || d.machine);
+  const fam = raw && /opus|sonnet|haiku/i.exec(raw);
+  const name = fam ? fam[0][0].toUpperCase() + fam[0].slice(1).toLowerCase() : raw;
+  return name ? `${t('Model mặc định')} (${name})` : t('Model mặc định');
+};
+
 export const MODELS = [
-  ['', T('Model mặc định (model mặc định của máy)')],
+  ['', T('Model mặc định')],
   ['opus', 'Opus'],
   ['sonnet', 'Sonnet'],
   ['haiku', 'Haiku'],
