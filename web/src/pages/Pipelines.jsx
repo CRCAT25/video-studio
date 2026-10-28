@@ -299,28 +299,28 @@ function EditModal({ preset, onClose, onSaved }) {
     }
   };
   return (
-    <Modal title={t('Sửa quy trình')} onClose={onClose} busy={busy} xwide>
+    <Modal title={t('Sửa quy trình')} onClose={onClose} busy={busy} wide>
       {!draft || !catalog ? (
         err ? <div className="err-note" role="alert">{err.message}</div> : <span className="spinner" aria-hidden="true" />
       ) : (
-        <form onSubmit={save} noValidate>
+        <form onSubmit={save} noValidate className="pe-form">
           <p className="note">{t('Dự án đã tạo từ quy trình này không bị ảnh hưởng.')}</p>
-          <StepEditor steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
-          <div className="fld">
-            <span className="fld-l">Skills</span>
-            <SkillPicker channelId={draft.channel || null} value={draft.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy} />
-          </div>
-          <div className="sg-save">
-            <span className="fld-l" style={{ flex: '0 0 100%', margin: 0 }}>{t('Tên quy trình')}<Req /></span>
+          <label className="fld">
+            <span className="fld-l">{t('Tên quy trình')}<Req /></span>
             <input type="text" required aria-required="true" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-label={t('Tên quy trình')} disabled={busy} />
-          </div>
+          </label>
+          <StepEditor steps={draft.steps} library={catalog.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} disabled={busy} />
+          <details className="bp-more">
+            <summary>Skills{draft.skills?.length ? ` (${draft.skills.length})` : ''}</summary>
+            <SkillPicker channelId={draft.channel || null} value={draft.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy} />
+          </details>
           {err ? (
             <div className="err-note" role="alert">
               {err.message}
               {err.problems?.length > 1 ? <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{err.problems.map((m, i) => <li key={i}>{m}</li>)}</ul> : null}
             </div>
           ) : null}
-          <div className="modal-acts">
+          <div className="modal-acts pe-acts">
             <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
             <button type="submit" className="btn primary" disabled={!canSave}>
               {busy ? <span className="spinner" aria-hidden="true" /> : null}{t('Lưu')}
