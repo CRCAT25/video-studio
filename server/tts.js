@@ -65,7 +65,9 @@ function cleanProvider(p) {
   if (!name) throw fail(400, 'bad_name', 'Cần đặt tên cho nhà cung cấp.');
   const o = { id: String(p.id || ''), name, kind, voice: String(p.voice || '').trim().slice(0, 200) };
   const per = Number(p.price?.perChar);
-  const perChar = Number.isFinite(per) && per > 0 ? per : kind === 'elevenlabs' && p.price == null ? 1 : 0;
+  // ElevenLabs tự quy định giá theo model (Flash/Turbo = 0,5 credit/ký tự, còn lại 1) — không nhận giá do người dùng nhập.
+  const elModel = String(p.model || 'eleven_multilingual_v2');
+  const perChar = kind === 'elevenlabs' ? (/flash|turbo/i.test(elModel) ? 0.5 : 1) : Number.isFinite(per) && per > 0 ? per : 0;
   o.price = { perChar, label: String(p.price?.label || (kind === 'elevenlabs' ? 'credit' : '')).trim().slice(0, 20) };
   if (kind === 'elevenlabs') {
     if (!o.voice) throw fail(400, 'bad_voice', 'Cần nhập ID giọng (voice id) của ElevenLabs.');

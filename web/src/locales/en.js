@@ -1423,4 +1423,5 @@ export default {
   'Lấy giọng từ tài khoản của tôi': 'Load voices from my account',
   'Cần khóa có quyền "Voices: Read". Gói trả phí sẽ thấy đầy đủ giọng hơn.': 'Needs a key with "Voices: Read". Paid plans show a fuller list.',
   'Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.': 'Filled in when you pick a voice above. You can also paste another voice ID.',
+  'Chi phí do ElevenLabs quy định: 1 credit cho mỗi ký tự đọc. Bước dùng giọng đọc luôn hỏi bạn duyệt chi phí trước khi chạy.': 'ElevenLabs sets the price: 1 credit per character read. The voice step always asks you to approve the cost before it runs.',
 };

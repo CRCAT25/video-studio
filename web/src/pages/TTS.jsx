@@ -65,7 +65,7 @@ function Editor({ init, onClose, onSaved }) {
     setBusy(true);
     setErr(null);
     try {
-      await api.ttsSave({ provider: { ...p, price: { perChar: Number(price) || 0, label: p.kind === 'elevenlabs' ? 'credit' : '' } }, key: key === '' ? undefined : key, makeDefault: isNew });
+      await api.ttsSave({ provider: { ...p, price: p.kind === 'elevenlabs' ? { perChar: 1, label: 'credit' } : { perChar: Number(price) || 0, label: '' } }, key: key === '' ? undefined : key, makeDefault: isNew });
       toast(t('Đã lưu giọng đọc.'), 'ok');
       onSaved();
     } catch (e2) {
@@ -151,11 +151,15 @@ function Editor({ init, onClose, onSaved }) {
           <input type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
           {p.kind === 'elevenlabs' ? <span className="hint">{t('Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.')}</span> : null}
         </label>
-        <label className="fld">
-          <span className="fld-l">{p.kind === 'elevenlabs' ? t('Giá mỗi ký tự (credit)') : t('Giá mỗi ký tự (0 = miễn phí)')}</span>
-          <input type="text" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} aria-label={t('Giá mỗi ký tự')} disabled={busy} />
-          <span className="hint">{t('Nếu có giá, bước dùng giọng đọc sẽ chỉ chạy sau khi bạn bấm duyệt chi phí.')}</span>
-        </label>
+        {p.kind === 'elevenlabs' ? (
+          <p className="note tts-cost">{t('Chi phí do ElevenLabs quy định: 1 credit cho mỗi ký tự đọc. Bước dùng giọng đọc luôn hỏi bạn duyệt chi phí trước khi chạy.')}</p>
+        ) : (
+          <label className="fld">
+            <span className="fld-l">{t('Giá mỗi ký tự (0 = miễn phí)')}</span>
+            <input type="text" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} aria-label={t('Giá mỗi ký tự')} disabled={busy} />
+            <span className="hint">{t('Nếu có giá, bước dùng giọng đọc sẽ chỉ chạy sau khi bạn bấm duyệt chi phí.')}</span>
+          </label>
+        )}
         {err ? <div className="err-note" role="alert">{err}</div> : null}
         <div className="modal-acts">
           <button type="submit" className="btn primary" disabled={busy}>{busy ? <><i className="spinner on-acc" aria-hidden="true" />{t('Đang lưu…')}</> : t('Lưu')}</button>
