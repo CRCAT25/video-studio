@@ -13,6 +13,7 @@ import Step from './pages/Step.jsx';
 import Pipelines from './pages/Pipelines.jsx';
 import Channels, { ChannelDetail } from './pages/Channels.jsx';
 import Skills from './pages/Skills.jsx';
+import TTS from './pages/TTS.jsx';
 import YouTubeSetup from './pages/YouTubeSetup.jsx';
 import { api } from './api.js';
 import { useHashRoute } from './lib/router.js';
@@ -201,7 +202,7 @@ function Shell() {
   }, [running]);
 
   useEffect(() => {
-    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio' };
+    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio', tts: t('Giọng đọc · Video Studio') };
     if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
   }, [route.name, t]);
 
@@ -234,6 +235,8 @@ function Shell() {
     page = <Step key={`${route.params.id}/${route.params.key || ''}`} projectId={route.params.id} stepKey={route.params.key} />;
   } else if (route.name === 'presets') {
     page = <Pipelines data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} onAskAI={assistant.prefill} aiBusy={!!assistant.data?.busy} />;
+  } else if (route.name === 'tts') {
+    page = <TTS />;
   } else if (route.name === 'skills') {
     page = <Skills onReloadPresets={loadPresets} />;
   } else if (route.name === 'channels') {

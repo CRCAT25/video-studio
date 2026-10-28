@@ -68,3 +68,31 @@ test('lỗi: không có provider, lệnh thiếu {out}, xóa chuyển mặc đ�
   await tts.remove('a');
   assert.equal((await tts.list()).default, 'b');
 });
+
+test('API: lưu, liệt kê, đọc thử, xóa giọng đọc', async () => {
+  const { buildApp } = await import('../server/app.js');
+  const { home, tts } = mk();
+  const app = await buildApp({ store: { tokensSince: () => 0 }, projects: { list: () => [] }, token: 'tok-12345678', home, tts, skills: {} });
+  const h = { host: '127.0.0.1:4318', 'x-studio-token': 'tok-12345678' };
+  const put = await app.inject({ method: 'PUT', url: '/api/tts/providers', headers: h, payload: { provider: { name: 'Cp', kind: 'command', command: 'cp {in} {out}' }, makeDefault: true } });
+  assert.equal(put.statusCode, 200);
+  assert.equal(put.json().default, 'cp');
+  const test_ = await app.inject({ method: 'POST', url: '/api/tts/test', headers: h, payload: { text: 'hi' } });
+  assert.equal(test_.statusCode, 200);
+  assert.equal(test_.json().audio, `data:audio/mpeg;base64,${Buffer.from('hi').toString('base64')}`);
+  const bad = await app.inject({ method: 'PUT', url: '/api/tts/providers', headers: h, payload: { provider: { name: 'X', kind: 'command', command: 'echo' } } });
+  assert.equal(bad.statusCode, 400);
+  const del = await app.inject({ method: 'DELETE', url: '/api/tts/providers/cp', headers: h, payload: {} });
+  assert.equal(del.statusCode, 200, del.body);
+  assert.deepEqual(del.json().providers, []);
+});
+
+test('studio-tts CLI: ghi file và in JSON', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { home, tts } = mk();
+  await tts.save({ name: 'Cp', kind: 'command', command: 'cp {in} {out}' });
+  const out = path.join(home, 'cli.mp3');
+  const r = JSON.parse(execFileSync('node', ['server/bin/studio-tts.mjs', '--text', 'xin chào', '--out', out], { env: { ...process.env, VS_HOME: home, VS_SECRETS: 'file' } }).toString());
+  assert.equal(r.ok, true);
+  assert.equal(fs.readFileSync(out, 'utf8'), 'xin chào');
+});

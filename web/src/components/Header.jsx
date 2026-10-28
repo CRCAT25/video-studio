@@ -44,6 +44,9 @@ export default function Header({ route, doctor, doctorError, stats, theme, onTog
           <a href="#/skills" className={route.name === 'skills' ? 'on' : ''} aria-current={route.name === 'skills' ? 'page' : undefined}>
             Skills
           </a>
+          <a href="#/tts" className={route.name === 'tts' ? 'on' : ''} aria-current={route.name === 'tts' ? 'page' : undefined}>
+            {t('Giọng đọc')}
+          </a>
         </nav>
         <div className="top-right">
           {usage && doctor?.auth?.loggedIn ? <UsageMeter usage={usage} onClick={onAccount} /> : null}
