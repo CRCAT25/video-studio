@@ -7,6 +7,7 @@ import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
 import Modal from '../components/Modal.jsx';
 import DistillModal from '../components/DistillModal.jsx';
+import ProjectPipelineModal from '../components/ProjectPipelineModal.jsx';
 import LogTerminal from '../components/LogTerminal.jsx';
 import Outputs, { Checks } from '../components/Outputs.jsx';
 import { Sk, SkFlow, SkLines, SkZone } from '../components/Skeleton.jsx';
@@ -277,6 +278,7 @@ function StepPage({ projectId, stepKey }) {
   const [selRunId, setSelRunId] = useState(null);
   const [rerunAsk, setRerunAsk] = useState(false); // hộp xác nhận trước khi Chạy lại một bước đã chạy
   const [tab, setTab] = useState(null);
+  const [pipeEdit, setPipeEdit] = useState(false); // hộp Sửa quy trình của dự án
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(null);
   const [costAsk, setCostAsk] = useState(null);
@@ -642,6 +644,9 @@ function StepPage({ projectId, stepKey }) {
             {offline && st === 'running' ? <span className="state-tag s-stale" title={t('Mất kết nối tới Video Studio — trạng thái có thể đã cũ')}>{t('mất kết nối')}</span> : null}
           </h1>
           <div className="meta">
+            <span className="ro" title={t('Quy trình của dự án này')}>
+              <i>{t('Quy trình')}</i> <b>{project.preset?.name || '—'}</b>
+            </span>
             <span className="ro">
               <i>{t('Bước')}</i> <b>{idx + 1}/{total}</b>
             </span>
@@ -688,8 +693,12 @@ function StepPage({ projectId, stepKey }) {
             />
           ) : null}
           {buttons}
+          <button type="button" className="btn" onClick={() => setPipeEdit(true)} disabled={st === 'running'} title={st === 'running' ? t('Đang chạy — chờ xong hoặc dừng rồi mới sửa quy trình') : t('Đổi chỗ, thêm, bớt các bước chưa chạy của dự án này')}>
+            {t('Sửa quy trình')}
+          </button>
         </div>
       </div>
+      {pipeEdit ? <ProjectPipelineModal projectId={projectId} onClose={() => setPipeEdit(false)} onSaved={load} /> : null}
 
       {showWarn ? (
         <div className="warn-note can-run" role="status">

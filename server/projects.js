@@ -726,6 +726,70 @@ export function createProjects({ store, presets, channels, home } = {}) {
     return { ok: true, changed, savedUpdated };
   }
 
+  // Quy trình riêng của dự án (bản chụp) để sửa ở giao diện, kèm danh sách bước đã khóa (đã chạy xong/đang dở).
+  function pipelineOf(id) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    let raw = null;
+    try {
+      raw = p.pipeline ? JSON.parse(p.pipeline) : null;
+    } catch {
+      raw = null;
+    }
+    if (!raw) {
+      const preset = presetFor(p);
+      if (!preset) throw new HttpError(409, 'preset_not_found', 'Dự án không còn quy trình để sửa.');
+      raw = JSON.parse(JSON.stringify(preset));
+      delete raw.yaml;
+      delete raw.file;
+    }
+    return { pipeline: raw, locked: store.listSteps(id).filter(isLocked).map((s) => s.key) };
+  }
+  // Bước đã khóa: đã có lượt chạy hoặc đã xong → không đổi chỗ/xóa được.
+  const isLocked = (s) => s.current_run_id != null || s.state === 'done' || s.state === 'stale';
+
+  // Ghi quy trình mới cho dự án: các bước đã khóa giữ nguyên ở đầu, phần còn lại được sắp lại/thêm/bớt.
+  function updatePipeline(id, pipeline) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    if (store.runningRunOf(id)) throw new HttpError(409, 'project_running', 'Dự án đang chạy một bước. Hãy chờ xong hoặc dừng rồi mới sửa quy trình.');
+    let prepared;
+    try {
+      prepared = preparePipeline(pipeline);
+    } catch (e) {
+      throw new HttpError(400, 'invalid_pipeline', e.message, { problems: e.problems ?? [e.message] });
+    }
+    const { raw, preset } = prepared;
+    const rows = store.listSteps(id);
+    const locked = rows.filter(isLocked);
+    const keys = preset.steps.map((s) => s.key);
+    locked.forEach((s, i) => {
+      if (keys[i] !== s.key) {
+        throw new HttpError(400, 'invalid_pipeline', `Bước "${s.name}" đã chạy nên phải giữ nguyên vị trí ở đầu quy trình.`, { problems: [`Bước "${s.name}" đã chạy nên phải giữ nguyên vị trí ở đầu quy trình.`] });
+      }
+    });
+    const byKey = new Map(rows.map((s) => [s.key, s]));
+    const allDone = locked.every((s) => s.state === 'done' || s.state === 'stale');
+    store.tx(() => {
+      for (const s of rows) if (!keys.includes(s.key)) store.deleteStep(s.id);
+      let first = true;
+      preset.steps.forEach((s, i) => {
+        const cur = byKey.get(s.key);
+        if (cur && isLocked(cur)) {
+          store.updateStep(cur.id, { name: s.name, ord: i });
+          return;
+        }
+        const state = first && allDone ? (s.manual ? 'manual' : 'ready') : 'pending';
+        first = false;
+        if (cur) store.updateStep(cur.id, { name: s.name, ord: i, state });
+        else store.insertStep({ project_id: id, key: s.key, name: s.name, ord: i, state });
+      });
+      store.updateProject(id, { pipeline: JSON.stringify(raw) });
+    });
+    writeSnapshot(id);
+    return view(id);
+  }
+
   // Đổi model của một bước trong bản chụp quy trình của dự án ('' = dùng model mặc định).
   function setStepModel(id, key, model) {
     const p = store.getProject(id);
@@ -902,6 +966,8 @@ export function createProjects({ store, presets, channels, home } = {}) {
     presetOf,
     grantPermission,
     setStepModel,
+    pipelineOf,
+    updatePipeline,
     distillSource,
     attachSkill,
     estimateCost,

@@ -45,8 +45,9 @@ const parseOutputs = (t) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, onRemove, disabled }) {
+function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, onRemove, disabled: busy, locked = false, prevLocked = false }) {
   const t = useT();
+  const disabled = busy || locked;
   const off = s.enabled === false;
   const problem = stepProblem(s);
   const gate = s.gate?.mode || (typeof s.gate === 'string' ? s.gate : 'manual');
@@ -60,6 +61,7 @@ function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, on
         <span className="se-tags">
           {s.cost ? <span className="tag paid" title={`${s.cost.service} · luôn hỏi trước khi tốn tiền`}>{t('Tốn tiền')}</span> : null}
           {s.manual ? <span className="tag">{t('Việc tay')}</span> : null}
+          {locked ? <span className="tag" title={t('Bước đã chạy nên không đổi được')}>{t('Đã chạy')}</span> : null}
         </span>
         {s.manual ? null : (
           <Select
@@ -73,7 +75,7 @@ function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, on
           />
         )}
         <span className="se-acts">
-          <button type="button" className="btn sm ghost" onClick={() => onMove(-1)} disabled={disabled || i === 0} aria-label={t('Lên')} title={t('Lên')}>↑</button>
+          <button type="button" className="btn sm ghost" onClick={() => onMove(-1)} disabled={disabled || i === 0 || prevLocked} aria-label={t('Lên')} title={t('Lên')}>↑</button>
           <button type="button" className="btn sm ghost" onClick={() => onMove(1)} disabled={disabled || i === count - 1} aria-label={t('Xuống')} title={t('Xuống')}>↓</button>
           {s.manual ? null : (
             <button type="button" className={`btn sm ghost${open ? ' on' : ''}`} onClick={onToggleOpen} disabled={disabled} aria-expanded={open}>
@@ -131,7 +133,7 @@ function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, on
 }
 
 // steps: mảng bước dạng YAML (id, name, prompt, outputs, gate, cost, manual, enabled); library: bước có thể thêm.
-export default function StepEditor({ simple = false, steps, library = [], onChange, disabled = false }) {
+export default function StepEditor({ simple = false, steps, library = [], onChange, disabled = false, locked = [] }) {
   const t = useT();
   const [openId, setOpenId] = useState(null);
   const [added, setAdded] = useState(() => new Set());
@@ -177,6 +179,8 @@ export default function StepEditor({ simple = false, steps, library = [], onChan
             onMove={(d) => move(i, d)}
             onRemove={() => onChange(steps.filter((_, j) => j !== i))}
             disabled={disabled}
+            locked={locked.includes(s.id)}
+            prevLocked={i > 0 && locked.includes(steps[i - 1].id)}
           />
         ))}
       </ol>

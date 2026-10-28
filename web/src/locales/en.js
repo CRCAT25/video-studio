@@ -1260,4 +1260,12 @@ export default {
   "Hiện thêm lựa chọn kỹ thuật: lời dặn AI, model, YAML": "Show technical options: AI instructions, model, YAML",
   "Nhập từ file YAML": "Import from YAML file",
   "Chưa có quy trình nào. Trả lời vài câu hỏi ở trên rồi bấm Lưu.": "No workflows yet. Answer the questions above, then press Save.",
+  'Quy trình của dự án này': 'This project\'s workflow',
+  'Sửa quy trình của dự án này': 'Edit this project\'s workflow',
+  'Đã lưu quy trình của dự án này.': 'Saved this project\'s workflow.',
+  'Đã chạy': 'Already run',
+  'Bước đã chạy nên không đổi được': 'This step has already run, so it can\'t be changed',
+  'Đang chạy — chờ xong hoặc dừng rồi mới sửa quy trình': 'Running — wait for it to finish or stop it before editing the workflow',
+  'Đổi chỗ, thêm, bớt các bước chưa chạy của dự án này': 'Reorder, add or remove the steps of this project that have not run yet',
+  'Chỉ đổi quy trình của dự án này, không đổi "Quy trình của tôi". Bước đã chạy được giữ nguyên; bạn đổi chỗ, thêm, bớt hoặc sửa các bước chưa chạy.': 'This only changes this project\'s workflow, not "My workflows". Steps that already ran stay as they are; you can reorder, add, remove or edit the steps that have not run yet.',
 };

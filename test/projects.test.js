@@ -721,3 +721,29 @@ test('beginRun lỗi giữa transaction không để lại run/trạng thái d�
   assert.deepEqual(states(id), { hook: 'ready', bible: 'pending', voice: 'pending', deliver: 'pending' });
   assert.equal(projects.view(id).status, 'active');
 });
+
+test('updatePipeline: đổi chỗ bước chưa chạy, bước đã chạy bị khóa, đang chạy thì từ chối', () => {
+  const { id } = mk();
+  const { pipeline, locked } = projects.pipelineOf(id);
+  assert.deepEqual(locked, []);
+  const steps = pipeline.steps.map((s) => ({ ...s }));
+  // đưa "voice" xuống cuối
+  const i = steps.findIndex((s) => (s.id ?? s.key) === 'voice');
+  const [v] = steps.splice(i, 1);
+  steps.push(v);
+  const view = projects.updatePipeline(id, { ...pipeline, steps });
+  assert.deepEqual(view.steps.map((s) => s.key), steps.map((s) => s.id ?? s.key));
+  assert.equal(states(id).hook, 'ready');
+  assert.equal(states(id).voice, 'pending');
+
+  // hook đã chạy xong → bị khóa, không đưa xuống được
+  const hook = store.getStep(id, 'hook');
+  store.updateStep(hook.id, { state: 'done' });
+  assert.deepEqual(projects.pipelineOf(id).locked, ['hook']);
+  const swapped = steps.slice();
+  [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
+  expectHttp(() => projects.updatePipeline(id, { ...pipeline, steps: swapped }), 400, 'invalid_pipeline');
+  // sau hook, bước kế tiếp thành ready khi tất cả bước khóa đã xong
+  projects.updatePipeline(id, { ...pipeline, steps });
+  assert.equal(states(id)[steps[1].id ?? steps[1].key], 'ready');
+});

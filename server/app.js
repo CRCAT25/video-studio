@@ -994,6 +994,17 @@ export async function buildApp({
     return r;
   });
 
+  // Quy trình riêng của dự án: đọc để sửa / ghi lại (không ảnh hưởng "Quy trình của tôi").
+  app.get('/api/projects/:id/pipeline', async (req) => pipelineCall(() => projects.pipelineOf(req.params.id)));
+  app.put('/api/projects/:id/pipeline', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || !isObject(b.pipeline)) throw badBody('Cần gửi JSON {pipeline}.');
+    const r = pipelineCall(() => projects.updatePipeline(req.params.id, b.pipeline));
+    presets.invalidate?.();
+    sse.broadcast('change', { projectId: req.params.id });
+    return r;
+  });
+
   // Model riêng của một bước trong dự án ('' = mặc định).
   app.put('/api/projects/:id/steps/:key/model', async (req) => {
     const b = req.body;
