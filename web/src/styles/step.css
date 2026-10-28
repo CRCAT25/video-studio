@@ -7,12 +7,13 @@
 .step-head > div:first-child{min-width:0;flex:1 1 380px}
 .step-head h1{margin:0}
 .step-head .acts{justify-content:flex-end}
-.step-head .acts .sel-btn{height:34px;background:var(--surface);box-shadow:var(--shadow);font-weight:500}
-.step-head .acts .sel-btn:hover:not(:disabled){background:var(--surface-2)}
+.step-head .acts .sel.sm .sel-btn,.step-head .acts .sel .sel-btn{height:34px;padding:0 10px 0 14px;font-size:var(--fs-md);background:var(--surface);box-shadow:var(--shadow);font-weight:500}
+.step-head .acts .sel .sel-btn:hover:not(:disabled){background:var(--surface-2)}
 .state-tag{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;margin-left:10px;padding:2px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:500;line-height:1.5;white-space:nowrap;
   color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
 .state-tag.s-ready,.state-tag.s-pending,.state-tag.s-stale,.state-tag.s-stopped{color:var(--muted);background:var(--surface-2)}
 .state-tag .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.step-head > .meta{flex:1 1 100%;margin-top:2px}
 .meta{display:flex;gap:6px 20px;flex-wrap:wrap;margin-top:10px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);font-size:var(--fs-sm)}
 .ro{display:inline-flex;gap:6px;align-items:baseline;max-width:100%;min-width:0}
 .ro i{font-style:normal;color:var(--muted)}

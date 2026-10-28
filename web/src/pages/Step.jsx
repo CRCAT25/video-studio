@@ -643,37 +643,6 @@ function StepPage({ projectId, stepKey }) {
             </span>
             {offline && st === 'running' ? <span className="state-tag s-stale" title={t('Mất kết nối tới Video Studio — trạng thái có thể đã cũ')}>{t('mất kết nối')}</span> : null}
           </h1>
-          <div className="meta">
-            <span className="ro" title={t('Quy trình của dự án này')}>
-              <i>{t('Quy trình')}</i> <b>{project.preset?.name || '—'}</b>
-            </span>
-            <span className="ro">
-              <i>{t('Bước')}</i> <b>{idx + 1}/{total}</b>
-            </span>
-            <span className="ro">
-              <i>{t('Lượt')}</i> <b>{selRun ? `${selRun.n}${isLatest ? '' : ` / ${runs[0].n}`}` : '—'}</b>
-            </span>
-            <span className="ro">
-              <i>{t('Thời gian chạy')}</i> <b>{selRun ? fmtElapsed(runElapsed(selRun, now)) : '—'}</b>
-            </span>
-            <span className="ro" title={t('Token của lượt đang chọn')}>
-              <i>{t('Token lượt')}</i> <b title={tokens ? fmtNum(tokens) : ''}>{tokens ? fmtTokens(tokens) : '—'}</b>
-            </span>
-            <span className="ro" title={t('Cộng mọi lượt của bước này')}>
-              <i>{t('Tổng bước')}</i> <b title={fmtNum(stepTotal)}>{stepTotal ? fmtTokens(stepTotal) : '—'}</b>
-            </span>
-            <span className="ro" title={t('Cộng mọi lượt của mọi bước trong dự án')}>
-              <i>{t('Tổng dự án')}</i> <b title={fmtNum(projectTotal)}>{projectTotal ? fmtTokens(projectTotal) : '—'}</b>
-            </span>
-            <span className="ro" title={t('Chỉ hiển thị, chưa tự chạy bước sau')}>
-              <i>{t('Cổng')}</i> <b>{gateLabel(step.gate_mode)}</b>
-            </span>
-            {costLine ? (
-              <span className="ro paid">
-                <i>{t('Tốn tiền')}</i> <b>{costLine}</b>
-              </span>
-            ) : null}
-          </div>
         </div>
         <div className="acts">
           {!step.manual && st !== 'running' ? (
@@ -696,6 +665,37 @@ function StepPage({ projectId, stepKey }) {
           <button type="button" className="btn" onClick={() => setPipeEdit(true)} disabled={st === 'running'} title={st === 'running' ? t('Đang chạy — chờ xong hoặc dừng rồi mới sửa quy trình') : t('Đổi chỗ, thêm, bớt các bước chưa chạy của dự án này')}>
             {t('Sửa quy trình')}
           </button>
+        </div>
+        <div className="meta">
+          <span className="ro" title={t('Quy trình của dự án này')}>
+            <i>{t('Quy trình')}</i> <b>{project.preset?.name || '—'}</b>
+          </span>
+          <span className="ro">
+            <i>{t('Bước')}</i> <b>{idx + 1}/{total}</b>
+          </span>
+          <span className="ro">
+            <i>{t('Lượt')}</i> <b>{selRun ? `${selRun.n}${isLatest ? '' : ` / ${runs[0].n}`}` : '—'}</b>
+          </span>
+          <span className="ro">
+            <i>{t('Thời gian chạy')}</i> <b>{selRun ? fmtElapsed(runElapsed(selRun, now)) : '—'}</b>
+          </span>
+          <span className="ro" title={t('Token của lượt đang chọn')}>
+            <i>{t('Token lượt')}</i> <b title={tokens ? fmtNum(tokens) : ''}>{tokens ? fmtTokens(tokens) : '—'}</b>
+          </span>
+          <span className="ro" title={t('Cộng mọi lượt của bước này')}>
+            <i>{t('Tổng bước')}</i> <b title={fmtNum(stepTotal)}>{stepTotal ? fmtTokens(stepTotal) : '—'}</b>
+          </span>
+          <span className="ro" title={t('Cộng mọi lượt của mọi bước trong dự án')}>
+            <i>{t('Tổng dự án')}</i> <b title={fmtNum(projectTotal)}>{projectTotal ? fmtTokens(projectTotal) : '—'}</b>
+          </span>
+          <span className="ro" title={t('Chỉ hiển thị, chưa tự chạy bước sau')}>
+            <i>{t('Cổng')}</i> <b>{gateLabel(step.gate_mode)}</b>
+          </span>
+          {costLine ? (
+            <span className="ro paid">
+              <i>{t('Tốn tiền')}</i> <b>{costLine}</b>
+            </span>
+          ) : null}
         </div>
       </div>
       {pipeEdit ? <ProjectPipelineModal projectId={projectId} onClose={() => setPipeEdit(false)} onSaved={load} /> : null}
