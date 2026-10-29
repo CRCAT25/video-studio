@@ -1,5 +1,5 @@
 // Trang "Giọng đọc": chọn dịch vụ đọc văn bản thành tiếng (ElevenLabs có sẵn, API khác, hoặc lệnh trên máy). Khóa API chỉ lưu trên máy này.
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Modal from '../components/Modal.jsx';
 import Select from '../components/Select.jsx';
 import { langOf } from '../lib/langs.js';
@@ -312,41 +312,56 @@ export default function TTS() {
             <span className="fld-l">{t('Câu đọc thử (để trống dùng câu mẫu)')}</span>
             <input type="text" value={text} maxLength={300} onChange={(e) => setText(e.target.value)} aria-label={t('Câu đọc thử')} />
           </label>
-          {list.map((p) => (
-            <div key={p.id} className="card pad tts-card">
-              <div className="tts-grid">
-                <div className="tts-col">
-                  <span className="tts-col-h">{t('Dịch vụ')}</span>
-                  <div><b>{p.builtin ? t(p.name) : p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}</div>
-                  <p className="note">
-                    {(KIND_LABEL[p.kind] || KIND_LABEL.command)(t)}
-                    {p.kind === 'elevenlabs' || p.kind === 'http' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
-                  </p>
-                </div>
-                <div className="tts-col">
-                  <span className="tts-col-h">{t('Quyền của khóa')}</span>
-                  {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} />
-                    : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : p.kind === 'vieneu' ? t('Không cần khóa') : t('Không áp dụng')}</p>}
-                </div>
-                <div className="tts-col">
-                  <span className="tts-col-h">{t('Gói & chi phí')}</span>
-                  <Plan p={p} i={info[p.id]} />
-                </div>
-                <div className="sk-acts tts-acts">
-                  <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>
-                  {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
-                  <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
-                  {p.builtin ? null : <button type="button" className="btn sm" onClick={() => { if (window.confirm(t('Xóa giọng đọc này (và khóa API đã lưu)?'))) act(() => api.ttsRemove(p.id), t('Đã xóa.')); }}>{t('Xóa')}</button>}
-                </div>
-              </div>
-              {audio?.id === p.id ? (
-                <div className="tts-play">
-                  <audio controls autoPlay src={audio.src} />
-                  {audio.paid ? <p className="note">{t('Đã dùng khoảng {n} {l}.', { n: audio.cost, l: audio.label || '' })}</p> : null}
-                </div>
-              ) : null}
-            </div>
-          ))}
+          <div className="sk-tbl-wrap tts-tbl-wrap">
+            <table className="sk-tbl tts-tbl">
+              <thead>
+                <tr>
+                  <th scope="col" className="tts-c-name">{t('Dịch vụ')}</th>
+                  <th scope="col">{t('Quyền của khóa')}</th>
+                  <th scope="col">{t('Gói & chi phí')}</th>
+                  <th scope="col" className="tts-c-act"><span className="sr-only">{t('Hành động')}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((p) => (
+                  <Fragment key={p.id}>
+                    <tr className={audio?.id === p.id ? 'has-play' : undefined}>
+                      <th scope="row" className="tts-c-name">
+                        <div><b>{p.builtin ? t(p.name) : p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}</div>
+                        <p className="note">
+                          {(KIND_LABEL[p.kind] || KIND_LABEL.command)(t)}
+                          {p.kind === 'elevenlabs' || p.kind === 'http' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
+                        </p>
+                      </th>
+                      <td>
+                        {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} />
+                          : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : p.kind === 'vieneu' ? t('Không cần khóa') : t('Không áp dụng')}</p>}
+                      </td>
+                      <td><Plan p={p} i={info[p.id]} /></td>
+                      <td className="tts-c-act">
+                        <div className="sk-acts tts-acts">
+                          <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>
+                          {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
+                          <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
+                          {p.builtin ? null : <button type="button" className="btn sm" onClick={() => { if (window.confirm(t('Xóa giọng đọc này (và khóa API đã lưu)?'))) act(() => api.ttsRemove(p.id), t('Đã xóa.')); }}>{t('Xóa')}</button>}
+                        </div>
+                      </td>
+                    </tr>
+                    {audio?.id === p.id ? (
+                      <tr className="tts-play-row">
+                        <td colSpan={4}>
+                          <div className="tts-play">
+                            <audio controls autoPlay src={audio.src} />
+                            {audio.paid ? <p className="note">{t('Đã dùng khoảng {n} {l}.', { n: audio.cost, l: audio.label || '' })}</p> : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       ) : null}
       {kindPick ? (
