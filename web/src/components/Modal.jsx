@@ -35,6 +35,7 @@ export default function Modal({ title, lead, onClose, wide = false, xwide = fals
     if (first) first.focus();
     const onKey = (e) => {
       if (e.target?.closest?.('.ai-panel')) return; // phím gõ trong sidebar Trợ lý AI không đụng tới hộp thoại
+      if (el?.parentElement?.inert) return; // đang có hộp thoại khác mở chồng lên trên → để hộp trên cùng xử lý
       if (e.key === 'Escape' && !busyRef.current) {
         e.stopPropagation();
         closeRef.current?.();

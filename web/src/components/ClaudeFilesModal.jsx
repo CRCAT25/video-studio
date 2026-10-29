@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api.js';
+import ConfirmModal from './ConfirmModal.jsx';
 import Modal from './Modal.jsx';
 import Select from './Select.jsx';
 import { useT } from '../lib/i18n.jsx';
@@ -16,6 +17,7 @@ export function MemoryModal({ onClose }) {
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [switchTo, setSwitchTo] = useState(null); // tệp muốn chuyển sang khi còn thay đổi chưa lưu
 
   useEffect(() => {
     api.claudeFiles().then((r) => setFiles(r.files), (e) => setErr(e.message));
@@ -49,13 +51,14 @@ export function MemoryModal({ onClose }) {
   const opts = (files || [{ id: 'claude-md', name: 'CLAUDE.md', group: 'global' }]).map((f) => ({ value: f.id, label: f.id === 'claude-md' ? 'CLAUDE.md' : `${f.group.replace(/^-Users-[^-]+-?/, '') || '~'} / ${f.name}` }));
   return createPortal(
     <Modal title={t('CLAUDE.md và memory')} lead={t('Sửa trực tiếp các tệp Claude Code đọc mỗi lần chạy.')} wide onClose={onClose} busy={saving}>
-      <Select value={id} options={opts} label={t('Tệp')} onChange={(v) => !dirty || window.confirm(t('Bỏ thay đổi chưa lưu?')) ? setId(v) : null} />
+      <Select value={id} options={opts} label={t('Tệp')} onChange={(v) => (dirty ? setSwitchTo(v) : setId(v))} />
       <textarea className="mono" rows={16} style={{ width: '100%', marginTop: 8 }} value={text} disabled={!loaded} onChange={(e) => setText(e.target.value)} aria-label={t('Nội dung')} spellCheck={false} />
       {err ? <div className="ai-msg ai-err">{err}</div> : null}
       <div className="modal-acts">
         <button type="button" className="btn" onClick={onClose} disabled={saving}>{t('Đóng')}</button>
         <button type="button" className="btn primary" onClick={save} disabled={!dirty || saving}>{saving ? <span className="spinner" aria-hidden="true" /> : null} {t('Lưu')}</button>
       </div>
+      {switchTo ? <ConfirmModal title={t('Bỏ thay đổi chưa lưu?')} body={t('Nội dung đang sửa ở tệp này chưa được lưu sẽ mất.')} okLabel={t('Bỏ thay đổi')} danger onOk={() => setId(switchTo)} onClose={() => setSwitchTo(null)} /> : null}
     </Modal>,
     document.body,
   );
@@ -68,6 +71,7 @@ export function McpModal({ onClose }) {
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ name: '', type: 'stdio', target: '' });
+  const [removing, setRemoving] = useState(null); // MCP đang chờ xác nhận xóa
 
   useEffect(() => {
     api.mcpList().then((r) => setRows(r.servers), (e) => setErr(e.message));
@@ -99,7 +103,7 @@ export function McpModal({ onClose }) {
                 <span className="ai-hist-t"><b>{r.name}</b> · {r.type} · {r.scope}</span>
                 <span className="ai-hist-d mono">{r.target}{r.env ? ` · env ${r.env}` : ''}{r.headers ? ` · header ${r.headers}` : ''}</span>
               </div>
-              <button type="button" className="btn sm" disabled={busy} onClick={() => window.confirm(t('Xóa MCP "{n}"?', { n: r.name })) && run(() => api.mcpRemove(r.name, r.scope === 'user' ? 'user' : 'local'))}>{t('Xóa')}</button>
+              <button type="button" className="btn sm" disabled={busy} onClick={() => setRemoving(r)}>{t('Xóa')}</button>
             </div>
           ))}
         </div>
@@ -112,6 +116,16 @@ export function McpModal({ onClose }) {
       </div>
       {err ? <div className="ai-msg ai-err">{err}</div> : null}
       <div className="modal-acts"><button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Đóng')}</button></div>
+      {removing ? (
+        <ConfirmModal
+          title={t('Xóa MCP "{n}"?', { n: removing.name })}
+          body={t('Claude Code sẽ không dùng được công cụ này nữa. Muốn dùng lại phải thêm lại.')}
+          okLabel={t('Xóa')}
+          danger
+          onOk={async () => setRows((await api.mcpRemove(removing.name, removing.scope === 'user' ? 'user' : 'local')).servers)}
+          onClose={() => setRemoving(null)}
+        />
+      ) : null}
     </Modal>,
     document.body,
   );

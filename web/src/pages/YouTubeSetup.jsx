@@ -2,6 +2,7 @@
 // bắt buộc làm tay, tự nhặt client_secret_*.json trong Tải về. Cách dán / chọn file thủ công vẫn còn (thu gọn).
 // Client secret cất trong Keychain ở server; trang chỉ thấy đuôi client_id.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } from '../components/Select.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useSSE } from '../hooks/useSSE.js';
@@ -104,6 +105,7 @@ export default function YouTubeSetup({ yt, onReload }) {
   const [profile, setProfile] = useState(() => savedProfile());
   const [pid, setPid] = useState('');
   const [acting, setActing] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const timer = useRef(null);
   const lastStep = useRef(null);
 
@@ -188,9 +190,7 @@ export default function YouTubeSetup({ yt, onReload }) {
     const r = await act(() => api.gwNext());
     if (r?.open && !r.open.opened) window.open(r.open.url, '_blank', 'noopener');
   };
-  const reset = () => {
-    if (window.confirm(t('Làm lại từ đầu? Dự án đã tạo trên Google vẫn giữ nguyên.'))) act(() => api.gwReset());
-  };
+  const reset = () => setConfirmReset(true);
   const handleFile = async (keep) => {
     const r = await act(() => api.gwDownload(keep));
     if (r) toast(r.trashed ? t('Đã chuyển file vào Thùng rác.') : t('Đã giữ file trong Tải về.'), 'info');
@@ -293,6 +293,7 @@ export default function YouTubeSetup({ yt, onReload }) {
           <li>{t('Đặt hình thu nhỏ cần kênh đã xác minh số điện thoại.')}</li>
         </ul>
       </section>
+      {confirmReset ? <ConfirmModal title={t('Làm lại từ đầu?')} body={t('Dự án đã tạo trên Google vẫn giữ nguyên.')} okLabel={t('Làm lại')} danger onOk={() => act(() => api.gwReset())} onClose={() => setConfirmReset(false)} /> : null}
     </>
   );
 }

@@ -1,5 +1,6 @@
 // Trang "Giọng đọc": chọn dịch vụ đọc văn bản thành tiếng (ElevenLabs có sẵn, API khác, hoặc lệnh trên máy). Khóa API chỉ lưu trên máy này.
 import { Fragment, useCallback, useEffect, useState } from 'react';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import Modal from '../components/Modal.jsx';
 import Select from '../components/Select.jsx';
 import { langOf } from '../lib/langs.js';
@@ -245,35 +246,6 @@ function Plan({ p, i }) {
   );
 }
 
-// Hộp xác nhận xóa một giọng đọc (kèm khóa API đã lưu) — thay cho window.confirm.
-function RemoveModal({ p, onClose, onDone }) {
-  const t = useT();
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const go = async () => {
-    setBusy(true);
-    try {
-      onDone(await api.ttsRemove(p.id));
-      toast(t('Đã xóa.'), 'ok');
-      onClose();
-    } catch (e) {
-      setErr(e.message);
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal title={t('Xóa giọng đọc "{n}"?', { n: p.name })} onClose={onClose} busy={busy}>
-      <p>{p.hasKey ? t('Giọng đọc này và khóa API đã lưu sẽ bị xóa khỏi máy. Muốn dùng lại phải thêm và nhập khóa lại.') : t('Giọng đọc này sẽ bị xóa khỏi máy.')}</p>
-      {err ? <div className="err-note" role="alert">{err}</div> : null}
-      <div className="modal-acts">
-        <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
-        <button type="button" className="btn danger" onClick={go} disabled={busy}>{t('Xóa')}</button>
-      </div>
-    </Modal>
-  );
-}
-
 export default function TTS() {
   const t = useT();
   const toast = useToast();
@@ -404,7 +376,19 @@ export default function TTS() {
           </div>
         </Modal>
       ) : null}
-      {removing ? <RemoveModal p={removing} onClose={() => setRemoving(null)} onDone={setData} /> : null}
+      {removing ? (
+        <ConfirmModal
+          title={t('Xóa giọng đọc "{n}"?', { n: removing.name })}
+          body={removing.hasKey ? t('Giọng đọc này và khóa API đã lưu sẽ bị xóa khỏi máy. Muốn dùng lại phải thêm và nhập khóa lại.') : t('Giọng đọc này sẽ bị xóa khỏi máy.')}
+          okLabel={t('Xóa')}
+          danger
+          onOk={async () => {
+            setData(await api.ttsRemove(removing.id));
+            toast(t('Đã xóa.'), 'ok');
+          }}
+          onClose={() => setRemoving(null)}
+        />
+      ) : null}
       {edit ? <Editor key={edit.id || edit.kind} init={edit} vieneuVoices={data?.vieneuVoices} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} /> : null}
     </>
   );

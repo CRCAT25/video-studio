@@ -434,6 +434,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const cycleMode = () => act(() => a.settings({ mode: MODE_OPTS[(MODE_OPTS.findIndex((o) => o.value === mode) + 1) % MODE_OPTS.length].value }));
 
   const onKey = (e) => {
+    if (!e.currentTarget.contains(e.target)) return; // phím từ hộp thoại mở bằng portal (MCP, memory…) — để hộp thoại tự xử lý
     if (e.key === 'Escape') {
       e.stopPropagation();
       if (hist || menu) {
