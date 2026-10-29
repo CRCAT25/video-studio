@@ -63,7 +63,10 @@ function ItemModal({ title, okLabel, roots, init, onSave, onClose }) {
   };
   return (
     <Modal title={title} onClose={onClose} busy={busy}>
-      <Select label={t('Nhánh')} value={root} onChange={setRoot} disabled={busy} options={roots.map((r) => ({ value: r, label: rootLabel(r, t) }))} />
+      <div className="fld">
+        <span className="fld-l">{t('Nhánh')}</span>
+        <Select label={t('Nhánh')} value={root} onChange={setRoot} disabled={busy} options={roots.map((r) => ({ value: r, label: rootLabel(r, t) }))} />
+      </div>
       {nested ? (
         <label className="fld">
           <span>{root === 'Kênh' ? t('Mã kênh') : t('Mã bước')}<Req /></span>
