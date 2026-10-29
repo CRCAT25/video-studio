@@ -60,7 +60,7 @@ test('command: chạy lệnh không qua shell, đọc {in} ghi {out}', async () 
 
 test('lỗi: không có provider, lệnh thiếu {out}, xóa chuyển mặc định', async () => {
   const { home, tts } = mk();
-  await assert.rejects(tts.synth({ text: 'a', out: path.join(home, 'x.mp3') }), { code: 'no_provider' });
+  await assert.rejects(tts.synth({ provider: 'khong-co', text: 'a', out: path.join(home, 'x.mp3') }), { code: 'no_provider' });
   await assert.rejects(tts.save({ name: 'B', kind: 'command', command: 'echo' }), { code: 'bad_command' });
   await tts.save({ name: 'A', kind: 'command', command: 'cp {in} {out}' });
   await tts.save({ name: 'B', kind: 'command', command: 'cp {in} {out}' });
@@ -84,7 +84,7 @@ test('API: lưu, liệt kê, đọc thử, xóa giọng đọc', async () => {
   assert.equal(bad.statusCode, 400);
   const del = await app.inject({ method: 'DELETE', url: '/api/tts/providers/cp', headers: h, payload: {} });
   assert.equal(del.statusCode, 200, del.body);
-  assert.deepEqual(del.json().providers, []);
+  assert.deepEqual(del.json().providers.map((p) => p.id), ['vieneu']);
 });
 
 test('studio-tts CLI: ghi file và in JSON', async () => {
@@ -156,4 +156,55 @@ test('ElevenLabs: kiểm tra quyền của khóa (không tốn credit)', async (
   assert.deepEqual(r.credits, { used: 100, limit: 10000 });
   const bad = mk(async () => json(401, { detail: { status: 'invalid_api_key' } })).tts;
   assert.equal((await bad.check({ key: 'sk_abc123' })).valid, false);
+});
+
+// uv giả: ghi chữ "VIENEU <voice>" vào file --out (không cài thư viện thật).
+const fakeUv = (home) => {
+  const f = path.join(home, 'uv');
+  fs.writeFileSync(f, '#!/bin/sh\nout=""; voice=""\nwhile [ $# -gt 0 ]; do case "$1" in --out) out="$2";; --voice) voice="$2";; esac; shift; done\nprintf "VIENEU %s" "$voice" > "$out"\n', { mode: 0o755 });
+  return f;
+};
+
+test('VieNeu: luôn có sẵn, không xóa được, là mặc định khi chưa thêm gì', async () => {
+  const { tts } = mk();
+  const l = await tts.list();
+  assert.deepEqual(l.providers.map((p) => [p.id, p.kind, p.builtin]), [['vieneu', 'vieneu', true]]);
+  assert.equal(l.default, 'vieneu');
+  await assert.rejects(tts.remove('vieneu'), { code: 'builtin' });
+  assert.equal(tts.runInfo().paid, false);
+});
+
+test('synth: chưa duyệt chi phí → tự dùng VieNeu thay nhà cung cấp trả phí', async () => {
+  let called = false;
+  const { home, tts } = mk(async () => { called = true; return audioRes(); });
+  await tts.save({ name: 'Eleven', kind: 'elevenlabs', voice: 'v123' }, 'SECRET');
+  tts.setDefault('eleven');
+  assert.deepEqual(tts.runInfo().free, { id: 'vieneu', name: 'VieNeu (miễn phí, trên máy)' });
+  process.env.VS_UV = fakeUv(home);
+  try {
+    const out = path.join(home, 'a.mp3');
+    const r = await tts.synth({ text: 'Xin chào', out, voice: 'v123', allowPaid: false });
+    assert.equal(r.provider, 'vieneu');
+    assert.equal(r.paid, false);
+    assert.equal(r.fallback.from, 'Eleven');
+    assert.equal(fs.readFileSync(out, 'utf8'), 'VIENEU Thiện Minh');
+    assert.equal(called, false, 'không gọi API trả phí');
+    const paid = await tts.synth({ text: 'Xin chào', out: path.join(home, 'b.mp3'), allowPaid: true });
+    assert.equal(paid.provider, 'eleven');
+    assert.equal(called, true);
+  } finally {
+    delete process.env.VS_UV;
+  }
+});
+
+test('buildPrompt: chưa duyệt chi phí → báo lệnh dùng giọng miễn phí; đã duyệt → giọng trả phí', async () => {
+  const { buildPrompt } = await import('../server/runner.js');
+  const tts = { id: 'eleven', name: 'Eleven', paid: true, script: '/x/studio-tts.mjs', free: { id: 'vieneu', name: 'VieNeu' } };
+  const step = { key: 'giong-doc', name: 'Giọng đọc', prompt: 'Làm giọng', outputs: ['audio/*'], cost: { service: 'Giọng đọc AI' } };
+  const free = buildPrompt({ project: {}, preset: {}, step, tts });
+  assert.match(free, /sẽ dùng "VieNeu" \(miễn phí/);
+  assert.doesNotMatch(free, /ĐÃ DUYỆT CHI PHÍ/);
+  const paid = buildPrompt({ project: {}, preset: {}, step, tts, allowPaid: true });
+  assert.match(paid, /sẽ dùng "Eleven";/);
+  assert.match(paid, /ĐÃ DUYỆT CHI PHÍ/);
 });

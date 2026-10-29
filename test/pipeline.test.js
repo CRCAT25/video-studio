@@ -53,7 +53,7 @@ test('normalizeFormat: sai hướng/tỷ lệ/độ dài/thời lượng → 400
   bad({ duration: 30.5 }, /thời lượng/);
 });
 
-test('suggestPipeline: video ngắn 7 bước, video dài 10 bước (Cắt Shorts tắt), đều hợp lệ', () => {
+test('suggestPipeline: video ngắn 7 bước, video dài 11 bước (Cắt Shorts tắt), đều hợp lệ', () => {
   const s = suggestPipeline({ orientation: 'vertical', aspect: '9:16', length: 'short', duration: 30 });
   assert.equal(s.id, 'ngan-doc-9x16');
   assert.equal(s.name, 'Video ngắn dọc 9:16');
@@ -66,7 +66,7 @@ test('suggestPipeline: video ngắn 7 bước, video dài 10 bước (Cắt Shor
   assert.equal(l.id, 'dai-ngang-16x9-4k');
   assert.equal(l.vars.resolution, '3840x2160');
   assert.equal(l.vars.duration_label, '15 phút');
-  assert.equal(l.steps.length, 10);
+  assert.equal(l.steps.length, 11);
   assert.equal(l.steps.find((x) => x.id === 'cat-shorts').enabled, false);
   assert.equal(l.steps.at(-1).id, 'goi-dang');
 
@@ -105,8 +105,8 @@ test('preparePipeline: bỏ bước tắt, tự gắn kiểm đầu ra cho bư�
   assert.ok(!ids(out).includes('cat-shorts'), 'Cắt Shorts mặc định tắt');
   assert.ok(out.steps.every((s) => !('enabled' in s)));
   assert.deepEqual(out.steps.find((s) => s.id === 'giong-doc').checks, [{ name: 'Đủ đầu ra', run: 'studio-check outputs' }]);
-  assert.equal(preset.steps.length, 8);
-  assert.equal(raw.steps.length, 10, 'không sửa object gốc');
+  assert.equal(preset.steps.length, 9);
+  assert.equal(raw.steps.length, 11, 'không sửa object gốc');
 });
 
 test('preparePipeline: lỗi → EPRESET kèm danh sách problems', () => {

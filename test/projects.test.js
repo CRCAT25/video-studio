@@ -159,7 +159,7 @@ test('create từ quy trình gợi ý (đã sửa): bước tắt bị bỏ, kê
   const v = projects.create({ pipeline: raw, title: 'Xe điện có rẻ?' });
   assert.deepEqual(v.preset, { id: 'dai-ngang-16x9', name: 'Video dài ngang 16:9', format: 'long' });
   assert.equal(v.channel, null, 'không chọn kênh → không gắn kênh');
-  assert.deepEqual(v.steps.map((s) => s.key), ['nghien-cuu', 'kich-ban', 'phan-canh', 'hinh-anh', 'giong-doc', 'dung-video', 'xem-lai', 'goi-dang']);
+  assert.deepEqual(v.steps.map((s) => s.key), ['nghien-cuu', 'kich-ban', 'phan-canh', 'hinh-anh', 'dung-cam', 'giong-doc', 'dung-video', 'xem-lai', 'goi-dang']);
   assert.equal(v.steps.find((s) => s.key === 'xem-lai').state, 'pending');
   assert.equal(projects.stepView(v.id, 'kich-ban').step.prompt_template.includes('{vars.duration_label}'), true);
 
@@ -229,6 +229,8 @@ test('canRun: bước trước chưa xong, không tồn tại, busy, cost 412', 
   assert.equal(r.code, 'cost_confirm_required');
   assert.deepEqual(r.cost, { service: 'elevenlabs', estimate: 'chars(script.md)', always_ask: true, estimate_value: null, unit: 'ký tự' });
   expectHttp(() => projects.beginRun(id, 'voice', { allowPaid: false }), 412, 'cost_confirm_required');
+  // free chỉ bỏ qua duyệt chi phí khi bước khai báo cost.free_fallback
+  assert.equal(projects.canRun(id, 'voice', { free: true }).code, 'cost_confirm_required');
   try {
     projects.beginRun(id, 'voice', {});
   } catch (e) {

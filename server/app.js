@@ -1030,18 +1030,20 @@ export async function buildApp({
   app.post('/api/projects/:id/steps/:key/run', async (req, reply) => {
     const b = req.body === undefined || req.body === null ? {} : req.body;
     if (!isObject(b)) throw badBody('Cần gửi JSON {feedback?, allowPaid?}.');
-    const { feedback, allowPaid, allowOnce, reply: quick } = b;
+    const { feedback, allowPaid, allowOnce, reply: quick, free } = b;
     if (allowOnce !== undefined && allowOnce !== null && (!Array.isArray(allowOnce) || allowOnce.length > 20)) throw badBody('allowOnce phải là danh sách tối đa 20 quy tắc.');
     const once = (allowOnce || []).map((r) => pipelineCall(() => validateGrantRule(r, { once: true })));
     if (feedback !== undefined && feedback !== null && typeof feedback !== 'string') throw badBody('Góp ý phải là chuỗi.');
     if (typeof feedback === 'string' && feedback.length > MAX_FEEDBACK) throw badBody('Góp ý tối đa 20 000 ký tự.');
     if (allowPaid !== undefined && allowPaid !== null && typeof allowPaid !== 'boolean') throw badBody('allowPaid phải là true/false.');
     const paid = allowPaid === true;
-    const chk = projects.canRun(req.params.id, req.params.key, { allowPaid: paid });
+    // free: chạy bước tốn tiền bằng phương án miễn phí (vd. giọng VieNeu) — không cần duyệt chi phí.
+    const useFree = !paid && free === true;
+    const chk = projects.canRun(req.params.id, req.params.key, { allowPaid: paid, free: useFree });
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
     if (!runner || typeof runner.start !== 'function') throw new Error('Runner chưa sẵn sàng.');
     const fb = typeof feedback === 'string' && feedback.trim() ? feedback : null;
-    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, allowOnce: once, ...(quick === true ? { reply: true } : {}) });
+    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, ...(useFree ? { free: true } : {}), allowOnce: once, ...(quick === true ? { reply: true } : {}) });
     return reply.code(202).send({ run: runSummary(run) });
   });
 

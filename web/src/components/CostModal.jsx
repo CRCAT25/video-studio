@@ -3,8 +3,9 @@ import Modal from './Modal.jsx';
 import { fmtNum } from '../lib/format.js';
 import { useT } from '../lib/i18n.jsx';
 
-// cost = {service, estimate, estimate_value, unit}; Hủy không gọi API nào.
-export default function CostModal({ stepName, cost, withFeedback = false, busy = false, onConfirm, onClose }) {
+// cost = {service, estimate, estimate_value, unit, free_fallback?}; Hủy không gọi API nào.
+// Có free_fallback → thêm nút chạy bằng phương án miễn phí (không trừ tiền).
+export default function CostModal({ stepName, cost, withFeedback = false, busy = false, onConfirm, onFree, onClose }) {
   const t = useT();
   const c = cost || {};
   const hasVal = c.estimate_value != null && !Number.isNaN(Number(c.estimate_value));
@@ -21,11 +22,17 @@ export default function CostModal({ stepName, cost, withFeedback = false, busy =
         ) : null}
         <p>{t('Sẽ trừ tiền/credit thật trong tài khoản {s}.', { s: c.service || t('dịch vụ') })}</p>
       </div>
+      {c.free_fallback && onFree ? <p className="note">{t('Không muốn tốn phí? Chọn "Dùng {n}" — chạy ngay, không trừ credit.', { n: t(c.free_fallback) })}</p> : null}
       {!hasVal ? <p className="note">{t('Chưa ước tính được — kiểm tra đầu vào ở bước trước.')}</p> : null}
       <div className="modal-acts">
         <button type="button" className="btn" onClick={onClose} disabled={busy} data-autofocus>
           {t('Hủy')}
         </button>
+        {c.free_fallback && onFree ? (
+          <button type="button" className="btn" onClick={onFree} disabled={busy}>
+            {t('Dùng {n}', { n: t(c.free_fallback) })}
+          </button>
+        ) : null}
         <button type="button" className="btn paid" onClick={onConfirm} disabled={busy} data-ai="block">
           {busy ? <span className="spinner" aria-hidden="true" /> : '$'} {t('Đồng ý, chạy')}
         </button>

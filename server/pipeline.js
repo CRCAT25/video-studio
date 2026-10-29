@@ -32,7 +32,6 @@ const DEFAULT_PERMISSIONS = {
   deny: ['Bash(git push*)', 'Bash(sudo *)'],
 };
 const OUTPUT_CHECK = { name: 'Đủ đầu ra', run: 'studio-check outputs' };
-const COST_NOTE = 'Trước khi gọi dịch vụ trả phí: gọi studio_cost_request kèm ước tính và chờ duyệt.';
 
 // Thư viện bước. Mỗi bước: id, name, prompt, outputs, gate, (cost, checks, manual, enabled).
 const S = {
@@ -64,10 +63,18 @@ const S = {
     prompt: 'Dựng hình cho từng cảnh trong project.json bằng code chạy trên máy (canvas/SVG/three.js, biểu đồ, chữ, số, ffmpeg) và tài nguyên miễn phí CC0 nếu cần. Xuất PNG đúng khung {vars.resolution} vào images/, tên theo mã cảnh. Giữ màu và phông thống nhất, không logo hay người thật. Không gọi dịch vụ sinh ảnh trả phí. Sau khi xong ảnh, dựng luôn 3 clip xem thử dài khoảng 5–8 giây vào previews/ (preview-1.mp4…preview-3.mp4), mỗi clip dựng lại MỘT cảnh tiêu biểu (mở đầu, giữa, cao trào) đúng cách nó xuất hiện trong video thật (ví dụ bút vẽ từng nét, chữ hiện dần, chuyển động) bằng chính mã dựng hình của cảnh đó, KHÔNG làm ảnh tĩnh phóng to/lướt; độ phân giải thấp (khoảng 960 ngang) để xem nhanh. {feedback}',
     outputs: ['images/*', 'previews/*.mp4'], gate: { mode: 'manual' },
   },
+  // Phim câm trước, giọng sau: duyệt hình/nhịp khi chưa tốn tiền giọng đọc.
+  silent: {
+    id: 'dung-cam', name: 'Dựng phim câm', model: 'haiku',
+    prompt: 'Dựng BẢN NHÁP CÂM từ hình, phụ đề và nhạc nền (chưa có giọng): thời lượng mỗi cảnh ước theo tốc độ đọc (~2,5 từ/giây) của lời trong script.md, phụ đề hiện theo nhịp đó. ' +
+      'Xuất exports/draft-NO-VOICE.mp4 độ phân giải thấp để duyệt nhanh. Chưa tạo giọng, chưa render bản cuối. {feedback}',
+    outputs: ['exports/draft-NO-VOICE.mp4'], resources: ['render'], gate: { mode: 'manual' },
+  },
   voice: {
     id: 'giong-doc', name: 'Giọng đọc', model: 'haiku',
-    prompt: 'Thu giọng đọc từ script.md đã duyệt, nhịp tự nhiên, xuất audio/voice.wav. ' + COST_NOTE + ' {feedback}',
-    outputs: ['audio/*'], cost: { service: 'Giọng đọc AI', estimate: 'chars(script.md)', always_ask: true }, gate: { mode: 'manual' },
+    prompt: 'Thu giọng đọc từ script.md đã duyệt, nhịp tự nhiên, ngắt nghỉ theo câu, xuất vào audio/ (vd. audio/voice.mp3). ' +
+      'Dùng lệnh giọng đọc của Video Studio: đã duyệt chi phí thì dùng dịch vụ trả phí, chưa duyệt thì lệnh tự dùng giọng miễn phí (VieNeu) — không dừng lại hỏi khóa API. Báo rõ đã dùng giọng nào. {feedback}',
+    outputs: ['audio/*'], cost: { service: 'Giọng đọc AI', estimate: 'chars(script.md)', always_ask: true, free_fallback: 'Giọng VieNeu miễn phí' }, gate: { mode: 'manual' },
   },
   subtitles: {
     id: 'phu-de', name: 'Phụ đề', model: 'haiku',
@@ -75,9 +82,9 @@ const S = {
     outputs: ['subtitles.srt'], checks: [OUTPUT_CHECK], gate: { mode: 'auto_if_checks' },
   },
   edit: {
-    id: 'dung-video', name: 'Dựng & nhạc', model: 'haiku',
-    prompt: 'Ghép hình, giọng, phụ đề và nhạc nền thành exports/video.mp4, {vars.resolution}, dài khoảng {vars.duration_label}. ' +
-      'Kiểm 2 giây đầu, nhịp cắt, cân âm lượng giọng/nhạc. {feedback}',
+    id: 'dung-video', name: 'Ghép giọng & nhạc', model: 'haiku',
+    prompt: 'Ghép giọng đọc trong audio/ vào phim (bản nháp câm nếu có): canh lại thời lượng từng cảnh theo giọng thật, phụ đề khớp giọng, nhạc nền nhỏ lại khi có lời. ' +
+      'Xuất exports/video.mp4, {vars.resolution}, dài khoảng {vars.duration_label}. Kiểm 2 giây đầu, nhịp cắt, cân âm lượng giọng/nhạc. {feedback}',
     outputs: ['exports/*.mp4'], resources: ['render'], gate: { mode: 'manual' },
   },
   review: { id: 'xem-lai', name: 'Xem lại toàn bộ', manual: true, outputs: [], gate: { mode: 'manual' } },
@@ -101,7 +108,7 @@ const S = {
 };
 
 const SHORT_FLOW = ['idea', 'storyboard', 'visuals', 'voice', 'subtitles', 'edit', 'deliver'];
-const LONG_FLOW = ['research', 'script', 'storyboard', 'visuals', 'voice', 'edit', 'review', 'thumbnail', 'shorts', 'deliver'];
+const LONG_FLOW = ['research', 'script', 'storyboard', 'visuals', 'silent', 'voice', 'edit', 'review', 'thumbnail', 'shorts', 'deliver'];
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);

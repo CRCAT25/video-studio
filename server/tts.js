@@ -2,13 +2,24 @@
 // Cấu hình ở <home>/tts.json (không chứa khóa); khóa API nằm trong kho bí mật (Keychain / file 600), không bao giờ log.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Danh sách giọng gợi ý đi kèm app (giọng có sẵn của ElevenLabs + giọng tiếng Việt); không chứa khóa API.
 const BUNDLED_VOICES = fileURLToPath(new URL('./tts-voices.json', import.meta.url));
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
-const KINDS = new Set(['elevenlabs', 'http', 'command']);
+const KINDS = new Set(['elevenlabs', 'http', 'command', 'vieneu']);
+const VIENEU_SCRIPT = fileURLToPath(new URL('./bin/vieneu_tts.py', import.meta.url));
+// Giọng VieNeu có sẵn (tên preset của thư viện vieneu); giọng đầu là mặc định.
+export const VIENEU_VOICES = [
+  ['Thiện Minh', 'Nam · Bắc · kể chuyện'], ['Ngọc Linh', 'Nữ · Bắc · kể chuyện'], ['Thiền Tâm Đức', 'Nam · Bắc · kể chuyện'], ['Thanh Bình', 'Nam · Bắc · kể chuyện'],
+  ['Mai Anh', 'Nữ · Bắc · tin tức'], ['Minh Đức', 'Nam · Bắc · tin tức'], ['Trúc Ly', 'Nữ · Bắc · tự nhiên'], ['Hải Đăng', 'Nam · Bắc · tự nhiên'],
+  ['Ngọc Huyền', 'Nữ · Bắc · tự nhiên'], ['Quốc Tuấn', 'Nam · Bắc · tự nhiên'], ['Quỳnh Anh', 'Nữ · Bắc · đọc truyện'], ['Thùy Dung', 'Nữ · Nam · tin tức'],
+  ['Thái Sơn', 'Nam · Nam · kể chuyện'], ['Thục Đoan', 'Nữ · Nam · kể chuyện'], ['Mỹ Duyên', 'Nữ · Nam · đọc truyện'], ['Quang Sơn', 'Nam · Trung · tự nhiên'], ['Ngọc Trân', 'Nữ · Trung · tự nhiên'],
+].map(([id, desc]) => ({ id, name: id, desc }));
+// Nhà cung cấp miễn phí luôn có: dùng khi chưa duyệt chi phí giọng trả phí.
+const BUILTIN_FREE = { id: 'vieneu', name: 'VieNeu (miễn phí, trên máy)', kind: 'vieneu', voice: VIENEU_VOICES[0].id, price: { perChar: 0, label: '' }, builtin: true };
 const RESPONSES = new Set(['audio', 'json-base64', 'json-url']);
 export const MAX_TEXT = 200_000;
 const CHUNK = 2500;
@@ -72,6 +83,8 @@ function cleanProvider(p) {
   if (kind === 'elevenlabs') {
     if (!o.voice) throw fail(400, 'bad_voice', 'Cần nhập ID giọng (voice id) của ElevenLabs.');
     o.model = String(p.model || 'eleven_multilingual_v2').trim().slice(0, 60);
+  } else if (kind === 'vieneu') {
+    o.voice = o.voice || VIENEU_VOICES[0].id;
   } else if (kind === 'http') {
     const h = p.http || {};
     let u;
@@ -100,14 +113,17 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
   const read = () => {
     try {
       const o = JSON.parse(fs.readFileSync(file, 'utf8'));
-      return { default: typeof o.default === 'string' ? o.default : null, providers: Array.isArray(o.providers) ? o.providers : [] };
+      return withFree({ default: typeof o.default === 'string' ? o.default : null, providers: Array.isArray(o.providers) ? o.providers : [] });
     } catch {
-      return { default: null, providers: [] };
+      return withFree({ default: null, providers: [] });
     }
   };
+  // Luôn kèm VieNeu miễn phí (nếu người dùng chưa tự lưu một nhà cung cấp VieNeu).
+  const withFree = (c) => (c.providers.some((p) => p.kind === 'vieneu') ? c : { ...c, providers: [...c.providers, { ...BUILTIN_FREE }] });
   const write = (o) => {
     fs.mkdirSync(home, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(o, null, 2), { mode: 0o600 });
+    const providers = o.providers.filter((p) => !p.builtin);
+    fs.writeFileSync(file, JSON.stringify({ ...o, providers }, null, 2), { mode: 0o600 });
   };
   const keyOf = async (id) => (secrets ? await secrets.get(secretName(id)) : null);
 
@@ -115,7 +131,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     const c = read();
     const providers = [];
     for (const p of c.providers) providers.push({ ...p, hasKey: !!(await keyOf(p.id)) });
-    return { default: c.providers.some((p) => p.id === c.default) ? c.default : null, providers };
+    return { default: c.providers.some((p) => p.id === c.default) ? c.default : providers[0]?.id ?? null, providers, vieneuVoices: VIENEU_VOICES };
   }
 
   // key: undefined = giữ khóa cũ; '' = xóa khóa; chuỗi = đặt khóa mới.
@@ -142,7 +158,9 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
 
   async function remove(id) {
     const c = read();
-    if (!c.providers.some((p) => p.id === id)) throw fail(404, 'not_found', 'Không có nhà cung cấp này.');
+    const x = c.providers.find((p) => p.id === id);
+    if (!x) throw fail(404, 'not_found', 'Không có nhà cung cấp này.');
+    if (x.builtin) throw fail(400, 'builtin', 'Giọng miễn phí có sẵn — không xóa được.');
     c.providers = c.providers.filter((p) => p.id !== id);
     if (c.default === id) c.default = c.providers[0]?.id ?? null;
     write(c);
@@ -158,12 +176,13 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
 
   function pick(id) {
     const c = read();
-    const p = c.providers.find((x) => x.id === (id || c.default));
+    const p = c.providers.find((x) => x.id === (id || c.default)) || (!id ? c.providers[0] : null);
     if (!p) throw fail(404, 'no_provider', 'Chưa có nhà cung cấp giọng đọc — thêm ở tab Giọng đọc.');
     return p;
   }
 
   const isPaid = (p) => (p.price?.perChar ?? 0) > 0;
+  const freeOf = (c) => c.providers.find((x) => !isPaid(x) && x.kind === 'vieneu') || c.providers.find((x) => !isPaid(x));
   const estimate = (p, text) => {
     const chars = String(text).trim().length;
     return { chars, paid: isPaid(p), cost: isPaid(p) ? Math.round(chars * p.price.perChar) : 0, label: p.price?.label || '' };
@@ -214,7 +233,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return Buffer.from(await r2.arrayBuffer());
   }
 
-  function runCommand(p, text, out, voice, key) {
+  function runCommand(p, text, out, voice, key, limitMs = timeoutMs * 3) {
     const dir = fs.mkdtempSync(path.join(path.dirname(out), '.tts-'));
     const inFile = path.join(dir, 'in.txt');
     fs.writeFileSync(inFile, text);
@@ -222,7 +241,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return new Promise((resolve, reject) => {
       let child;
       try {
-        child = spawn(bin, args, { shell: false, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ...(key ? { TTS_KEY: key } : {}) }, timeout: timeoutMs * 3 });
+        child = spawn(bin, args, { shell: false, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ...(key ? { TTS_KEY: key } : {}) }, timeout: limitMs });
       } catch (e) {
         reject(fail(502, 'tts_failed', `Không chạy được lệnh: ${e.message}`));
         return;
@@ -239,16 +258,32 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     });
   }
 
+  // VieNeu chạy bằng uv (tự cài thư viện lần đầu); ghi thẳng ra `out` (.mp3/.wav).
+  function runVieneu(text, out, voice) {
+    const uv = process.env.VS_UV || [path.join(os.homedir(), '.local/bin/uv'), '/opt/homebrew/bin/uv'].find((f) => fs.existsSync(f)) || 'uv';
+    const cmd = `${uv} run --no-project --python 3.12 --with vieneu --with "onnxruntime<1.23" --with soundfile python "${VIENEU_SCRIPT}" --in {in} --out {out} --voice "{voice}"`;
+    return runCommand({ command: cmd }, text, out, voice, null, timeoutMs * 15);
+  }
+
   // Đọc `text` bằng nhà cung cấp `id` (mặc định nếu bỏ trống) và ghi vào `out`. Trả thông tin để báo cáo.
-  async function synth({ provider = null, text, out, voice = '' }) {
+  // allowPaid=false: nhà cung cấp trả phí được thay bằng giọng miễn phí (VieNeu) — không bao giờ tốn tiền khi chưa duyệt.
+  async function synth({ provider = null, text, out, voice = '', allowPaid = true }) {
     const body = String(text ?? '').trim();
     if (!body) throw fail(400, 'empty_text', 'Văn bản trống.');
     if (body.length > MAX_TEXT) throw fail(400, 'too_long', `Văn bản dài quá ${MAX_TEXT} ký tự — chia nhỏ rồi chạy từng phần.`);
-    const p = pick(provider);
+    let p = pick(provider);
+    let fallback = null;
+    if (isPaid(p) && !allowPaid) {
+      fallback = { from: p.name, reason: 'Chưa duyệt chi phí — dùng giọng miễn phí.' };
+      p = freeOf(read());
+      voice = '';
+    }
     const v = voice || p.voice;
     const key = await keyOf(p.id);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    if (p.kind === 'command') {
+    if (p.kind === 'vieneu') {
+      await runVieneu(body, out, v);
+    } else if (p.kind === 'command') {
       await runCommand(p, body, out, v, key);
     } else {
       const parts = chunkText(body);
@@ -257,7 +292,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
       for (const part of parts) bufs.push(await callApi(p, part, v, key));
       fs.writeFileSync(out, Buffer.concat(bufs));
     }
-    return { out, provider: p.id, ...estimate(p, body) };
+    return { out, provider: p.id, name: p.name, voice: v, ...(fallback ? { fallback } : {}), ...estimate(p, body) };
   }
 
   // Danh sách giọng của ElevenLabs: dùng khóa vừa nhập (chưa lưu) hoặc khóa đã lưu của nhà cung cấp `id`.
@@ -332,8 +367,9 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
   // Nhà cung cấp mặc định cho runner: không lộ khóa.
   function runInfo() {
     const c = read();
-    const p = c.providers.find((x) => x.id === c.default);
-    return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '' } : null;
+    const p = c.providers.find((x) => x.id === c.default) || c.providers[0];
+    const f = freeOf(c);
+    return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '', free: f ? { id: f.id, name: f.name } : null } : null;
   }
 
   return { voices, check, sample, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };

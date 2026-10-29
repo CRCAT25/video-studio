@@ -311,6 +311,11 @@ export function validatePreset(raw, file) {
             estimate: est == null ? null : String(est),
             always_ask: s.cost.always_ask !== false,
           };
+          // free_fallback: tên phương án miễn phí (vd. "Giọng VieNeu miễn phí") — cho phép chạy mà không duyệt chi phí.
+          if (s.cost.free_fallback != null) {
+            if (typeof s.cost.free_fallback !== 'string' || !s.cost.free_fallback.trim()) bad(`${label}: cost.free_fallback phải là chuỗi (tên phương án miễn phí).`);
+            else cost.free_fallback = s.cost.free_fallback.trim().slice(0, 80);
+          }
         }
       }
 

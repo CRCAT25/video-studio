@@ -164,8 +164,10 @@ export function buildPrompt({ project, preset, step, feedback, prev, allowPaid =
   if (freshSession) {
     lines.push('Phiên làm việc: đây là phiên Claude riêng của bước này, không nhớ các bước trước. Kết quả các bước trước đã lưu thành file trong thư mục dự án — chỉ đọc file thật sự cần.');
   }
-  if (tts && (!tts.paid || allowPaid === true)) {
-    lines.push(`Giọng đọc: để tạo giọng đọc, chạy \`node ${tts.script} --in <file văn bản> --out <file .mp3>\` (nhà cung cấp "${tts.name}" đã được người dùng cấu hình; thêm --voice <id> để đổi giọng; kết quả in ra JSON). Không tự gọi API giọng đọc bằng cách khác.`);
+  if (tts) {
+    // Chưa duyệt chi phí thì lệnh tự dùng giọng miễn phí — Claude không cần hỏi khóa API hay chờ duyệt.
+    const use = tts.paid && allowPaid !== true && tts.free ? `"${tts.free.name}" (miễn phí — lượt này CHƯA duyệt chi phí "${tts.name}", lệnh tự dùng giọng miễn phí)` : `"${tts.name}"`;
+    lines.push(`Giọng đọc: để tạo giọng đọc, chạy \`node ${tts.script} --in <file văn bản> --out <file .mp3>\` — lượt này sẽ dùng ${use}; kết quả in ra JSON (provider, voice, fallback). Không hỏi khóa API, không tự gọi API giọng đọc bằng cách khác; báo trong tóm tắt đã dùng giọng nào.`);
   }
   lines.push(`Đầu ra bắt buộc: ${JSON.stringify(outputs)}`);
   lines.push('', '## Việc cần làm', renderTemplate(step?.prompt ?? '', ctx).trim());
@@ -492,9 +494,9 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
   }
 
   // Bắt đầu một lượt: canRun → lock → beginRun → spawn; trả run ngay (throw HttpError 404/409/412).
-  function start(projectId, stepKey, { feedback = null, allowPaid = false, allowOnce = [], reply = false } = {}) {
+  function start(projectId, stepKey, { feedback = null, allowPaid = false, free = false, allowOnce = [], reply = false } = {}) {
     if (closing) throw new HttpError(503, 'shutting_down', 'Server đang tắt — không chạy thêm lượt mới.');
-    const chk = projects.canRun(projectId, stepKey, { allowPaid });
+    const chk = projects.canRun(projectId, stepKey, { allowPaid, free });
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
     const project = store.getProject(projectId);
     const preset = resolvePreset(projects, presets, projectId, project.preset_id);
@@ -513,14 +515,16 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     }
     // Trả lời nhanh chỉ dùng được khi có phiên cũ để tiếp tục và lượt trước đang chờ trả lời; ngược lại chạy lại đủ prompt
     const canReply = reply === true && !!fb && stepRow.state === 'needs_input' && (session ? session.resume : project.session_started === 1 || project.session_started === true);
-    const ttsInfo = home ? ttsRunInfo(home) : null;
+    // Lệnh giọng đọc chỉ gắn cho bước làm giọng (có chi phí hoặc ghi ra audio/).
+    const wantsTts = !!step.cost || (step.outputs ?? []).some((o) => /^audio\//.test(String(o)));
+    const ttsInfo = home && wantsTts ? ttsRunInfo(home) : null;
     const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', style: home ? readStyle(home) : '', reply: canReply ? fb : null, tts: ttsInfo });
-    const args = buildArgs({ project, preset, step, allowPaid, model: model || readDefaultModel(home), allowOnce: [...readGlobalAllow(home), ...allowOnce, ...(ttsInfo && (!ttsInfo.paid || allowPaid === true) ? [`Bash(node ${ttsInfo.script}:*)`] : [])], session });
+    const args = buildArgs({ project, preset, step, allowPaid, model: model || readDefaultModel(home), allowOnce: [...readGlobalAllow(home), ...allowOnce, ...(ttsInfo ? [`Bash(node ${ttsInfo.script}:*)`] : [])], session });
 
     acquireLock(dir, projectId);
     let run;
     try {
-      run = projects.beginRun(projectId, stepKey, { prompt, feedback: fb, allowPaid: allowPaid === true });
+      run = projects.beginRun(projectId, stepKey, { prompt, feedback: fb, allowPaid: allowPaid === true, free });
     } catch (e) {
       releaseLock(dir, null);
       throw e;
@@ -536,6 +540,7 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
       project,
       run,
       args,
+      allowPaid: allowPaid === true,
       ctx: templateCtx({ project, preset, feedback: fb, prev }),
       runDir: path.join(dir, '.studio', 'runs', step.key, String(run.n)),
       cwdReal: realOr(dir),
@@ -666,7 +671,7 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     entry.stderrSplitter = err;
     let child;
     try {
-      child = spawn(cmd, argv, { cwd: entry.dir, env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
+      child = spawn(cmd, argv, { cwd: entry.dir, env: childEnv(entry.allowPaid ? { VS_TTS_ALLOW_PAID: '1' } : {}), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
     } catch (e) {
       entry.spawnError = e;
       entry.closed = true;

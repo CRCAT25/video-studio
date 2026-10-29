@@ -14,7 +14,10 @@ const BLANK = {
   command: { kind: 'command', name: '', voice: '', command: '' },
 };
 
-function Editor({ init, onClose, onSaved }) {
+// Nhãn loại dịch vụ hiện trên thẻ.
+const KIND_LABEL = { elevenlabs: () => 'ElevenLabs', http: (t) => t('API tự định nghĩa'), command: (t) => t('Lệnh trên máy'), vieneu: (t) => t('Miễn phí, chạy trên máy') };
+
+function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
   const t = useT();
   const toast = useToast();
   const isNew = !init.id;
@@ -82,7 +85,7 @@ function Editor({ init, onClose, onSaved }) {
     setBusy(true);
     setErr(null);
     try {
-      await api.ttsSave({ provider: { ...p, price: p.kind === 'elevenlabs' ? { perChar: 1, label: 'credit' } : { perChar: Number(price) || 0, label: '' } }, key: key === '' ? undefined : key, makeDefault: isNew });
+      await api.ttsSave({ provider: { ...p, price: p.kind === 'elevenlabs' ? { perChar: 1, label: 'credit' } : p.kind === 'vieneu' ? { perChar: 0, label: '' } : { perChar: Number(price) || 0, label: '' } }, key: key === '' ? undefined : key, makeDefault: isNew });
       toast(t('Đã lưu giọng đọc.'), 'ok');
       onSaved();
     } catch (e2) {
@@ -92,7 +95,7 @@ function Editor({ init, onClose, onSaved }) {
   };
   return (
     <Modal title={isNew ? t('Thêm giọng đọc') : t('Sửa giọng đọc')} onClose={onClose} busy={busy} wide>
-      <p className="lead">{p.kind === 'elevenlabs' ? t('Kết nối ElevenLabs để Claude đọc lời dẫn bằng giọng bạn chọn.') : p.kind === 'http' ? t('Kết nối dịch vụ giọng đọc qua API HTTP.') : t('Kết nối công cụ giọng đọc chạy trên máy bạn.')}</p>
+      <p className="lead">{p.kind === 'elevenlabs' ? t('Kết nối ElevenLabs để Claude đọc lời dẫn bằng giọng bạn chọn.') : p.kind === 'vieneu' ? t('Giọng tiếng Việt miễn phí chạy ngay trên máy — dùng khi chưa duyệt chi phí giọng trả phí.') : p.kind === 'http' ? t('Kết nối dịch vụ giọng đọc qua API HTTP.') : t('Kết nối công cụ giọng đọc chạy trên máy bạn.')}</p>
       <form onSubmit={save} noValidate>
         <label className="fld">
           <span className="fld-l">{t('Tên gọi')}<Req /></span>
@@ -142,7 +145,7 @@ function Editor({ init, onClose, onSaved }) {
             <span className="hint">{t('{in} = file văn bản, {out} = file âm thanh cần ghi, {voice} = giọng. Khóa API (nếu có) được truyền qua biến môi trường TTS_KEY.')}</span>
           </label>
         ) : null}
-        {p.kind !== 'command' ? (
+        {p.kind !== 'command' && p.kind !== 'vieneu' ? (
           <label className="fld">
             <span className="fld-l">{t('Khóa API')}</span>
             <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} onBlur={() => { if (p.kind === 'elevenlabs' && key.trim()) loadVoices(); }} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
@@ -170,12 +173,21 @@ function Editor({ init, onClose, onSaved }) {
             ) : null}
           </div>
         ) : null}
-        <label className="fld">
-          <span className="fld-l">{p.kind === 'elevenlabs' ? t('ID giọng') : t('Giọng mặc định')}{p.kind === 'elevenlabs' ? <Req /> : null}</span>
-          <input type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
-          {p.kind === 'elevenlabs' ? <span className="hint">{t('Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.')}</span> : null}
-        </label>
-        {p.kind === 'elevenlabs' ? (
+        {p.kind === 'vieneu' ? (
+          <div className="fld">
+            <span className="fld-l">{t('Chọn giọng')}</span>
+            <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} options={vieneuVoices.map((v) => ({ value: v.id, label: v.name, meta: v.desc }))} />
+          </div>
+        ) : (
+          <label className="fld">
+            <span className="fld-l">{p.kind === 'elevenlabs' ? t('ID giọng') : t('Giọng mặc định')}{p.kind === 'elevenlabs' ? <Req /> : null}</span>
+            <input type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
+            {p.kind === 'elevenlabs' ? <span className="hint">{t('Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.')}</span> : null}
+          </label>
+        )}
+        {p.kind === 'vieneu' ? (
+          <p className="note tts-cost">{t('Không tốn phí. Lần đầu chạy sẽ tải mô hình (vài trăm MB), các lần sau đọc nhanh.')}</p>
+        ) : p.kind === 'elevenlabs' ? (
           <p className="note tts-cost">{t('Chi phí do ElevenLabs quy định: 1 credit cho mỗi ký tự đọc. Bước dùng giọng đọc luôn hỏi bạn duyệt chi phí trước khi chạy.')}</p>
         ) : (
           <label className="fld">
@@ -305,16 +317,16 @@ export default function TTS() {
               <div className="tts-grid">
                 <div className="tts-col">
                   <span className="tts-col-h">{t('Dịch vụ')}</span>
-                  <div><b>{p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}</div>
+                  <div><b>{p.builtin ? t(p.name) : p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}</div>
                   <p className="note">
-                    {p.kind === 'elevenlabs' ? 'ElevenLabs' : p.kind === 'http' ? t('API tự định nghĩa') : t('Lệnh trên máy')}
-                    {p.kind !== 'command' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
+                    {(KIND_LABEL[p.kind] || KIND_LABEL.command)(t)}
+                    {p.kind === 'elevenlabs' || p.kind === 'http' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
                   </p>
                 </div>
                 <div className="tts-col">
                   <span className="tts-col-h">{t('Quyền của khóa')}</span>
                   {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} />
-                    : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : t('Không áp dụng')}</p>}
+                    : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : p.kind === 'vieneu' ? t('Không cần khóa') : t('Không áp dụng')}</p>}
                 </div>
                 <div className="tts-col">
                   <span className="tts-col-h">{t('Gói & chi phí')}</span>
@@ -324,7 +336,7 @@ export default function TTS() {
                   <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>
                   {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
                   <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
-                  <button type="button" className="btn sm" onClick={() => { if (window.confirm(t('Xóa giọng đọc này (và khóa API đã lưu)?'))) act(() => api.ttsRemove(p.id), t('Đã xóa.')); }}>{t('Xóa')}</button>
+                  {p.builtin ? null : <button type="button" className="btn sm" onClick={() => { if (window.confirm(t('Xóa giọng đọc này (và khóa API đã lưu)?'))) act(() => api.ttsRemove(p.id), t('Đã xóa.')); }}>{t('Xóa')}</button>}
                 </div>
               </div>
               {audio?.id === p.id ? (
@@ -346,7 +358,7 @@ export default function TTS() {
           </div>
         </Modal>
       ) : null}
-      {edit ? <Editor key={edit.id || edit.kind} init={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} /> : null}
+      {edit ? <Editor key={edit.id || edit.kind} init={edit} vieneuVoices={data?.vieneuVoices} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} /> : null}
     </>
   );
 }

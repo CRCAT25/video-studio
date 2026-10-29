@@ -455,11 +455,11 @@ function StepPage({ projectId, stepKey }) {
   };
 
 
-  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false) => {
+  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = false) => {
     setBusy('run');
     setActionErr(null);
     try {
-      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply });
+      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply, free });
       setCostAsk(null);
       if (fb) setFeedback('');
       setSelRunId(null);
@@ -952,6 +952,7 @@ function StepPage({ projectId, stepKey }) {
           busy={busy === 'run'}
           onClose={() => setCostAsk(null)}
           onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce, !!costAsk.reply)}
+          onFree={() => doRun(costAsk.feedback, false, costAsk.allowOnce, !!costAsk.reply, true)}
         />
       ) : null}
     </>

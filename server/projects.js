@@ -378,7 +378,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
   }
 
   // Kiểm bước có chạy được không (§5, §8.4.1): {ok:true} hoặc {ok:false, status, code, message[, cost]}. Lock do runner kiểm.
-  function canRun(id, key, { allowPaid } = {}) {
+  function canRun(id, key, { allowPaid, free = false } = {}) {
     const p = store.getProject(id);
     if (!p) return { ok: false, status: 404, code: 'not_found', message: `Không tìm thấy dự án "${id}".` };
     const s = store.getStep(id, key);
@@ -411,7 +411,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
     if (blocker) {
       return { ok: false, status: 409, code: 'not_runnable', message: `Bước trước chưa xong: "${blocker.name}".` };
     }
-    if (ps.cost && ps.cost.always_ask && allowPaid !== true) {
+    if (ps.cost && ps.cost.always_ask && allowPaid !== true && !(free === true && ps.cost.free_fallback)) {
       const est = estimateCost(id, key);
       return {
         ok: false,
@@ -424,6 +424,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
           always_ask: true,
           estimate_value: est ? est.estimate_value : null,
           unit: est ? est.unit : '',
+          ...(ps.cost.free_fallback ? { free_fallback: ps.cost.free_fallback } : {}),
         },
       };
     }
@@ -431,9 +432,9 @@ export function createProjects({ store, presets, channels, home } = {}) {
   }
 
   // Bắt đầu lượt (transaction): kiểm lại canRun, tạo run 'running', đổi state bước/dự án, rerun → bước sau stale/pending.
-  function beginRun(id, key, { prompt = null, feedback = null, allowPaid = false } = {}) {
+  function beginRun(id, key, { prompt = null, feedback = null, allowPaid = false, free = false } = {}) {
     const run = store.tx(() => {
-      const chk = canRun(id, key, { allowPaid });
+      const chk = canRun(id, key, { allowPaid, free });
       if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
       const s = store.getStep(id, key);
       const prev = s.state;
@@ -920,6 +921,7 @@ export function createProjects({ store, presets, channels, home } = {}) {
       if (!ps || !ps.cost) return null;
       const expr = ps.cost.estimate == null ? null : String(ps.cost.estimate);
       base = { service: ps.cost.service, estimate: expr, estimate_value: null, unit: ps.cost.unit ?? '' };
+      if (ps.cost.free_fallback) base.free_fallback = ps.cost.free_fallback;
       if (expr == null) return base;
       const unquote = (s) => s.trim().replace(/^(['"])(.*)\1$/, '$2');
       let m;

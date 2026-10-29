@@ -171,12 +171,13 @@ export const api = {
   setStepModel: (id, key, model) => request('PUT', `${stepPath(id, key)}/model`, { model }),
   defaultModel: () => request('GET', '/api/settings/model'),
   setDefaultModel: (model) => request('PUT', '/api/settings/model', { model }),
-  runStep: (id, key, { feedback, allowPaid, allowOnce, reply } = {}) => {
+  runStep: (id, key, { feedback, allowPaid, allowOnce, reply, free } = {}) => {
     const body = {};
     if (feedback) body.feedback = feedback;
     if (allowPaid) body.allowPaid = true;
     if (allowOnce?.length) body.allowOnce = allowOnce;
     if (reply) body.reply = true;
+    if (free) body.free = true;
     return request('POST', `${stepPath(id, key)}/run`, body);
   },
   distillStep: (id, key, { signal, scope } = {}) => request('POST', `${stepPath(id, key)}/distill`, scope ? { scope } : {}, { signal }),
