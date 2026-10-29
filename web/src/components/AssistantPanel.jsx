@@ -2,7 +2,7 @@
 // Hook useAssistant đặt ở Shell để lệnh từ trợ lý vẫn chạy khi sidebar đang đóng.
 import { DRAG_TYPE, MAX_IMAGES, SEND_MAX_FILES, SEND_MAX_IMAGES, droppedFolders, folderAttachment, fromUrl, isTextFile, textAttachment, textFromUrl, toAttachment } from '../lib/chatImages.js';
 import { useFocus } from '../lib/focus.js';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
@@ -320,12 +320,45 @@ const EFFORT_OPTS = [
   ...['low', 'medium', 'high', 'xhigh', 'max'].map((v) => ({ value: v, label: v })),
 ];
 
+// short = nhãn ngắn khi thanh chọn hẹp, chữ đầy đủ sẽ bị xuống dòng
 const MODE_OPTS = [
-  { value: 'page', label: T('Chỉ thao tác trang') },
-  { value: 'plan', label: T('Lập kế hoạch') },
-  { value: 'ask', label: T('Hỏi trước khi sửa') },
-  { value: 'edit', label: T('Tự sửa file') },
+  { value: 'page', label: T('Chỉ thao tác trang'), short: T('Trang') },
+  { value: 'plan', label: T('Lập kế hoạch'), short: T('Kế hoạch') },
+  { value: 'ask', label: T('Hỏi trước khi sửa'), short: T('Hỏi trước') },
+  { value: 'edit', label: T('Tự sửa file'), short: T('Tự sửa') },
 ];
+
+// Thanh chọn dưới ô chat: đủ chỗ thì chữ đầy đủ, chữ đầy đủ bị xuống dòng thì trả về true để dùng nhãn ngắn.
+function useTight(ref) {
+  const [tight, setTight] = useState(false);
+  const fullW = useRef(0);
+  const check = useCallback(() => {
+    const el = ref.current;
+    const row = el?.parentElement;
+    if (!row) return;
+    const kids = [...el.children].filter((k) => k.offsetParent !== null);
+    if (!kids.length) return;
+    if (!tight) {
+      if (kids.some((k) => k.offsetTop !== kids[0].offsetTop)) {
+        const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+        fullW.current = kids.reduce((w, k) => w + k.offsetWidth, 0) + gap * (kids.length - 1);
+        setTight(true);
+      }
+      return;
+    }
+    const rest = [...row.children].filter((k) => k !== el).reduce((w, k) => w + k.offsetWidth, 0);
+    if (row.clientWidth - rest - 8 >= fullW.current) setTight(false);
+  }, [ref, tight]);
+  useLayoutEffect(check);
+  useEffect(() => {
+    const row = ref.current?.parentElement;
+    if (!row || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(check);
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [ref, check]);
+  return tight;
+}
 const UI_CMDS = ['resume', 'export', 'memory', 'mcp'];
 
 // Cuộc chat → markdown để lưu ra tệp.
@@ -382,6 +415,8 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const [imgs, setImgs] = useState([]); // ảnh đính kèm chờ gửi
   const [over, setOver] = useState(false);
   const fileIn = useRef(null);
+  const optsRef = useRef(null);
+  const tight = useTight(optsRef);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState(null);
   const list = useRef(null);
@@ -825,7 +860,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
             }}
           />
           <div className="ai-box-row">
-            <div className="ai-opts">
+            <div className="ai-opts" ref={optsRef}>
             <input ref={fileIn} type="file" accept="image/*,text/*,.md,.json,.srt,.vtt,.csv,.log,.yaml,.yml" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
             <button type="button" className="ai-clip" aria-label={t('Đính kèm ảnh hoặc tệp chữ')} title={t('Đính kèm ảnh hoặc tệp chữ')} disabled={!ready || busy || loggedIn === false || imgs.length >= MAX_IMAGES} onClick={() => fileIn.current?.click()}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -835,7 +870,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
               <Select
                 size="sm"
                 value=""
-                display={`${t((MODEL_OPTS.find((o) => o.value === (data?.model || '')) || MODEL_OPTS[0]).label)} · ${t((EFFORT_OPTS.find((o) => o.value === (data?.effort || '')) || EFFORT_OPTS[0]).label)}`}
+                display={tight ? t('Model') : `${t((MODEL_OPTS.find((o) => o.value === (data?.model || '')) || MODEL_OPTS[0]).label)} · ${t((EFFORT_OPTS.find((o) => o.value === (data?.effort || '')) || EFFORT_OPTS[0]).label)}`}
                 selected={(v) => v === `m:${data?.model || ''}` || v === `e:${data?.effort || ''}`}
                 options={[
                   ...MODEL_OPTS.map((o) => ({ value: `m:${o.value}`, label: t(o.label), group: t('Model') })),
@@ -845,7 +880,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
                 disabled={!ready || busy}
                 onChange={(v) => act(() => a.settings(v.startsWith('m:') ? { model: v.slice(2) || null } : { effort: v.slice(2) || null }))}
               />
-              <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ ...o, label: t(o.label) }))} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
+              <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ value: o.value, label: t(o.label) }))} display={tight ? t((MODE_OPTS.find((o) => o.value === mode) || MODE_OPTS[0]).short) : undefined} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
             </div>
             {ready && data?.context?.tokens ? <span className={`ai-ctx${ctxPct >= 80 ? ' hot' : ''}`} title={t('Ngữ cảnh đã dùng — tự nén khi đạt 80%')}>{ctxPct}%</span> : null}
             {text.length > 300 ? <span className="ai-ctx" title={t('Ước tính token của tin nhắn này (chưa tính ngữ cảnh đã có)')}>{t('≈{n} token', { n: Math.ceil(text.length / 3) })}</span> : null}
