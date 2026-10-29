@@ -12,6 +12,7 @@ import { api } from '../api.js';
 import { useT } from '../lib/i18n.jsx';
 import { fmtBytes, fmtDateTime } from '../lib/format.js';
 import { HINTS } from '../lib/aiHints.js';
+import BrainMap from './BrainMap.jsx';
 
 const NESTED = new Set(['Kênh', 'Bước làm video']);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,40}$/;
@@ -202,6 +203,11 @@ function RootNode({ root, branches, readers, onEdit, onDelete }) {
   );
 }
 
+// Kiểu xem đã chọn lần trước (mặc định là cây).
+function readView() {
+  try { return localStorage.getItem('vs-brain-view') === 'map' ? 'map' : 'tree'; } catch { return 'tree'; }
+}
+
 // rev: App tăng mỗi khi server báo bộ não đổi (SSE 'brain') → trang tải lại.
 export default function Brain({ rev = 0 }) {
   const t = useT();
@@ -211,6 +217,14 @@ export default function Brain({ rev = 0 }) {
   const [modal, setModal] = useState(null); // {kind:'add'|'edit'|'accept', ...}
   const [confirm, setConfirm] = useState(null); // {title, body, okLabel, danger, onOk}
   const [compact, setCompact] = useState(false);
+  const [view, setView] = useState(readView); // 'tree' | 'map', nhớ theo trình duyệt
+  const mapLabel = useCallback((r) => rootLabel(r, t), [t]);
+
+  // Đổi kiểu xem Cây/Sơ đồ và nhớ lại cho lần sau.
+  const pickView = (v) => {
+    setView(v);
+    try { localStorage.setItem('vs-brain-view', v); } catch { /* trình duyệt chặn lưu thì thôi */ }
+  };
 
   const load = useCallback(() => {
     api.brain().then((d) => { setData(d); setErr(null); }).catch((e) => setErr(e));
@@ -239,6 +253,11 @@ export default function Brain({ rev = 0 }) {
           <p className="note">{t('Những điều app đã học về bạn: sở thích, quy tắc, bài học. Trợ lý và các bước video đọc bộ não trước khi làm; mục mới chỉ vào khi bạn duyệt.')}</p>
         </div>
         <div className="br-top-acts">
+          <div className="seg" role="radiogroup" aria-label={t('Kiểu xem')}>
+            {[['tree', t('Cây')], ['map', t('Sơ đồ')]].map(([v, l]) => (
+              <button key={v} type="button" role="radio" aria-checked={view === v} className={view === v ? 'on' : ''} onClick={() => pickView(v)}>{l}</button>
+            ))}
+          </div>
           <button type="button" className="btn sm" onClick={load}>{t('Tải lại')}</button>
           <button type="button" className="btn sm" onClick={() => setCompact(true)} disabled={!data?.items}>{t('Nén')}</button>
           <button type="button" className="btn sm primary" onClick={() => setModal({ kind: 'add' })} disabled={!data || data.level === 'full'}>{t('+ Thêm ghi nhớ')}</button>
@@ -295,6 +314,9 @@ export default function Brain({ rev = 0 }) {
             </section>
           ) : null}
 
+          {view === 'map' ? (
+            <BrainMap data={data} rootLabel={mapLabel} onEdit={(it) => setModal({ kind: 'edit', id: it.id, init: { branch: it.branch, text: it.text } })} />
+          ) : (
           <section className="br-tree" aria-label={t('Cây ghi nhớ')}>
             {data.roots.map((r) => (
               <RootNode
@@ -320,6 +342,7 @@ export default function Brain({ rev = 0 }) {
               </ul>
             </details>
           </section>
+          )}
 
           <details className="card pad bp-more br-log">
             <summary>{t('Lịch sử thay đổi ({n})', { n: data.history.length })}</summary>

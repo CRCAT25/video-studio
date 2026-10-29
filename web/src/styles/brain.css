@@ -35,3 +35,25 @@
 .br-preview ul{margin:4px 0 12px;padding-left:18px}
 .br-preview > div:last-child ul{margin-bottom:0}
 .ai-fb{display:flex;justify-content:flex-end;margin-top:6px}
+.br-top-acts .seg button{height:22px}
+.br-map{display:flex;flex-direction:column;overflow:hidden}
+.br-map-bar{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+.br-map-bar .hint{margin:0;min-width:0}
+.br-map-view{position:relative;height:70vh;min-height:320px;background:var(--surface-2);touch-action:none;cursor:grab;user-select:none}
+.br-map-view:active{cursor:grabbing}
+.br-map-svg{display:block}
+.br-edge{fill:none;stroke:var(--line-2);stroke-width:1.5}
+.br-n rect{fill:var(--surface);stroke:var(--line);stroke-width:1}
+.br-n text{fill:var(--text);font:400 13px var(--f-ui)}
+.br-n .br-n-count{fill:var(--muted);font-size:12px}
+.br-n[role="button"]{cursor:pointer}
+.br-n[role="button"]:hover rect{stroke:var(--accent)}
+.br-n[role="button"]:focus{outline:none}
+.br-n[role="button"]:focus-visible rect{stroke:var(--accent);stroke-width:2}
+.br-n-center rect{fill:var(--accent-bg);stroke:var(--accent-bg)}
+.br-n-center text{fill:var(--accent-ink);font-weight:600;font-size:16px}
+.br-n-root rect{fill:var(--surface);stroke:var(--line-2);stroke-width:1.5}
+.br-n-root text{font-weight:600}
+.br-n-sub rect{stroke:var(--line-2)}
+.br-n.closed rect{stroke-dasharray:4 3}
+.br-n.empty{opacity:.5}
