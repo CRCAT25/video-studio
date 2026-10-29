@@ -320,12 +320,11 @@ const EFFORT_OPTS = [
   ...['low', 'medium', 'high', 'xhigh', 'max'].map((v) => ({ value: v, label: v })),
 ];
 
-// short = nhãn ngắn khi thanh chọn hẹp, chữ đầy đủ sẽ bị xuống dòng
 const MODE_OPTS = [
-  { value: 'page', label: T('Chỉ thao tác trang'), short: T('Trang') },
-  { value: 'plan', label: T('Lập kế hoạch'), short: T('Kế hoạch') },
-  { value: 'ask', label: T('Hỏi trước khi sửa'), short: T('Hỏi trước') },
-  { value: 'edit', label: T('Tự sửa file'), short: T('Tự sửa') },
+  { value: 'page', label: T('Chỉ thao tác trang') },
+  { value: 'plan', label: T('Lập kế hoạch') },
+  { value: 'ask', label: T('Hỏi trước khi sửa') },
+  { value: 'edit', label: T('Tự sửa file') },
 ];
 
 // Thanh chọn dưới ô chat: đủ chỗ thì chữ đầy đủ, chữ đầy đủ bị xuống dòng thì trả về true để dùng nhãn ngắn.
@@ -880,7 +879,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
                 disabled={!ready || busy}
                 onChange={(v) => act(() => a.settings(v.startsWith('m:') ? { model: v.slice(2) || null } : { effort: v.slice(2) || null }))}
               />
-              <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ value: o.value, label: t(o.label) }))} display={tight ? t((MODE_OPTS.find((o) => o.value === mode) || MODE_OPTS[0]).short) : undefined} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
+              <Select size="sm" value={mode} options={MODE_OPTS.map((o) => ({ value: o.value, label: t(o.label) }))} display={tight ? t('Quyền') : undefined} label={t('Chế độ')} disabled={!ready || busy} onChange={(v) => act(() => a.settings({ mode: v }))} />
             </div>
             {ready && data?.context?.tokens ? <span className={`ai-ctx${ctxPct >= 80 ? ' hot' : ''}`} title={t('Ngữ cảnh đã dùng — tự nén khi đạt 80%')}>{ctxPct}%</span> : null}
             {text.length > 300 ? <span className="ai-ctx" title={t('Ước tính token của tin nhắn này (chưa tính ngữ cảnh đã có)')}>{t('≈{n} token', { n: Math.ceil(text.length / 3) })}</span> : null}
