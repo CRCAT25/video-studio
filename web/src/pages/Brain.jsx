@@ -1,0 +1,367 @@
+// Trang Bộ não: cây ghi nhớ dùng chung giữa bạn, trợ lý và các bước video (brain.md).
+// Xem dung lượng, duyệt đề xuất, sửa/xóa từng mục, nén khi đầy, khôi phục bản sao lưu.
+import { useCallback, useEffect, useState } from 'react';
+import Modal from '../components/Modal.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
+import Select from '../components/Select.jsx';
+import Progress from '../components/Progress.jsx';
+import Req from '../components/Req.jsx';
+import { Sk, SkZone } from '../components/Skeleton.jsx';
+import { useToast } from '../components/Toast.jsx';
+import { api } from '../api.js';
+import { useT } from '../lib/i18n.jsx';
+import { fmtBytes, fmtDateTime } from '../lib/format.js';
+import { HINTS } from '../lib/aiHints.js';
+
+const NESTED = new Set(['Kênh', 'Bước làm video']);
+const SLUG = /^[a-z0-9][a-z0-9-]{0,40}$/;
+
+// Nhãn nguồn của một mục (ai đã đưa vào bộ não).
+function srcLabel(src, t) {
+  return { user: t('Bạn'), assistant: t('Trợ lý'), step: t('Bước video'), feedback: t('Góp ý 👎'), style: t('Phong cách'), compact: t('Bản nén') }[src] || src;
+}
+
+// Tên gốc của cây theo ngôn ngữ đang chọn (khóa vẫn là tên tiếng Việt trong brain.md).
+function rootLabel(r, t) {
+  return { Chung: t('Chung'), 'Phong cách': t('Phong cách'), 'Cách dùng app': t('Cách dùng app'), Kênh: t('Kênh'), 'Bước làm video': t('Bước làm video'), 'Bài học': t('Bài học'), 'Chưa phân loại': t('Chưa phân loại') }[r] || r;
+}
+
+// Nhãn loại thay đổi trong lịch sử.
+function kindLabel(kind, t) {
+  return { add: t('Thêm mục'), edit: t('Sửa mục'), delete: t('Xóa mục'), compact: t('Nén'), restore: t('Khôi phục'), style: t('Phong cách') }[kind] || kind;
+}
+
+// Tách "Kênh/goc-kham-pha" → {root, sub}.
+function splitPath(p) {
+  const i = p.indexOf('/');
+  return i < 0 ? { root: p, sub: '' } : { root: p.slice(0, i), sub: p.slice(i + 1) };
+}
+
+// Hộp thêm/sửa một ghi nhớ (dùng cả cho "Sửa rồi nhận" đề xuất): chọn nhánh + nội dung.
+function ItemModal({ title, okLabel, roots, init, onSave, onClose }) {
+  const t = useT();
+  const start = splitPath(init?.branch || 'Chung');
+  const [root, setRoot] = useState(start.root);
+  const [sub, setSub] = useState(start.sub);
+  const [text, setText] = useState(init?.text || '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const nested = NESTED.has(root);
+  const subOk = !nested || SLUG.test(sub.trim());
+  const ok = text.trim() && subOk;
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSave({ branch: nested ? `${root}/${sub.trim()}` : root, text: text.trim() });
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={title} onClose={onClose} busy={busy}>
+      <Select label={t('Nhánh')} value={root} onChange={setRoot} disabled={busy} options={roots.map((r) => ({ value: r, label: rootLabel(r, t) }))} />
+      {nested ? (
+        <label className="fld">
+          <span>{root === 'Kênh' ? t('Mã kênh') : t('Mã bước')}<Req /></span>
+          <input value={sub} onChange={(e) => setSub(e.target.value.toLowerCase())} disabled={busy} placeholder={root === 'Kênh' ? 'goc-kham-pha' : 'kich-ban'} spellCheck={false} />
+          <span className="hint">{t('Chữ thường không dấu, số và dấu gạch ngang.')}</span>
+        </label>
+      ) : null}
+      <label className="fld">
+        <span>{t('Nội dung')}<Req /></span>
+        <textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} data-autofocus />
+        <span className="hint">{t('Mỗi mục một ý, viết ngắn và rõ.')}</span>
+      </label>
+      {err ? <div className="err-note" role="alert">{err}</div> : null}
+      <div className="modal-acts">
+        <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
+        <button type="button" className="btn primary" onClick={save} disabled={busy || !ok}>{okLabel}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// Hộp nén: gọi Claude (effort max) soạn bản gọn, cho xem trước rồi mới áp dụng.
+function CompactModal({ onClose, onDone }) {
+  const t = useT();
+  const toast = useToast();
+  const [stage, setStage] = useState('ask'); // ask | run | review
+  const [pv, setPv] = useState(null);
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setStage('run');
+    setErr(null);
+    try {
+      setPv(await api.brainCompact());
+      setStage('review');
+    } catch (e) {
+      setErr(e.message);
+      setStage('ask');
+    }
+  };
+  const apply = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.brainApply(pv.id);
+      toast(t('Đã nén bộ não — bản cũ được sao lưu.'), 'ok');
+      onDone();
+      onClose();
+    } catch (e) {
+      // 409: bộ não đổi trong lúc xem → phải nén lại; 404: bản nháp hết hạn.
+      setErr(e.message);
+      if (e.status === 409 || e.status === 404) setStage('ask');
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={t('Nén bộ não')} onClose={onClose} busy={busy || stage === 'run'} wide>
+      {stage === 'ask' ? <p>{t('Claude (mức suy nghĩ cao nhất) sẽ gộp mục trùng, bỏ mục lỗi thời và viết gọn lại. Bước này tốn token của gói Claude; bạn xem trước bản nén rồi mới quyết định áp dụng.')}</p> : null}
+      {stage === 'run' ? <Progress label={t('Claude đang nén bộ não…')} /> : null}
+      {stage === 'review' && pv ? (
+        <>
+          <p className="note">
+            {t('Từ {a} còn {b}.', { a: fmtBytes(pv.before), b: fmtBytes(pv.after) })} {pv.summary}
+          </p>
+          <div className="br-preview">
+            {pv.branches.map((b) => (
+              <div key={b.path}>
+                <b>{b.path}</b>
+                <ul>
+                  {b.items.map((it) => (
+                    <li key={it.id}>{it.text}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {err ? <div className="err-note" role="alert">{err}</div> : null}
+      <div className="modal-acts">
+        <button type="button" className="btn" onClick={onClose} disabled={busy || stage === 'run'}>{t('Hủy')}</button>
+        {stage === 'review' ? (
+          <button type="button" className="btn primary" onClick={apply} disabled={busy}>{t('Áp dụng')}</button>
+        ) : (
+          <button type="button" className="btn primary" onClick={run} disabled={stage === 'run'}>{t('Bắt đầu nén')}</button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// Một mục trong cây: nội dung + nguồn/ngày + Sửa/Xóa.
+function Item({ it, onEdit, onDelete }) {
+  const t = useT();
+  return (
+    <li className="br-item">
+      <div className="br-text">{it.text}</div>
+      <div className="br-meta">
+        <span className="muted">{srcLabel(it.src, t)}{it.at ? ` · ${it.at}` : ''}{it.from ? ` · ${it.from}` : ''}</span>
+        <span className="br-acts">
+          <button type="button" className="btn sm ghost" onClick={() => onEdit(it)}>{t('Sửa')}</button>
+          <button type="button" className="btn sm ghost" onClick={() => onDelete(it)}>{t('Xóa')}</button>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+// Một gốc của cây: các mục trực tiếp, và (Kênh / Bước làm video) các nhánh con.
+function RootNode({ root, branches, readers, onEdit, onDelete }) {
+  const t = useT();
+  const own = branches.filter((b) => b.path === root);
+  const subs = branches.filter((b) => b.path.startsWith(`${root}/`));
+  const count = [...own, ...subs].reduce((n, b) => n + b.items.length, 0);
+  const who = [readers.assistant.includes(root) ? t('Trợ lý') : null, readers.step.includes(root) ? t('Bước video') : null].filter(Boolean);
+  return (
+    <details className="br-node card" open={count > 0}>
+      <summary>
+        <b>{rootLabel(root, t)}</b>
+        <span className="muted"> · {t('{n} mục', { n: count })}{who.length ? ` · ${t('đọc bởi: {w}', { w: who.join(', ') })}` : ''}</span>
+      </summary>
+      {!count ? <p className="note">{t('Chưa có ghi nhớ nào ở nhánh này.')}</p> : null}
+      {own.map((b) => (
+        <ul key={b.path} className="br-items">
+          {b.items.map((it) => <Item key={it.id} it={{ ...it, branch: b.path }} onEdit={onEdit} onDelete={onDelete} />)}
+        </ul>
+      ))}
+      {subs.map((b) => (
+        <div key={b.path} className="br-sub">
+          <div className="br-sub-h mono">{splitPath(b.path).sub} <span className="muted">· {b.items.length}</span></div>
+          <ul className="br-items">
+            {b.items.map((it) => <Item key={it.id} it={{ ...it, branch: b.path }} onEdit={onEdit} onDelete={onDelete} />)}
+          </ul>
+        </div>
+      ))}
+    </details>
+  );
+}
+
+// rev: App tăng mỗi khi server báo bộ não đổi (SSE 'brain') → trang tải lại.
+export default function Brain({ rev = 0 }) {
+  const t = useT();
+  const toast = useToast();
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState(null);
+  const [modal, setModal] = useState(null); // {kind:'add'|'edit'|'accept', ...}
+  const [confirm, setConfirm] = useState(null); // {title, body, okLabel, danger, onOk}
+  const [compact, setCompact] = useState(false);
+
+  const load = useCallback(() => {
+    api.brain().then((d) => { setData(d); setErr(null); }).catch((e) => setErr(e));
+  }, []);
+  useEffect(load, [load, rev]);
+
+  const act = async (fn, msg) => {
+    try {
+      await fn();
+      if (msg) toast(msg, 'ok');
+      load();
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+  };
+
+  const pct = data ? Math.min(100, (data.bytes / data.max) * 100) : 0;
+  const bar = data ? { ok: 'q-ok', warn: 'q-wait', full: 'q-err' }[data.level] : 'q-ok';
+  const hints = Object.entries(HINTS);
+
+  return (
+    <>
+      <div className="page-h" data-ai-help="brain">
+        <div>
+          <h1>{t('Bộ não')}</h1>
+          <p className="note">{t('Những điều app đã học về bạn: sở thích, quy tắc, bài học. Trợ lý và các bước video đọc bộ não trước khi làm; mục mới chỉ vào khi bạn duyệt.')}</p>
+        </div>
+        <div className="br-top-acts">
+          <button type="button" className="btn sm" onClick={load}>{t('Tải lại')}</button>
+          <button type="button" className="btn sm" onClick={() => setCompact(true)} disabled={!data?.items}>{t('Nén')}</button>
+          <button type="button" className="btn sm primary" onClick={() => setModal({ kind: 'add' })} disabled={!data || data.level === 'full'}>{t('+ Thêm ghi nhớ')}</button>
+        </div>
+      </div>
+      {err ? <div className="err-note" role="alert">{t('Không tải được bộ não:')} {err.message}</div> : null}
+      {!data && !err ? (
+        <SkZone className="bp-list" label={t('Đang tải bộ não')}>
+          <div className="card pad"><Sk w="12em" /><Sk w="24em" /></div>
+        </SkZone>
+      ) : null}
+      {data ? (
+        <div className="br-page">
+          <section className="card pad br-stats">
+            <div className="br-cap">
+              <b>{t('Dung lượng')}</b>
+              <span className="muted">{fmtBytes(data.bytes)} / {fmtBytes(data.max)} · {t('{n} ghi nhớ', { n: data.items })}</span>
+            </div>
+            <div className={`quota-bar br-bar ${bar}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label={t('Dung lượng bộ não')}>
+              <span style={{ width: `${pct}%` }} />
+            </div>
+            {data.level === 'warn' ? <p className="note">{t('Bộ não sắp đầy — nên bấm "Nén" để gọn lại.')}</p> : null}
+            {data.level === 'full' ? <div className="err-note" role="alert">{t('Bộ não đã đầy: không nhận thêm ghi nhớ cho tới khi bạn nén hoặc xóa bớt.')}</div> : null}
+            {Object.keys(data.bySrc).length ? (
+              <div className="br-chips">
+                {Object.entries(data.bySrc).map(([s, n]) => (
+                  <span key={s} className="chip">{srcLabel(s, t)}<span className="n">{n}</span></span>
+                ))}
+              </div>
+            ) : null}
+            <p className="hint">
+              {t('Trợ lý đọc: {a}. Các bước video đọc: {b}.', { a: data.readers.assistant.map((r) => rootLabel(r, t)).join(', '), b: data.readers.step.map((r) => rootLabel(r, t)).join(', ') })}
+            </p>
+          </section>
+
+          {data.proposals.length ? (
+            <section className="card pad br-props" aria-label={t('Chờ duyệt')}>
+              <h2 className="sec-h">{t('Chờ duyệt')} <span className="badge">{data.proposals.length}</span></h2>
+              <ul className="br-items">
+                {data.proposals.map((p) => (
+                  <li key={p.id} className="br-item">
+                    <div className="br-text">{p.text}</div>
+                    <div className="br-meta">
+                      <span className="muted">{rootLabel(splitPath(p.branch).root, t)}{splitPath(p.branch).sub ? `/${splitPath(p.branch).sub}` : ''} · {srcLabel(p.src, t)}{p.reason ? ` · ${p.reason}` : ''}</span>
+                      <span className="br-acts">
+                        <button type="button" className="btn sm primary" onClick={() => act(() => api.brainAccept(p.id), t('Đã nhận vào bộ não.'))}>{t('Nhận')}</button>
+                        <button type="button" className="btn sm" onClick={() => setModal({ kind: 'accept', id: p.id, init: { branch: p.branch, text: p.text } })}>{t('Sửa rồi nhận')}</button>
+                        <button type="button" className="btn sm ghost" onClick={() => act(() => api.brainReject(p.id))}>{t('Bỏ')}</button>
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <section className="br-tree" aria-label={t('Cây ghi nhớ')}>
+            {data.roots.map((r) => (
+              <RootNode
+                key={r}
+                root={r}
+                branches={data.branches}
+                readers={data.readers}
+                onEdit={(it) => setModal({ kind: 'edit', id: it.id, init: { branch: it.branch, text: it.text } })}
+                onDelete={(it) => setConfirm({ title: t('Xóa ghi nhớ?'), body: it.text, okLabel: t('Xóa'), danger: true, onOk: async () => { await api.brainRemove(it.id); load(); } })}
+              />
+            ))}
+            <details className="br-node card">
+              <summary>
+                <b>{t('Kiến thức gốc')}</b>
+                <span className="muted"> · {t('{n} mục', { n: hints.length })} · {t('có sẵn trong app, chỉ xem')}</span>
+              </summary>
+              <ul className="br-items">
+                {hints.map(([id, h]) => (
+                  <li key={id} className="br-item">
+                    <div className="br-text"><b>{h.title}</b> — {h.text}</div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+
+          <details className="card pad bp-more br-log">
+            <summary>{t('Lịch sử thay đổi ({n})', { n: data.history.length })}</summary>
+            {data.history.length ? (
+              <ul className="br-hist">
+                {[...data.history].reverse().slice(0, 60).map((h, i) => (
+                  <li key={`${h.at}-${i}`}>
+                    <span className="muted mono">{fmtDateTime(h.at)}</span> <b>{kindLabel(h.kind, t)}</b> {h.note}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="note">{t('Chưa có thay đổi nào.')}</p>}
+          </details>
+
+          <details className="card pad bp-more br-log">
+            <summary>{t('Bản sao lưu ({n})', { n: data.backups.length })}</summary>
+            {data.backups.length ? (
+              <ul className="br-hist">
+                {data.backups.map((b) => (
+                  <li key={b.name} className="br-bk">
+                    <span><span className="muted mono">{fmtDateTime(b.at)}</span> {b.reason ? kindLabel(b.reason, t) : ''} · {fmtBytes(b.bytes)}</span>
+                    <button type="button" className="btn sm" onClick={() => setConfirm({ title: t('Khôi phục bản sao lưu?'), body: t('Bộ não hiện tại sẽ được sao lưu trước, rồi thay bằng bản lúc {d}.', { d: fmtDateTime(b.at) }), okLabel: t('Khôi phục'), onOk: async () => { await api.brainRestore(b.name); toast(t('Đã khôi phục bộ não.'), 'ok'); load(); } })}>{t('Khôi phục')}</button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="note">{t('Chưa có bản sao lưu — app tự sao lưu trước mỗi lần nén hoặc khôi phục.')}</p>}
+            <p className="hint mono">{data.file}</p>
+          </details>
+        </div>
+      ) : null}
+
+      {modal?.kind === 'add' ? (
+        <ItemModal title={t('Thêm ghi nhớ')} okLabel={t('Lưu')} roots={data.roots} onClose={() => setModal(null)} onSave={async (b) => { await api.brainAdd(b.branch, b.text); toast(t('Đã thêm vào bộ não.'), 'ok'); load(); }} />
+      ) : null}
+      {modal?.kind === 'edit' ? (
+        <ItemModal title={t('Sửa ghi nhớ')} okLabel={t('Lưu')} roots={data.roots} init={modal.init} onClose={() => setModal(null)} onSave={async (b) => { await api.brainEdit(modal.id, b); load(); }} />
+      ) : null}
+      {modal?.kind === 'accept' ? (
+        <ItemModal title={t('Sửa rồi nhận')} okLabel={t('Nhận')} roots={data.roots} init={modal.init} onClose={() => setModal(null)} onSave={async (b) => { await api.brainAccept(modal.id, b); toast(t('Đã nhận vào bộ não.'), 'ok'); load(); }} />
+      ) : null}
+      {confirm ? <ConfirmModal {...confirm} onClose={() => setConfirm(null)} /> : null}
+      {compact ? <CompactModal onClose={() => setCompact(false)} onDone={load} /> : null}
+    </>
+  );
+}

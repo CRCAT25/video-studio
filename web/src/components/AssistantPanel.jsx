@@ -7,7 +7,9 @@ import { createPortal } from 'react-dom';
 import { api } from '../api.js';
 import { useSSE } from '../hooks/useSSE.js';
 import { runTool } from '../lib/pageAgent.js';
+import Modal from './Modal.jsx';
 import Progress from './Progress.jsx';
+import Req from './Req.jsx';
 import Select from './Select.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
 import { McpModal, MemoryModal } from './ClaudeFilesModal.jsx';
@@ -166,15 +168,59 @@ function Msg({ m }) {
   return <BotMsg text={m.text} />;
 }
 
+// 👎 một câu trả lời: người dùng ghi trợ lý nên làm khác thế nào → thành đề xuất chờ duyệt ở trang Bộ não.
+function FeedbackModal({ reply, onClose, onSent }) {
+  const t = useT();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const send = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const quote = String(reply || '').replace(/\s+/g, ' ').trim();
+      await api.brainPropose({ text: text.trim(), src: 'feedback', branch: 'Bài học', reason: quote.length > 120 ? `${quote.slice(0, 120)}…` : quote });
+      onSent();
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+  return createPortal(
+    <Modal title={t('Câu trả lời chưa đúng?')} lead={t('Ghi lại bài học — sau khi bạn duyệt ở trang Bộ não, trợ lý sẽ nhớ cho các lần sau.')} onClose={onClose} busy={busy}>
+      <label className="fld">
+        <span>{t('Lần sau trợ lý nên làm thế nào?')}<Req /></span>
+        <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} placeholder={t('Vd: Khi hỏi tiến độ, nói tên bước đang chờ trước rồi mới giải thích.')} data-autofocus />
+      </label>
+      {err ? <div className="err-note" role="alert">{err}</div> : null}
+      <div className="modal-acts">
+        <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
+        <button type="button" className="btn primary" onClick={send} disabled={busy || !text.trim()}>{t('Gửi vào Bộ não')}</button>
+      </div>
+    </Modal>,
+    document.body,
+  );
+}
+
 // Video trong tin nhắn (đường dẫn /media/…mp4) → nút bấm mở xem ngay, khỏi tìm file.
 const VIDEO_RE = /\/media\/[^\s`'"()<>]+?\.(?:mp4|mov|webm|m4v)/gi;
 function BotMsg({ text }) {
   const t = useT();
   const [open, setOpen] = useState(null);
+  const [fb, setFb] = useState(false); // false | 'open' | 'sent'
   const vids = [...new Set(String(text || '').match(VIDEO_RE) || [])];
   return (
     <div className="ai-msg ai-bot">
       {text}
+      {text ? (
+        <div className="ai-fb">
+          <button type="button" className="btn sm ghost" onClick={() => setFb('open')} disabled={fb === 'sent'} title={t('Câu trả lời chưa đúng — ghi bài học vào Bộ não')} aria-label={fb === 'sent' ? undefined : t('Câu trả lời chưa đúng')}>
+            {fb === 'sent' ? t('Đã gửi vào Bộ não') : '👎'}
+          </button>
+        </div>
+      ) : null}
+      {fb === 'open' ? <FeedbackModal reply={text} onClose={() => setFb((v) => (v === 'sent' ? v : false))} onSent={() => setFb('sent')} /> : null}
       {vids.length ? (
         <div className="ai-vids">
           {vids.map((u) => (

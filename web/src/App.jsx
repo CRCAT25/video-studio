@@ -13,6 +13,7 @@ import Step from './pages/Step.jsx';
 import Pipelines from './pages/Pipelines.jsx';
 import Channels, { ChannelDetail } from './pages/Channels.jsx';
 import Skills from './pages/Skills.jsx';
+import Brain from './pages/Brain.jsx';
 import TTS from './pages/TTS.jsx';
 import YouTubeSetup from './pages/YouTubeSetup.jsx';
 import { api } from './api.js';
@@ -152,6 +153,14 @@ function Shell() {
     if (account.last?.ok) setAccountOpen(false);
   }, [account, toast, loadDoctor]);
 
+  // Bộ não: số đề xuất chờ duyệt cho badge trên menu; rev tăng để trang Bộ não tải lại khi server báo đổi.
+  const [brainPending, setBrainPending] = useState(0);
+  const [brainRev, setBrainRev] = useState(0);
+  const loadBrain = useCallback(() => {
+    api.brain().then((d) => setBrainPending(d.proposals.length), () => {});
+  }, []);
+  useEffect(loadBrain, [loadBrain]);
+
   // Server gửi 'change' mỗi khi state đổi → gom lại 150 ms rồi tải lại số liệu tổng.
   useSSE((msg) => {
     if (msg.type === 'update') {
@@ -163,6 +172,11 @@ function Shell() {
       setAccount(msg.data);
       return;
     }
+    if (msg.type === 'brain' || msg.type === 'reconnect') {
+      loadBrain();
+      setBrainRev((n) => n + 1);
+    }
+    if (msg.type === 'brain') return;
     if ((msg.type === 'youtube' || msg.type === 'reconnect') && onChannelsRef.current) {
       clearTimeout(ytTimer.current);
       ytTimer.current = setTimeout(loadYoutube, 150);
@@ -202,7 +216,7 @@ function Shell() {
   }, [running]);
 
   useEffect(() => {
-    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio', tts: t('Giọng đọc · Video Studio') };
+    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio', brain: t('Bộ não · Video Studio'), tts: t('Giọng đọc · Video Studio') };
     if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
   }, [route.name, t]);
 
@@ -237,6 +251,8 @@ function Shell() {
     page = <Pipelines data={presetsData} error={presetsErr} channels={channels} onReload={loadPresets} onAskAI={assistant.prefill} aiBusy={!!assistant.data?.busy} />;
   } else if (route.name === 'tts') {
     page = <TTS />;
+  } else if (route.name === 'brain') {
+    page = <Brain rev={brainRev} />;
   } else if (route.name === 'skills') {
     page = <Skills onReloadPresets={loadPresets} />;
   } else if (route.name === 'channels') {
@@ -270,7 +286,7 @@ function Shell() {
 
   return (
     <>
-      <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} onReset={() => setResetOpen(true)} onAssistant={() => assistant.setOpen((v) => !v)} assistantOpen={assistant.open} usage={usage} />
+      <Header route={route} doctor={doctor} doctorError={doctorErr} stats={overview?.stats} brainPending={brainPending} sse={sse} theme={theme} onToggleTheme={toggleTheme} onAccount={() => setAccountOpen(true)} canLogout={canLogout} onLogout={logout} onReset={() => setResetOpen(true)} onAssistant={() => assistant.setOpen((v) => !v)} assistantOpen={assistant.open} usage={usage} />
       <DoctorBanner doctor={doctor} error={banner} onRefresh={() => Promise.all([loadDoctor(true), loadOverview()])} onAccount={() => setAccountOpen(true)} />
       <UpdateBanner u={update} running={running} />
       <main>{page}</main>

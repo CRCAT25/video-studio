@@ -1,4 +1,4 @@
-// Router hash tối giản: #/ (Tổng quan), #/p/:id/:key (Chi tiết bước), #/quy-trinh (Quy trình), #/channels, #/channels/setup, #/channels/:id, #/skills.
+// Router hash tối giản: #/ (Tổng quan), #/p/:id/:key (Chi tiết bước), #/quy-trinh (Quy trình), #/channels, #/channels/setup, #/channels/:id, #/skills, #/bo-nao.
 import { useEffect, useState } from 'react';
 
 function safeDecode(s) {
@@ -19,6 +19,7 @@ export function parseHash(hash) {
   if (parts[0] === 'quy-trinh' || parts[0] === 'presets') return { name: 'presets', params: {} };
   if (parts[0] === 'tts' && parts.length === 1) return { name: 'tts', params: {} };
   if (parts[0] === 'skills' && parts.length === 1) return { name: 'skills', params: {} };
+  if (parts[0] === 'bo-nao' && parts.length === 1) return { name: 'brain', params: {} };
   if (parts[0] === 'channels' && parts[1] === 'setup' && parts.length === 2) return { name: 'channelsSetup', params: {} };
   if (parts[0] === 'channels' && parts.length === 1) return { name: 'channels', params: {} };
   if (parts[0] === 'channels' && parts.length === 2) return { name: 'channel', params: { id: safeDecode(parts[1]) } };

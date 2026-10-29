@@ -53,6 +53,7 @@ function connect() {
     if (d) emit({ type: 'account', data: d });
   });
   es.addEventListener('youtube', () => emit({ type: 'youtube' }));
+  es.addEventListener('brain', () => emit({ type: 'brain' }));
   es.addEventListener('google-setup', () => emit({ type: 'google-setup' }));
   es.addEventListener('update', (ev) => {
     const d = parse(ev);
@@ -82,7 +83,7 @@ function connect() {
   };
 }
 
-// Đăng ký nhận sự kiện SSE ({type:'hello'|'change'|'log'|'account'|'youtube'|'google-setup'|'update'|'assistant'|'usage'|'reconnect', data}); trả hàm hủy.
+// Đăng ký nhận sự kiện SSE ({type:'hello'|'change'|'log'|'account'|'youtube'|'google-setup'|'update'|'assistant'|'usage'|'brain'|'reconnect', data}); trả hàm hủy.
 export function subscribeSSE(fn) {
   subs.add(fn);
   connect();

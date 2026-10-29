@@ -32,7 +32,7 @@ export const HINTS = {
   },
   pipelines: {
     title: 'Quy trình',
-    text: 'Quy trình là khung các bước dùng khi tạo dự án. "Tạo quy trình mới": trả lời từng phần rồi "Lưu quy trình". Ở "Quy trình của tôi": "Sửa" (quy trình của người dùng), "Xem chi tiết", menu ⋯ có Nhân bản / Xuất YAML / Nhờ AI sửa / Xóa. Sửa quy trình KHÔNG đổi dự án đã tạo — đổi bước của 1 dự án thì dùng "Sửa quy trình" ở trang bước. Menu "Thêm" → "Phong cách của tôi" là sở thích chung mà mọi bước AI đều đọc. Bật "Nâng cao" mới thấy lời dặn AI, model, YAML.',
+    text: 'Quy trình là khung các bước dùng khi tạo dự án. "Tạo quy trình mới": trả lời từng phần rồi "Lưu quy trình". Ở "Quy trình của tôi": "Sửa" (quy trình của người dùng), "Xem chi tiết", menu ⋯ có Nhân bản / Xuất YAML / Nhờ AI sửa / Xóa. Sửa quy trình KHÔNG đổi dự án đã tạo — đổi bước của 1 dự án thì dùng "Sửa quy trình" ở trang bước. Menu "Thêm" → "Phong cách của tôi" sửa nhánh "Phong cách" của Bộ não, mọi bước AI đều đọc. Bật "Nâng cao" mới thấy lời dặn AI, model, YAML.',
   },
   tts: {
     title: 'Giọng đọc',
@@ -49,5 +49,9 @@ export const HINTS = {
   skills: {
     title: 'Skills',
     text: 'Thư viện skill của app. Tick ô kênh trên bảng để gắn skill cho kênh; "Tất cả kênh" áp dụng cả kênh thêm sau. "Nhập skill" lấy từ máy, dán hoặc GitHub. Tab "Tìm skill": "Tìm nhanh" (AI, ít token), "Thảo luận" (AI hỏi lại vài câu), "Tìm rộng hơn trên web" (chậm, tốn token hơn).',
+  },
+  brain: {
+    title: 'Bộ não',
+    text: 'Cây ghi nhớ dùng chung (sở thích, quy tắc, bài học) mà trợ lý và các bước video đọc trước khi làm. Mục mới chỉ vào khi người dùng duyệt: muốn nhớ điều gì thì dùng công cụ đề xuất (brain_propose), KHÔNG tự bấm "Nhận"/"Sửa rồi nhận" thay người dùng. "+ Thêm ghi nhớ", "Sửa", "Xóa", "Khôi phục" chỉ làm khi người dùng yêu cầu rõ. "Nén" gọi Claude mức suy nghĩ cao nhất (tốn token) — hỏi trước khi bấm; "Áp dụng" bản nén là việc của người dùng.',
   },
 };

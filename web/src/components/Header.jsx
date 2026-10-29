@@ -12,8 +12,8 @@ function claudeStatus(doctor, doctorError, t) {
   return doctor.auth?.loggedIn ? { text: t('Đã đăng nhập'), lamp: 'ok', bad: false } : { text: t('Chưa đăng nhập'), lamp: 'err', bad: true };
 }
 
-// Thanh đầu trang; stats = {running, waiting}.
-export default function Header({ route, doctor, doctorError, stats, theme, onToggleTheme, onAccount, canLogout = false, onLogout, onReset, onAssistant, assistantOpen = false, usage = null }) {
+// Thanh đầu trang; stats = {running, waiting}; brainPending = số ghi nhớ chờ duyệt.
+export default function Header({ route, doctor, doctorError, stats, brainPending = 0, theme, onToggleTheme, onAccount, canLogout = false, onLogout, onReset, onAssistant, assistantOpen = false, usage = null }) {
   const t = useT();
   const waiting = stats?.waiting ?? 0;
   const onOverview = route.name === 'overview' || route.name === 'step';
@@ -46,6 +46,14 @@ export default function Header({ route, doctor, doctorError, stats, theme, onTog
           </a>
           <a href="#/tts" className={route.name === 'tts' ? 'on' : ''} aria-current={route.name === 'tts' ? 'page' : undefined}>
             {t('Giọng đọc')}
+          </a>
+          <a href="#/bo-nao" className={route.name === 'brain' ? 'on' : ''} aria-current={route.name === 'brain' ? 'page' : undefined}>
+            {t('Bộ não')}
+            {brainPending > 0 ? (
+              <span className="badge" title={t('{n} ghi nhớ chờ duyệt', { n: brainPending })}>
+                {brainPending}
+              </span>
+            ) : null}
           </a>
         </nav>
         <div className="top-right">
