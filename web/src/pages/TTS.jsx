@@ -245,6 +245,35 @@ function Plan({ p, i }) {
   );
 }
 
+// Hộp xác nhận xóa một giọng đọc (kèm khóa API đã lưu) — thay cho window.confirm.
+function RemoveModal({ p, onClose, onDone }) {
+  const t = useT();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const go = async () => {
+    setBusy(true);
+    try {
+      onDone(await api.ttsRemove(p.id));
+      toast(t('Đã xóa.'), 'ok');
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={t('Xóa giọng đọc "{n}"?', { n: p.name })} onClose={onClose} busy={busy}>
+      <p>{p.hasKey ? t('Giọng đọc này và khóa API đã lưu sẽ bị xóa khỏi máy. Muốn dùng lại phải thêm và nhập khóa lại.') : t('Giọng đọc này sẽ bị xóa khỏi máy.')}</p>
+      {err ? <div className="err-note" role="alert">{err}</div> : null}
+      <div className="modal-acts">
+        <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
+        <button type="button" className="btn danger" onClick={go} disabled={busy}>{t('Xóa')}</button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function TTS() {
   const t = useT();
   const toast = useToast();
@@ -252,6 +281,7 @@ export default function TTS() {
   const [err, setErr] = useState(null);
   const [edit, setEdit] = useState(null);
   const [kindPick, setKindPick] = useState(false);
+  const [removing, setRemoving] = useState(null);
   const [text, setText] = useState('');
   const [testing, setTesting] = useState(null);
   const [audio, setAudio] = useState(null);
@@ -343,7 +373,7 @@ export default function TTS() {
                           <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>
                           {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
                           <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
-                          {p.builtin ? null : <button type="button" className="btn sm" onClick={() => { if (window.confirm(t('Xóa giọng đọc này (và khóa API đã lưu)?'))) act(() => api.ttsRemove(p.id), t('Đã xóa.')); }}>{t('Xóa')}</button>}
+                          {p.builtin ? null : <button type="button" className="btn sm" onClick={() => setRemoving(p)}>{t('Xóa')}</button>}
                         </div>
                       </td>
                     </tr>
@@ -373,6 +403,7 @@ export default function TTS() {
           </div>
         </Modal>
       ) : null}
+      {removing ? <RemoveModal p={removing} onClose={() => setRemoving(null)} onDone={setData} /> : null}
       {edit ? <Editor key={edit.id || edit.kind} init={edit} vieneuVoices={data?.vieneuVoices} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} /> : null}
     </>
   );
