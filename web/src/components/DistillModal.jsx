@@ -92,7 +92,7 @@ export default function DistillModal({ projectId, stepKey, stepName, stepDone = 
 
   if (!started) {
     return (
-      <Modal title={t('Tạo skill')} lead={t('Chọn phạm vi — Claude viết bản nháp, bạn xem rồi mới lưu.')} onClose={onClose}>
+      <Modal title={t('Tạo skill')} lead={t('Chọn phạm vi — trợ lý viết bản nháp, bạn xem rồi mới lưu.')} onClose={onClose}>
         <div className="dst-scope" role="radiogroup">
           <label className={`dst-opt${stepDone ? '' : ' off'}`}>
             <input type="radio" name="scope" checked={scope === 'step'} disabled={!stepDone} onChange={() => setScope('step')} />
@@ -114,7 +114,7 @@ export default function DistillModal({ projectId, stepKey, stepName, stepDone = 
 
   const file = draft?.files.find((f) => f.path === sel);
   return (
-    <Modal title={t('Tạo skill')} lead={scope === 'project' ? t('Cả dự án — Claude viết bản nháp, bạn xem rồi mới lưu.') : t('Bước "{n}" — Claude viết bản nháp, bạn xem rồi mới lưu.', { n: stepName })} onClose={onClose} busy={saving} xwide>
+    <Modal title={t('Tạo skill')} lead={scope === 'project' ? t('Cả dự án — trợ lý viết bản nháp, bạn xem rồi mới lưu.') : t('Bước "{n}" — trợ lý viết bản nháp, bạn xem rồi mới lưu.', { n: stepName })} onClose={onClose} busy={saving} xwide>
       {err ? (
         <>
           <p className="err-note" role="alert">{err}</p>
@@ -126,7 +126,7 @@ export default function DistillModal({ projectId, stepKey, stepName, stepDone = 
       ) : !draft ? (
         <>
           <Progress value={((phase + 0.5) / PHASES.length) * 100} label={t('Bước {i}/{n}: {s}', { i: phase + 1, n: PHASES.length, s: t(PHASES[phase]) })} />
-          <p className="note">{t('Claude đang làm việc — có thể mất vài phút, tốn token gói Claude. Phần trăm chỉ là ước lượng theo giai đoạn.')}</p>
+          <p className="note">{t('Trợ lý đang làm việc — có thể mất vài phút, tốn token gói Claude. Phần trăm chỉ là ước lượng theo giai đoạn.')}</p>
         </>
       ) : (
         <>

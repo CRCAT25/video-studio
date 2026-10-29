@@ -56,7 +56,7 @@ const DEFAULT_MSG = {
   compact_none: T('Chưa có gì để nén — hãy trò chuyện trước.'),
   assistant_unavailable: T('Trợ lý AI chưa bật trên server này.'),
   usage_cooldown: T('Vừa kiểm tra — thử lại sau ít phút.'),
-  usage_timeout: T('Claude không trả lời kịp — thử lại sau.'),
+  usage_timeout: T('Trợ lý không trả lời kịp — thử lại sau.'),
   usage_unavailable: T('Chưa lấy được số liệu mức dùng.'),
 };
 

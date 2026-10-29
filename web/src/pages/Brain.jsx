@@ -160,8 +160,8 @@ function CompactModal({ onClose, onDone }) {
   };
   return (
     <Modal title={t('Nén bộ não')} onClose={onClose} busy={busy || stage === 'run'} wide>
-      {stage === 'ask' ? <p>{t('Claude (mức suy nghĩ cao nhất) sẽ gộp mục trùng, bỏ mục lỗi thời và viết gọn lại. Bước này tốn token của gói Claude; bạn xem trước bản nén rồi mới quyết định áp dụng.')}</p> : null}
-      {stage === 'run' ? <Progress label={t('Claude đang nén bộ não…')} /> : null}
+      {stage === 'ask' ? <p>{t('Trợ lý (mức suy nghĩ cao nhất) sẽ gộp mục trùng, bỏ mục lỗi thời và viết gọn lại. Bước này tốn token của gói Claude; bạn xem trước bản nén rồi mới quyết định áp dụng.')}</p> : null}
+      {stage === 'run' ? <Progress label={t('Trợ lý đang nén bộ não…')} /> : null}
       {stage === 'review' && pv ? (
         <>
           <p className="note">

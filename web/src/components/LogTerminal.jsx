@@ -235,13 +235,13 @@ export default function LogTerminal({ run, offline = false }) {
       <div className="term-h">
         <i className={`lamp ${lamp}`} />
         <span>
-          {t('Nhật ký Claude')} · {t('lượt')} {run?.n ?? '—'} · {onAir ? t('trực tiếp') : live ? t('mất kết nối — đang nối lại') : RUN_LABEL[run?.state] || run?.state || ''}
+          {t('Nhật ký trợ lý')} · {t('lượt')} {run?.n ?? '—'} · {onAir ? t('trực tiếp') : live ? t('mất kết nối — đang nối lại') : RUN_LABEL[run?.state] || run?.state || ''}
         </span>
         <span className="mono" title={runId || ''}>
           {t('{n} dòng', { n: fmtNum(s.list.length + s.hidden) })} · {runId ? runId.slice(0, 8) : ''}
         </span>
       </div>
-      <div ref={logRef} className="log" onScroll={onScroll} role="log" aria-live="off" aria-label={t('Nhật ký Claude')}>
+      <div ref={logRef} className="log" onScroll={onScroll} role="log" aria-live="off" aria-label={t('Nhật ký trợ lý')}>
         {s.hidden > 0 ? <div className="note-l">{t('… đã ẩn {a} dòng cũ (chỉ giữ {b} dòng gần nhất)', { a: fmtNum(s.hidden), b: fmtNum(CAP) })}</div> : null}
         {s.list.map((ev) => (
           <EventLine key={ev.seq} ev={ev} />
@@ -258,7 +258,7 @@ export default function LogTerminal({ run, offline = false }) {
           </SkZone>
         ) : null}
         {!loading && !error && s.list.length === 0 ? (
-          <div className="note-l">{live ? t('Đang chờ Claude gửi dòng đầu tiên…') : t('Lượt này không có dòng nhật ký nào.')}</div>
+          <div className="note-l">{live ? t('Đang chờ trợ lý gửi dòng đầu tiên…') : t('Lượt này không có dòng nhật ký nào.')}</div>
         ) : null}
         {error ? (
           <div className="note-l" role="alert">

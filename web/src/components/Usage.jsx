@@ -108,7 +108,7 @@ export function useUsage() {
       const { apiError, ...s } = await api.claudeUsageCheck(auto ? { auto: true } : {});
       setData(s);
       setError(null);
-      if (apiError) toast(tr('{e} — đã hỏi Claude thay (tốn vài nghìn token).', { e: apiError }), 'info', 6000);
+      if (apiError) toast(tr('{e} — đã hỏi trợ lý thay (tốn vài nghìn token).', { e: apiError }), 'info', 6000);
     } catch (e) {
       if (e.status === 503) setOff(true);
       else if (!auto) toast(e.message, 'err');

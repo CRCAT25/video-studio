@@ -103,7 +103,7 @@ export function buildPrompt(source, channelName = '') {
 export function sanitizeDraft(raw, { artifacts = [], existingNames = [], scope = 'step' } = {}) {
   let name = slugify(str(raw?.name, 80)).slice(0, 64);
   if (scope === 'project' && name && !name.endsWith('-project')) name = `${name.slice(0, 64 - 8)}-project`;
-  if (!name) throw new HttpError(502, 'distill_failed', 'Claude không đặt được tên skill — thử lại.');
+  if (!name) throw new HttpError(502, 'distill_failed', 'Trợ lý không đặt được tên skill — thử lại.');
   const files = [];
   const seen = new Set();
   for (const f of Array.isArray(raw?.files) ? raw.files : []) {
@@ -114,7 +114,7 @@ export function sanitizeDraft(raw, { artifacts = [], existingNames = [], scope =
     files.push({ path: rel, content: f.content });
     if (files.length >= MAX_DRAFT_FILES) break;
   }
-  if (!files.some((f) => f.path === 'SKILL.md' && f.content.trim())) throw new HttpError(502, 'distill_failed', 'Claude không viết được SKILL.md — thử lại.');
+  if (!files.some((f) => f.path === 'SKILL.md' && f.content.trim())) throw new HttpError(502, 'distill_failed', 'Trợ lý không viết được SKILL.md — thử lại.');
   const have = new Set(artifacts.map((a) => a.path));
   const samples = [...new Set((Array.isArray(raw?.samples) ? raw.samples : []).map((s) => str(s, 300)))].filter((s) => have.has(s) && IMAGE_EXT.test(s)).slice(0, 2);
   const upd = str(raw?.updates, 80);
@@ -156,7 +156,7 @@ export function createDistill({ claudeBin = 'claude', env = {}, timeoutMs = DIST
         } catch {
           /* đã thoát */
         }
-        end(new HttpError(504, 'distill_timeout', 'Claude đúc kết quá lâu — thử lại sau.'));
+        end(new HttpError(504, 'distill_timeout', 'Trợ lý đúc kết quá lâu — thử lại sau.'));
       }, timeoutMs);
       const out = createLineSplitter((line) => {
         try {
@@ -184,7 +184,7 @@ export function createDistill({ claudeBin = 'claude', env = {}, timeoutMs = DIST
         out.end();
         const so = result?.structured_output;
         if (so && typeof so === 'object' && !result.is_error) return end(null, so);
-        end(new HttpError(502, 'distill_failed', /not logged in|login/i.test(stderr) ? 'Claude chưa đăng nhập.' : 'Claude không trả bản nháp skill — thử lại.'));
+        end(new HttpError(502, 'distill_failed', /not logged in|login/i.test(stderr) ? 'Claude chưa đăng nhập.' : 'Trợ lý không trả bản nháp skill — thử lại.'));
       });
       child.stdin.end(prompt);
     });

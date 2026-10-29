@@ -246,7 +246,7 @@ function ResultBody({ run, live = false, grant = null, hideQuestions = false }) 
       {summary ? <p>{summary}</p> : !live && !run.error ? <p className="muted">{t('Lượt này không có tóm tắt.')}</p> : null}
       {questions.length && !hideQuestions ? (
         <>
-          <h3>{t('Claude hỏi')}</h3>
+          <h3>{t('Trợ lý hỏi')}</h3>
           <ul>
             {questions.map((q, i) => (
               <li key={i}>{String(q)}</li>
@@ -319,7 +319,7 @@ function QAStepper({ questions, suggestions, paid, busy, disabled, onSend, onRer
         <span className="acts">
           {last ? (
             <>
-              <button type="button" className={`btn sm ${paid ? 'paid' : 'primary'}`} disabled={!!busy || disabled || !cur} onClick={() => onSend(compose())} title={t('Chỉ gửi câu trả lời, Claude tiếp tục từ chỗ đang dừng (ít tốn token)')}>{paid ? '$ ' : ''}{t('Gửi câu trả lời')}</button>
+              <button type="button" className={`btn sm ${paid ? 'paid' : 'primary'}`} disabled={!!busy || disabled || !cur} onClick={() => onSend(compose())} title={t('Chỉ gửi câu trả lời, trợ lý tiếp tục từ chỗ đang dừng (ít tốn token)')}>{paid ? '$ ' : ''}{t('Gửi câu trả lời')}</button>
               <button type="button" className={`btn sm ${paid ? 'paid' : ''}`} disabled={!!busy || disabled || !cur} onClick={() => onRerun(compose())} title={t('Chạy lại cả bước kèm góp ý (tốn token hơn)')}>{paid ? '$ ' : ''}{t('Chạy lại kèm góp ý')}</button>
             </>
           ) : (
@@ -355,7 +355,7 @@ function ResultCard({ run, live, grant }) {
           </div>
           <div className="prog-msg" style={{ marginBottom: 10 }}>
             {pct != null ? `${Math.round(pct)}% · ` : ''}
-            {run.progress_msg || t('Claude đang làm…')}
+            {run.progress_msg || t('Trợ lý đang làm…')}
           </div>
         </>
       ) : null}
@@ -593,7 +593,7 @@ function StepPage({ projectId, stepKey }) {
   const runWithFeedback = () => {
     if (!fbTrim) {
       fbRef.current?.focus();
-      toast(t('Viết góp ý hoặc câu trả lời cho Claude trước đã.'), 'info');
+      toast(t('Viết góp ý hoặc câu trả lời cho trợ lý trước đã.'), 'info');
       return;
     }
     requestRun(fbTrim);
@@ -736,7 +736,7 @@ function StepPage({ projectId, stepKey }) {
   const doneUpto = (project.steps || []).slice(0, Math.max(0, idx) + 1).filter((x) => x.state === 'done').length;
   if (st === 'done' || doneUpto > 0) {
     buttons.push(
-      <button key="distill" type="button" className="btn" onClick={() => setDistillOpen(true)} title={t('Claude đúc kết cách làm của bước này hoặc cả dự án thành skill cá nhân để dùng lại ở video sau')}>
+      <button key="distill" type="button" className="btn" onClick={() => setDistillOpen(true)} title={t('Trợ lý đúc kết cách làm của bước này hoặc cả dự án thành skill cá nhân để dùng lại ở video sau')}>
         {t('Tạo skill')}
       </button>,
     );
@@ -803,7 +803,7 @@ function StepPage({ projectId, stepKey }) {
         maxLength={FEEDBACK_MAX}
         onChange={(e) => setFeedback(e.target.value)}
         onKeyDown={(e) => { if (decide && e.key === 'Tab' && !e.shiftKey && !feedback && single[0]) { e.preventDefault(); setFeedback(single[0].text); } }}
-        placeholder={decide ? (single[0] ? single[0].text : t('Trả lời Claude hoặc góp ý…')) : t('Vd: đoạn mở đầu ngắn lại, giọng ấm hơn')}
+        placeholder={decide ? (single[0] ? single[0].text : t('Trả lời trợ lý hoặc góp ý…')) : t('Vd: đoạn mở đầu ngắn lại, giọng ấm hơn')}
       />
       {decide && single[0] && !feedback ? <p className="note">{t('Nhấn Tab để dùng câu gợi ý.')}</p> : null}
       <div className="acts" style={{ marginTop: 8, justifyContent: 'space-between' }}>
@@ -812,7 +812,7 @@ function StepPage({ projectId, stepKey }) {
         </span>
         <span className="acts">
           {decide ? (
-            <button type="button" className={`btn sm ${paid ? 'paid' : 'primary'}`} onClick={sendReply} disabled={!!busy || !fbTrim || !canRun.ok || st === 'running'} title={t('Chỉ gửi câu trả lời, Claude tiếp tục từ chỗ đang dừng (ít tốn token)')}>
+            <button type="button" className={`btn sm ${paid ? 'paid' : 'primary'}`} onClick={sendReply} disabled={!!busy || !fbTrim || !canRun.ok || st === 'running'} title={t('Chỉ gửi câu trả lời, trợ lý tiếp tục từ chỗ đang dừng (ít tốn token)')}>
               {paid ? '$ ' : ''}{t('Gửi câu trả lời')}
             </button>
           ) : null}
@@ -966,7 +966,7 @@ function StepPage({ projectId, stepKey }) {
 
       {decide ? (
         <div className="card pad decide ask side" style={{ marginBottom: 16 }} data-ai-help="step-reply">
-          <h2>{t('Claude cần bạn trả lời')}</h2>
+          <h2>{t('Trợ lý cần bạn trả lời')}</h2>
           <ResultBody run={selRun} grant={grant} hideQuestions={multiQ} />
           {multiQ ? (
             <QAStepper key={selRun.id} questions={qList} suggestions={sugg} paid={paid} busy={busy} disabled={!canRun.ok || st === 'running'} onSend={(txt) => requestRun(txt, true)} onRerun={(txt) => requestRun(txt)} />

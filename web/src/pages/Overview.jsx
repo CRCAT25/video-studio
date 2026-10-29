@@ -10,7 +10,7 @@ import { navigate, stepHref } from '../lib/router.js';
 import { T, tr, useT } from '../lib/i18n.jsx';
 
 const WAIT_KIND = {
-  needs_input: { cls: 'L-ask', label: T('Claude hỏi bạn') },
+  needs_input: { cls: 'L-ask', label: T('Trợ lý hỏi bạn') },
   failed: { cls: 'L-err', label: T('Bị lỗi') },
   manual: { cls: 'L-wait', label: T('Việc tay của bạn') },
 };
@@ -25,10 +25,10 @@ function nowText(p) {
   switch (c.state) {
     case 'running': {
       const pct = r?.progress_pct != null ? ` · ${Math.round(Number(r.progress_pct))}%` : '';
-      return `${at}: ${r?.progress_msg || tr('Claude đang làm…')}${pct}`;
+      return `${at}: ${r?.progress_msg || tr('Trợ lý đang làm…')}${pct}`;
     }
     case 'needs_input':
-      return r?.summary ? tr('{at}: Claude cần bạn trả lời — {s}', { at, s: tr(r.summary) }) : tr('{at}: Claude cần bạn trả lời.', { at });
+      return r?.summary ? tr('{at}: Trợ lý cần bạn trả lời — {s}', { at, s: tr(r.summary) }) : tr('{at}: Trợ lý cần bạn trả lời.', { at });
     case 'failed':
       const why = tr(r?.error || r?.summary || '');
       return why ? tr('{at}: lỗi — {s}', { at, s: why }) : tr('{at}: lỗi.', { at });

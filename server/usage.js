@@ -221,7 +221,7 @@ export function createUsage({
         } catch {
           /* đã thoát */
         }
-        end(new HttpError(504, 'usage_timeout', 'Claude không trả lời kịp — thử lại sau.'));
+        end(new HttpError(504, 'usage_timeout', 'Trợ lý không trả lời kịp — thử lại sau.'));
       }, timeoutMs);
       const out = createLineSplitter((line) => {
         let o;

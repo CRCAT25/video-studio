@@ -508,7 +508,7 @@ export default function Skills({ onReloadPresets }) {
       {tab === 'search' && searching ? (
         <div className="sk-wait" role="status">
           <div className="sk-wait-bar" aria-hidden="true"><i /></div>
-          <span>{searching === 'web' ? t('Claude đang tìm trong thư viện và trên web… có thể mất vài phút.') : t('Claude đang tìm skill phù hợp… có thể mất vài chục giây.')}</span>
+          <span>{searching === 'web' ? t('Trợ lý đang tìm trong thư viện và trên web… có thể mất vài phút.') : t('Trợ lý đang tìm skill phù hợp… có thể mất vài chục giây.')}</span>
         </div>
       ) : null}
       {tab === 'search' && searchErr ? <div className="err-note" role="alert">{searchErr}</div> : null}

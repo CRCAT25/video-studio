@@ -58,7 +58,7 @@ export default function Header({ route, doctor, doctorError, stats, brainPending
         </nav>
         <div className="top-right">
           {usage && doctor?.auth?.loggedIn ? <UsageMeter usage={usage} onClick={onAccount} /> : null}
-          <button type="button" className={`ai-btn${assistantOpen ? ' on' : ''}`} onClick={onAssistant} aria-pressed={assistantOpen} aria-label={t('Trợ lý AI')} title={t('Trợ lý AI — nhờ Claude thao tác trên trang')}>
+          <button type="button" className={`ai-btn${assistantOpen ? ' on' : ''}`} onClick={onAssistant} aria-pressed={assistantOpen} aria-label={t('Trợ lý AI')} title={t('Trợ lý AI — nhờ trợ lý thao tác trên trang')}>
             <span className="spark" aria-hidden="true">✦</span>
             <span className="ai-t">
               <span className="hide-m">{t('Trợ lý AI')}</span>

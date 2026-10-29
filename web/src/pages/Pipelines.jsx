@@ -68,7 +68,7 @@ function PresetDetail({ p, channelName }) {
           ))}
         </div>
         <div className="blk">
-          <h3>{t('Quyền của Claude')}</h3>
+          <h3>{t('Quyền của trợ lý')}</h3>
           {PERM.map(([k, label]) => (
             <div key={k} className={`perm ${k}`}>
               <span className="pl">{t(label)}</span>

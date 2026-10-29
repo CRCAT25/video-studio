@@ -860,12 +860,12 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
       return { state: 'failed', error: `Claude báo bước thất bại: ${truncate(structured.summary ?? '', 300)}`, structured };
     }
     if (status) return { state: status, error: null, structured };
-    if (entry.exitSignal) return { state: 'failed', error: `Claude bị dừng bởi tín hiệu ${entry.exitSignal}.`, structured };
+    if (entry.exitSignal) return { state: 'failed', error: `Trợ lý bị dừng bởi tín hiệu ${entry.exitSignal}.`, structured };
     if (entry.exitCode !== 0) {
       const last = entry.stderrTail.length ? `: ${truncate(entry.stderrTail[entry.stderrTail.length - 1], 300)}` : '';
       return { state: 'failed', error: `Claude thoát với mã ${entry.exitCode}${last}`, structured };
     }
-    return { state: 'failed', error: 'Claude không trả kết quả có cấu trúc (StructuredOutput).', structured };
+    return { state: 'failed', error: 'Trợ lý không trả kết quả có cấu trúc (StructuredOutput).', structured };
   }
 
   async function finalize(entry) {

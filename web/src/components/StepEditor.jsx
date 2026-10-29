@@ -18,7 +18,7 @@ const GATES_SIMPLE = [
 export function stepProblem(s) {
   if (s.enabled === false || s.manual) return null;
   if (!String(s.name || '').trim()) return tr('Cần tên bước.');
-  if (!String(s.prompt || '').trim()) return tr('Cần lời dặn cho Claude.');
+  if (!String(s.prompt || '').trim()) return tr('Cần lời dặn cho trợ lý.');
   if (!(s.outputs || []).length) return tr('Cần ít nhất 1 đầu ra.');
   return null;
 }
@@ -99,7 +99,7 @@ function StepRow({ simple, s, i, count, open, onToggleOpen, onChange, onMove, on
       {open && !s.manual ? (
         <div className="se-edit">
           <label className="fld">
-            <span>{simple ? t('Hướng dẫn cho AI') : t('Lời dặn Claude')}</span>
+            <span>{simple ? t('Hướng dẫn cho AI') : t('Lời dặn trợ lý')}</span>
             <textarea rows={4} value={s.prompt || ''} onChange={(e) => onChange({ prompt: e.target.value })} disabled={disabled} />
             {simple ? null : (
               <span className="hint">

@@ -191,7 +191,7 @@ export function createSkillSearch({ home, claudeBin = 'claude', env = {}, lib, c
         } catch {
           /* đã thoát */
         }
-        end(new HttpError(504, 'search_timeout', 'Claude không trả lời kịp — thử lại sau.'));
+        end(new HttpError(504, 'search_timeout', 'Trợ lý không trả lời kịp — thử lại sau.'));
       }, web ? webTimeoutMs : timeoutMs);
       const out = createLineSplitter((line) => {
         try {
@@ -212,7 +212,7 @@ export function createSkillSearch({ home, claudeBin = 'claude', env = {}, lib, c
         const so = result?.structured_output;
         if (so && typeof so === 'object' && !result.is_error) return end(null, so);
         const loggedOut = /not logged in|login/i.test(stderr);
-        end(new HttpError(502, 'search_failed', loggedOut ? 'Claude chưa đăng nhập.' : 'Claude không trả kết quả tìm kiếm — thử lại.'));
+        end(new HttpError(502, 'search_failed', loggedOut ? 'Claude chưa đăng nhập.' : 'Trợ lý không trả kết quả tìm kiếm — thử lại.'));
       });
       child.stdin.end(prompt);
     });

@@ -123,9 +123,9 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
     return (
       <div className="card pad">
         <div className="empty">
-          <b>{running ? t('Claude đang làm — chưa có đầu ra.') : t('Lượt này chưa có đầu ra nào.')}</b>
+          <b>{running ? t('Trợ lý đang làm — chưa có đầu ra.') : t('Lượt này chưa có đầu ra nào.')}</b>
           <p className="note">
-            {t('Đầu ra hiện ở đây khi Claude kết thúc bước và khai báo trong kết quả.')}
+            {t('Đầu ra hiện ở đây khi trợ lý kết thúc bước và khai báo trong kết quả.')}
             {outputs?.length ? (
               <>
                 {' '}{t('Preset dự kiến: {o}', { o: <span className="mono wrap-any">{outputs.join(', ')}</span> })}
@@ -143,7 +143,7 @@ export default function Outputs({ projectId, artifacts = [], fromResult = false,
     <div>
       {fromResult ? (
         <div className="warn-note" style={{ marginBottom: 14 }}>
-          Đây là đầu ra Claude khai báo ở lượt {runN ?? t('cũ')}. File cùng tên có thể đã bị lượt sau ghi đè.
+          Đây là đầu ra trợ lý khai báo ở lượt {runN ?? t('cũ')}. File cùng tên có thể đã bị lượt sau ghi đè.
         </div>
       ) : null}
       {groups.map(([kind, arr]) => (
@@ -272,7 +272,7 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
               </div>
             ))}
             <p className="note" style={{ margin: '10px 0 0' }}>
-              {running ? t('Kiểm tra sẽ chạy khi Claude xong bước.') : hasRun ? t('Lượt này chưa chạy kiểm tra (chỉ chạy khi Claude báo xong).') : t('Bước chưa chạy lượt nào.')}
+              {running ? t('Kiểm tra sẽ chạy khi trợ lý xong bước.') : hasRun ? t('Lượt này chưa chạy kiểm tra (chỉ chạy khi trợ lý báo xong).') : t('Bước chưa chạy lượt nào.')}
             </p>
           </>
         ) : (
@@ -307,7 +307,7 @@ export function Checks({ checks = [], configured = [], running = false, hasRun =
         );
       })}
       <p className="note" style={{ margin: '10px 0 0' }}>
-        {t('App tự chạy các lệnh trong {k} của quy trình — Claude không tự chấm.', { k: <span className="mono">checks</span> })}
+        {t('App tự chạy các lệnh trong {k} của quy trình — trợ lý không tự chấm.', { k: <span className="mono">checks</span> })}
       </p>
     </div>
   );

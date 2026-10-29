@@ -96,7 +96,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
   };
   return (
     <Modal title={isNew ? t('Thêm giọng đọc') : t('Sửa giọng đọc')} onClose={onClose} busy={busy} wide>
-      <p className="lead">{p.kind === 'elevenlabs' ? t('Kết nối ElevenLabs để Claude đọc lời dẫn bằng giọng bạn chọn.') : p.kind === 'vieneu' ? t('Giọng tiếng Việt miễn phí chạy ngay trên máy — dùng khi chưa duyệt chi phí giọng trả phí.') : p.kind === 'http' ? t('Kết nối dịch vụ giọng đọc qua API HTTP.') : t('Kết nối công cụ giọng đọc chạy trên máy bạn.')}</p>
+      <p className="lead">{p.kind === 'elevenlabs' ? t('Kết nối ElevenLabs để trợ lý đọc lời dẫn bằng giọng bạn chọn.') : p.kind === 'vieneu' ? t('Giọng tiếng Việt miễn phí chạy ngay trên máy — dùng khi chưa duyệt chi phí giọng trả phí.') : p.kind === 'http' ? t('Kết nối dịch vụ giọng đọc qua API HTTP.') : t('Kết nối công cụ giọng đọc chạy trên máy bạn.')}</p>
       <form onSubmit={save} noValidate>
         <label className="fld">
           <span className="fld-l">{t('Tên gọi')}<Req /></span>
@@ -300,7 +300,7 @@ export default function TTS() {
           <button type="button" className="btn sm primary" onClick={() => setKindPick(true)}>{t('Thêm giọng đọc')}</button>
         </div>
       </div>
-      <p className="note tts-intro">{t('Chọn dịch vụ biến văn bản thành giọng nói. Khi một bước cần lồng tiếng, Claude sẽ dùng giọng mặc định ở đây — khóa API không bao giờ đi qua Claude.')}</p>
+      <p className="note tts-intro">{t('Chọn dịch vụ biến văn bản thành giọng nói. Khi một bước cần lồng tiếng, trợ lý sẽ dùng giọng mặc định ở đây — khóa API không bao giờ đi qua Claude.')}</p>
       {err ? <div className="err-note" role="alert">{err}</div> : null}
       {!data && !err ? <p className="note" role="status">{t('Đang tải…')}</p> : null}
       {data && !list.length ? (
