@@ -286,6 +286,7 @@ export default function Brain({ rev = 0 }) {
 
   const [hintMax, setHintMax] = useState(600);
   const [hintRev, setHintRev] = useState(0);
+  const [hintOpen, setHintOpen] = useState(null);
   const load = useCallback(() => {
     api.brain().then((d) => { setData(d); setErr(null); }).catch((e) => setErr(e));
     api.hints().then((d) => { setHintOverrides(d.overrides); setHintMax(d.max); setHintRev((n) => n + 1); }, () => {});
@@ -406,17 +407,25 @@ export default function Brain({ rev = 0 }) {
               </summary>
               <ul className="br-items">
                 {Object.keys(HINTS).map((id, i) => (
-                  <li key={id} className="br-item">
-                    <div className="br-text"><b>{hints[i].title}</b> — {hints[i].text}</div>
-                    <div className="br-meta">
-                      <span className="muted">{hints[i].custom ? t('Bạn đã sửa') : t('Mặc định')}</span>
-                      <span className="br-acts">
-                        <button type="button" className="btn sm ghost" onClick={() => setModal({ kind: 'hint', id })}>{t('Sửa')}</button>
-                        {hints[i].custom ? (
-                          <button type="button" className="btn sm ghost" onClick={() => setConfirm({ title: t('Khôi phục mặc định?'), body: HINTS[id].text, okLabel: t('Khôi phục'), onOk: async () => { await saveHint(id, ''); toast(t('Đã về nội dung mặc định.'), 'ok'); } })}>{t('Khôi phục mặc định')}</button>
-                        ) : null}
-                      </span>
+                  <li key={id} className={`br-item br-hint${hintOpen === id ? ' open' : ''}`}>
+                    <div className="br-hint-row">
+                      <button type="button" className="br-hint-t" aria-expanded={hintOpen === id} onClick={() => setHintOpen(hintOpen === id ? null : id)}>
+                        <b>{hints[i].title}</b>
+                        <span className="muted">{hints[i].text}</span>
+                      </button>
+                      {hints[i].custom ? <span className="tag r-ast">{t('Bạn đã sửa')}</span> : null}
+                      <button type="button" className="btn sm ghost" onClick={() => setModal({ kind: 'hint', id })}>{t('Sửa')}</button>
                     </div>
+                    {hintOpen === id ? (
+                      <div className="br-hint-body">
+                        <div className="br-text">{hints[i].text}</div>
+                        {hints[i].custom ? (
+                          <div className="br-meta">
+                            <button type="button" className="btn sm ghost" onClick={() => setConfirm({ title: t('Khôi phục mặc định?'), body: HINTS[id].text, okLabel: t('Khôi phục'), onOk: async () => { await saveHint(id, ''); toast(t('Đã về nội dung mặc định.'), 'ok'); } })}>{t('Khôi phục mặc định')}</button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
