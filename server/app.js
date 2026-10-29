@@ -1027,6 +1027,23 @@ export async function buildApp({
     return v;
   });
 
+  // Khung chọn giọng của bước có phương án miễn phí: giọng miễn phí/trả phí, số ký tự sẽ đọc, file nguồn, bước dùng kết quả.
+  app.get('/api/projects/:id/steps/:key/voice', async (req) => {
+    const v = projects.stepView(req.params.id, req.params.key);
+    if (!v) throw notFound(`Không tìm thấy bước "${req.params.key}" trong dự án "${req.params.id}".`);
+    const cost = v.step.cost;
+    if (!cost?.free_fallback) return { enabled: false };
+    const ch = await ttsCall((t) => t.choices());
+    const steps = v.project.steps || [];
+    const next = steps[steps.findIndex((s) => s.key === v.step.key) + 1] || null;
+    const src = /^\s*chars\((.+)\)\s*$/.exec(String(cost.estimate ?? ''))?.[1].trim().replace(/^(['"])(.*)\1$/, '$2') || null;
+    const last = v.runs?.[0];
+    return {
+      enabled: true, ...ch, freeLabel: cost.free_fallback, chars: cost.estimate_value ?? null, source: src,
+      next: next ? { key: next.key, name: next.name } : null, lastMode: last ? (last.allow_paid ? 'paid' : 'free') : null,
+    };
+  });
+
   app.post('/api/projects/:id/steps/:key/run', async (req, reply) => {
     const b = req.body === undefined || req.body === null ? {} : req.body;
     if (!isObject(b)) throw badBody('Cần gửi JSON {feedback?, allowPaid?}.');

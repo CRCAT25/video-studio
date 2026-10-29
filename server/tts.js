@@ -372,5 +372,27 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '', free: f ? { id: f.id, name: f.name } : null } : null;
   }
 
-  return { voices, check, sample, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick };
+  // Hai lựa chọn cho khung chọn giọng ở bước Giọng đọc: miễn phí (VieNeu) và trả phí (mặc định nếu trả phí, không thì cái trả phí đầu tiên).
+  async function choices() {
+    const c = read();
+    let bundled = [];
+    try {
+      bundled = JSON.parse(fs.readFileSync(BUNDLED_VOICES, 'utf8'));
+    } catch {
+      /* thiếu danh sách giọng mẫu → chỉ hiện ID */
+    }
+    const card = async (p) => {
+      if (!p) return null;
+      const known = p.kind === 'vieneu' ? VIENEU_VOICES.find((v) => v.id === p.voice) : bundled.find((v) => v.id === p.voice);
+      return {
+        id: p.id, name: p.name, kind: p.kind, voice: p.voice || '', voiceName: (known?.name || '').trim(), desc: known?.desc || '',
+        preview: p.kind === 'vieneu' ? '' : known?.preview || '', perChar: p.price?.perChar ?? 0, label: p.price?.label || '',
+        hasKey: p.kind === 'vieneu' || p.kind === 'command' ? true : !!(await keyOf(p.id)),
+      };
+    };
+    const def = c.providers.find((x) => x.id === c.default);
+    return { free: await card(freeOf(c)), paid: await card(def && isPaid(def) ? def : c.providers.find(isPaid)) };
+  }
+
+  return { voices, check, sample, list, save, remove, setDefault, synth, estimate: (id, text) => estimate(pick(id), text), runInfo, pick, choices };
 }

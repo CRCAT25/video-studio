@@ -1325,3 +1325,13 @@ test('POST /api/projects/:id/permissions: thêm tool vào allow của dự án, 
   assert.equal((await post({ tool: 'WebFetch', scope: 'x' })).statusCode, 400);
   assert.equal((await req({ method: 'POST', url: '/api/projects/khong-co/permissions', payload: { tool: 'WebFetch' } })).statusCode, 404);
 });
+
+test('GET …/steps/:key/voice: bước không có giọng miễn phí → enabled:false; dự án/bước lạ → 404', async () => {
+  await makeApp();
+  await createProject('Giọng thử');
+  const r = await req({ url: '/api/projects/giong-thu/steps/voice/voice' });
+  assert.equal(r.statusCode, 200, r.body);
+  assert.deepEqual(r.json(), { enabled: false });
+  assert.equal((await req({ url: '/api/projects/khong-co/steps/voice/voice' })).statusCode, 404);
+  assert.equal((await req({ url: '/api/projects/giong-thu/steps/khong-co/voice' })).statusCode, 404);
+});

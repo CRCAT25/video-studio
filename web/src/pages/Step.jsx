@@ -5,6 +5,7 @@ import Select from '../components/Select.jsx';
 import { MODELS, defaultModelLabel } from '../components/StepEditor.jsx';
 import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
+import VoicePicker, { paidEstimate } from '../components/VoicePicker.jsx';
 import Modal from '../components/Modal.jsx';
 import DistillModal from '../components/DistillModal.jsx';
 import ProjectPipelineModal from '../components/ProjectPipelineModal.jsx';
@@ -37,6 +38,24 @@ const RUNNABLE = new Set(['ready', 'done', 'failed', 'needs_input', 'stale']);
 const COMPLETABLE = new Set(['failed', 'needs_input', 'stale', 'manual']);
 
 // Trang Chi tiết bước; thiếu stepKey thì chuyển tới bước hiện tại của dự án.
+// Lựa chọn giọng (miễn phí/trả phí) nhớ theo dự án + bước trong trình duyệt; lỗi lưu trữ thì bỏ qua.
+const voiceKey = (p, k) => `vs.voice.${p}.${k}`;
+function readVoiceMode(p, k) {
+  try {
+    const v = localStorage.getItem(voiceKey(p, k));
+    return v === 'paid' || v === 'free' ? v : null;
+  } catch {
+    return null;
+  }
+}
+function saveVoiceMode(p, k, m) {
+  try {
+    localStorage.setItem(voiceKey(p, k), m);
+  } catch {
+    /* trình duyệt chặn lưu trữ */
+  }
+}
+
 export default function Step({ projectId, stepKey }) {
   if (!stepKey) return <StepRedirect projectId={projectId} />;
   return <StepPage projectId={projectId} stepKey={stepKey} />;
@@ -342,6 +361,8 @@ function StepPage({ projectId, stepKey }) {
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(null);
   const [costAsk, setCostAsk] = useState(null);
+  const [voice, setVoice] = useState(null); // khung chọn giọng (bước có phương án miễn phí)
+  const [voiceMode, setVoiceMode] = useState(null); // 'free' | 'paid' — null = theo lượt trước / mặc định miễn phí
   const [distillOpen, setDistillOpen] = useState(false);
   const [actionErr, setActionErr] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -370,6 +391,25 @@ function StepPage({ projectId, stepKey }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Thông tin giọng chỉ tải khi bước có phương án miễn phí; tải lại khi lượt mới đổi (lastMode).
+  const hasFree = !!view?.step?.cost?.free_fallback;
+  const runCount = view?.runs?.length || 0;
+  useEffect(() => {
+    if (!hasFree) return setVoice(null);
+    let alive = true;
+    api.stepVoice(projectId, stepKey).then((v) => alive && setVoice(v.enabled ? v : null), () => alive && setVoice(null));
+    return () => {
+      alive = false;
+    };
+  }, [projectId, stepKey, hasFree, runCount]);
+  useEffect(() => {
+    setVoiceMode(readVoiceMode(projectId, stepKey));
+  }, [projectId, stepKey]);
+  const pickVoice = (m) => {
+    setVoiceMode(m);
+    saveVoiceMode(projectId, stepKey, m);
+  };
 
   useSSE((msg) => {
     const hit = (msg.type === 'change' && (!msg.data?.projectId || msg.data.projectId === projectId)) || msg.type === 'reconnect';
@@ -432,7 +472,10 @@ function StepPage({ projectId, stepKey }) {
   const total = project.steps?.length || 0;
   const prevOk = (project.steps || []).slice(0, Math.max(0, idx)).every((s) => s.state === 'done' || s.state === 'stale');
   const canRun = view.can_run || { ok: false };
-  const paid = !!(step.cost || step.has_cost);
+  // Bước có giọng miễn phí: chọn miễn phí (mặc định) → chạy không tốn tiền, không hỏi chi phí.
+  const mode = voice ? (voiceMode || voice.lastMode || 'free') === 'paid' && voice.paid?.hasKey ? 'paid' : 'free' : null;
+  const freeMode = mode === 'free';
+  const paid = !!(step.cost || step.has_cost) && !freeMode;
   const fbTrim = feedback.trim();
 
   // Cho phép quy tắc bị chặn: thêm vào allow của dự án (scope 'pipeline' ghi thêm vào quy trình đã lưu), rồi gợi ý chạy lại.
@@ -455,7 +498,7 @@ function StepPage({ projectId, stepKey }) {
   };
 
 
-  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = false) => {
+  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = freeMode) => {
     setBusy('run');
     setActionErr(null);
     try {
@@ -486,7 +529,7 @@ function StepPage({ projectId, stepKey }) {
       setCostAsk({ cost: step.cost, feedback: fb, reply });
       return;
     }
-    doRun(fb, false, undefined, reply);
+    doRun(fb, false, undefined, reply, freeMode);
   };
 
   // Chỉ gửi câu trả lời (prompt ngắn, tiếp tục phiên cũ) — khác "Chạy lại" là chạy lại cả bước
@@ -571,7 +614,9 @@ function StepPage({ projectId, stepKey }) {
 
   // Nút chính theo trạng thái (§5).
   const runDisabled = !!busy || !canRun.ok;
-  const runTitle = canRun.ok ? (paid ? t('Bước tốn tiền — sẽ hỏi xác nhận chi phí') : '') : canRun.message || t('Chưa chạy được');
+  const runTitle = canRun.ok ? (paid ? t('Bước tốn tiền — sẽ hỏi xác nhận chi phí') : freeMode ? t('Dùng giọng miễn phí — không tốn tiền') : '') : canRun.message || t('Chưa chạy được');
+  const est = mode === 'paid' ? paidEstimate(voice) : null;
+  const runSuffix = freeMode ? ` · ${t('miễn phí')}` : est != null ? ` · ~${fmtNum(est)} ${voice.paid.label || ''}` : '';
   const buttons = [];
   if (st === 'running') {
     buttons.push(
@@ -589,7 +634,9 @@ function StepPage({ projectId, stepKey }) {
     buttons.push(
       <button key="run" type="button" className={`btn ${paid ? 'paid' : st === 'done' ? '' : 'primary'}`} onClick={() => (st === 'ready' ? requestRun('') : setRerunAsk(true))} disabled={runDisabled} title={runTitle}>
         {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : null}
-        {paid ? `$ ${st === 'ready' ? t('Chạy') : t('Chạy lại')}` : st === 'ready' ? t('Chạy') : t('Chạy lại')}
+        {paid ? '$ ' : ''}
+        {st === 'ready' ? t('Chạy') : t('Chạy lại')}
+        {runSuffix}
       </button>,
     );
   }
@@ -655,7 +702,11 @@ function StepPage({ projectId, stepKey }) {
   const artifacts = isLatest ? latest?.artifacts || [] : selRun?.result?.artifacts || [];
   const checks = isLatest ? latest?.checks || [] : [];
   const curTab = tab || 'log';
-  const costLine = step.cost
+  const costLine = voice
+    ? freeMode
+      ? t('0 đồng ({n})', { n: 'VieNeu' })
+      : `${est != null ? `~${fmtNum(est)} ${voice.paid?.label || ''}` : '—'} (${voice.paid?.name || ''})`
+    : step.cost
     ? `${step.cost.service || t('dịch vụ')}${step.cost.estimate_value != null ? ` · ~${fmtNum(step.cost.estimate_value)} ${step.cost.unit || ''}` : ''}`
     : null;
   const u = selRun?.usage || null;
@@ -784,8 +835,8 @@ function StepPage({ projectId, stepKey }) {
             <i>{t('Cổng')}</i> <b>{gateLabel(step.gate_mode)}</b>
           </span>
           {costLine ? (
-            <span className="ro paid">
-              <i>{t('Tốn tiền')}</i> <b>{costLine}</b>
+            <span className={`ro${freeMode ? '' : ' paid'}`}>
+              <i>{voice ? t('Chi phí') : t('Tốn tiền')}</i> <b>{costLine}</b>
             </span>
           ) : null}
         </div>
@@ -811,6 +862,7 @@ function StepPage({ projectId, stepKey }) {
       <div className="line-panel">
         <Flow steps={project.steps || []} projectId={project.id} currentKey={step.key} large label={t('Các bước của {n}', { n: project.title })} />
       </div>
+      {voice ? <VoicePicker info={voice} mode={mode} onMode={pickVoice} disabled={st === 'running'} /> : null}
 
       <div className="subtabs" role="group" aria-label={t('Nội dung bước')}>
         {[

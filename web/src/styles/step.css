@@ -207,3 +207,17 @@ body.ai-open .lb{right:var(--ai-w,380px)}
 .prog-bar.ind i{position:absolute;width:35%;animation:prog-ind 1.2s ease-in-out infinite alternate}
 @keyframes prog-ind{from{left:0}to{left:65%}}
 @media (prefers-reduced-motion:reduce){.prog-bar.ind i{animation:none;width:100%;opacity:.5}}
+.voice-pick{margin-top:16px}
+.voice-pick .vp-what{margin:0 0 10px;color:var(--muted);font-size:var(--fs-md)}
+.voice-pick .vp-what b{color:var(--text);font-weight:500}
+.vp-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.vp-card{gap:4px;padding:14px 16px}
+.vp-card ul{margin:6px 0 0;padding-left:18px;color:var(--muted)}
+.vp-card .vp-cost{color:var(--ask)}
+.vp-card .note{margin:6px 0 0}
+.vp-card.off{opacity:.6;cursor:default}
+.vp-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vp-foot{display:flex;align-items:center;gap:12px;margin-top:10px;min-height:34px}
+.vp-foot a{font-size:var(--fs-sm)}
+.voice-pick .err-note{margin-top:10px}
+@media (max-width:640px){.vp-cards{grid-template-columns:1fr}}

@@ -208,3 +208,20 @@ test('buildPrompt: chưa duyệt chi phí → báo lệnh dùng giọng miễn p
   assert.match(paid, /sẽ dùng "Eleven";/);
   assert.match(paid, /ĐÃ DUYỆT CHI PHÍ/);
 });
+
+test('choices: thẻ miễn phí + trả phí cho khung chọn giọng (tên giọng, khóa, giá)', async () => {
+  const { tts } = mk();
+  let c = await tts.choices();
+  assert.equal(c.free.id, 'vieneu');
+  assert.equal(c.free.voiceName, 'Thiện Minh');
+  assert.equal(c.paid, null);
+  await tts.save({ name: 'Eleven', kind: 'elevenlabs', voice: 'LD1UihCXvSlUL4h8DOmk' });
+  c = await tts.choices();
+  assert.equal(c.paid.id, 'eleven');
+  assert.equal(c.paid.hasKey, false);
+  assert.equal(c.paid.perChar, 1);
+  assert.ok(c.paid.voiceName, 'lấy tên giọng từ danh sách giọng mẫu');
+  assert.match(c.paid.preview, /^https:/);
+  await tts.save({ id: 'eleven', name: 'Eleven', kind: 'elevenlabs', voice: 'LD1UihCXvSlUL4h8DOmk' }, 'SECRET');
+  assert.equal((await tts.choices()).paid.hasKey, true);
+});

@@ -171,6 +171,7 @@ export const api = {
   setStepModel: (id, key, model) => request('PUT', `${stepPath(id, key)}/model`, { model }),
   defaultModel: () => request('GET', '/api/settings/model'),
   setDefaultModel: (model) => request('PUT', '/api/settings/model', { model }),
+  stepVoice: (id, key) => request('GET', `/api/projects/${encodeURIComponent(id)}/steps/${encodeURIComponent(key)}/voice`),
   runStep: (id, key, { feedback, allowPaid, allowOnce, reply, free } = {}) => {
     const body = {};
     if (feedback) body.feedback = feedback;
