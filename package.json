@@ -26,7 +26,8 @@
     "dev:web": "vite --config web/vite.config.js",
     "build": "vite build --config web/vite.config.js",
     "test": "node --test test/*.test.js",
-    "e2e": "node test/e2e/run.mjs"
+    "e2e": "node test/e2e/run.mjs",
+    "eval:assistant": "node test/eval/assistant.mjs"
   },
   "dependencies": {
     "@fontsource/be-vietnam-pro": "^5.3.0",
