@@ -498,11 +498,11 @@ function StepPage({ projectId, stepKey }) {
   };
 
 
-  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = freeMode) => {
+  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = freeMode, cont = false) => {
     setBusy('run');
     setActionErr(null);
     try {
-      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply, free });
+      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply, free, cont });
       setCostAsk(null);
       if (fb) setFeedback('');
       setSelRunId(null);
@@ -511,7 +511,7 @@ function StepPage({ projectId, stepKey }) {
       await load();
     } catch (e) {
       if (e.status === 412) {
-        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce, reply });
+        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce, reply, cont });
       } else {
         setCostAsk(null);
         setActionErr(e.message);
@@ -524,12 +524,12 @@ function StepPage({ projectId, stepKey }) {
   };
 
   // Bước tốn tiền → luôn mở modal xác nhận trước; Hủy không gọi API.
-  const requestRun = (fb, reply = false) => {
+  const requestRun = (fb, reply = false, cont = false) => {
     if (paid) {
-      setCostAsk({ cost: step.cost, feedback: fb, reply });
+      setCostAsk({ cost: step.cost, feedback: fb, reply, cont });
       return;
     }
-    doRun(fb, false, undefined, reply, freeMode);
+    doRun(fb, false, undefined, reply, freeMode, cont);
   };
 
   // Chỉ gửi câu trả lời (prompt ngắn, tiếp tục phiên cũ) — khác "Chạy lại" là chạy lại cả bước
@@ -631,8 +631,20 @@ function StepPage({ projectId, stepKey }) {
       </button>,
     );
   } else if (RUNNABLE.has(st) && !step.manual) {
+    // Lượt gần nhất bị dừng/lỗi → "Tiếp tục": giữ file đã xong, chỉ làm phần còn thiếu
+    const canCont = runs[0]?.state === 'stopped' || runs[0]?.state === 'failed';
+    if (canCont) {
+      buttons.push(
+        <button key="cont" type="button" className={`btn ${paid ? 'paid' : 'primary'}`} onClick={() => requestRun('', false, true)} disabled={runDisabled} title={canRun.ok ? t('Giữ các file đã xong, chỉ làm phần còn thiếu') : runTitle}>
+          {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : null}
+          {paid ? '$ ' : ''}
+          {t('Tiếp tục')}
+          {runSuffix}
+        </button>,
+      );
+    }
     buttons.push(
-      <button key="run" type="button" className={`btn ${paid ? 'paid' : st === 'done' ? '' : 'primary'}`} onClick={() => (st === 'ready' ? requestRun('') : setRerunAsk(true))} disabled={runDisabled} title={runTitle}>
+      <button key="run" type="button" className={`btn ${paid ? 'paid' : st === 'done' || canCont ? '' : 'primary'}`} onClick={() => (st === 'ready' ? requestRun('') : setRerunAsk(true))} disabled={runDisabled} title={runTitle}>
         {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : null}
         {paid ? '$ ' : ''}
         {st === 'ready' ? t('Chạy') : t('Chạy lại')}
@@ -1003,8 +1015,8 @@ function StepPage({ projectId, stepKey }) {
           withFeedback={!!costAsk.feedback}
           busy={busy === 'run'}
           onClose={() => setCostAsk(null)}
-          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce, !!costAsk.reply)}
-          onFree={() => doRun(costAsk.feedback, false, costAsk.allowOnce, !!costAsk.reply, true)}
+          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce, !!costAsk.reply, undefined, !!costAsk.cont)}
+          onFree={() => doRun(costAsk.feedback, false, costAsk.allowOnce, !!costAsk.reply, true, !!costAsk.cont)}
         />
       ) : null}
     </>

@@ -141,7 +141,7 @@ function ttsRunInfo(home) {
 }
 
 // Prompt người dùng của một lượt đúng định dạng §8.2 (allowPaid là tham số thêm để ghi dòng "ĐÃ DUYỆT CHI PHÍ").
-export function buildPrompt({ project, preset, step, feedback, prev, allowPaid = false, freshSession = false, style = '', brain = '', reply = null, tts = null }) {
+export function buildPrompt({ project, preset, step, feedback, prev, allowPaid = false, freshSession = false, style = '', brain = '', reply = null, tts = null, cont = false }) {
   const ctx = templateCtx({ project, preset, feedback, prev });
   const steps = Array.isArray(preset?.steps) ? preset.steps : [];
   const idx = Number.isInteger(step?.ord) ? step.ord : Math.max(0, steps.findIndex((s) => s.key === step?.key));
@@ -186,6 +186,18 @@ export function buildPrompt({ project, preset, step, feedback, prev, allowPaid =
   lines.push('', '## Việc cần làm', renderTemplate(step?.prompt ?? '', ctx).trim());
   const fb = typeof feedback === 'string' ? feedback.trim() : '';
   if (fb && !/\{feedback\}/.test(step?.prompt ?? '')) lines.push('', '## Góp ý của người dùng cho lượt này', fb);
+  if (cont) {
+    // Tiếp tục lượt bị dừng/lỗi: giữ phần đã xong, chỉ làm phần thiếu (không tốn thêm tiền cho phần đã có)
+    lines.push(
+      '',
+      '## Tiếp tục lượt bị gián đoạn',
+      'Lượt trước của bước này bị dừng hoặc lỗi giữa chừng (có thể do mất mạng). Trước khi làm, kiểm tra các file đầu ra và file trung gian đã có trong thư mục dự án:',
+      '- File đã hoàn chỉnh: GIỮ NGUYÊN, không tạo lại.',
+      '- File dở dang (rỗng, bị cắt ngang, không mở được): xóa và làm lại.',
+      '- Chỉ làm phần còn thiếu; không gọi lại dịch vụ tốn tiền (giọng đọc, ảnh, video) cho phần đã có file.',
+      'Trong tóm tắt, nêu rõ phần nào dùng lại và phần nào vừa làm thêm.',
+    );
+  }
   if (prev) {
     lines.push('', `## Kết quả bước trước (${prev.name ?? ''})`, prev.summary ? String(prev.summary) : '(không có tóm tắt)');
     if (typeof prev.notes_for_next_step === 'string' && prev.notes_for_next_step.trim()) {
@@ -292,6 +304,42 @@ export async function collectArtifacts({ dir, outputs = [], structured, since } 
     }
   }
   return [...map.values()];
+}
+
+// Tắt cả nhóm tiến trình của claude (POSIX: pid âm = cả nhóm; Windows: taskkill /T); nhóm đã hết thì thử riêng tiến trình.
+export function killTree(child, signal = 'SIGTERM') {
+  const pid = child?.pid;
+  if (pid && process.platform === 'win32') {
+    try {
+      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', shell: false }).on('error', () => {});
+      return;
+    } catch {
+      /* rơi xuống child.kill */
+    }
+  } else if (pid) {
+    try {
+      process.kill(-pid, signal);
+      return;
+    } catch {
+      /* không phải trưởng nhóm / đã thoát */
+    }
+  }
+  try {
+    child?.kill(signal);
+  } catch {
+    /* đã thoát */
+  }
+}
+
+// Lỗi kết nối của Claude CLI (mất mạng, DNS, API không tới được) — chỉ xét khi lượt hỏng.
+const NET_RE = /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|getaddrinfo|fetch failed|connection error|unable to connect|network (?:error|is unreachable)|socket hang up/i;
+export const NETWORK_ERROR = 'Mất mạng — không kết nối được tới Claude. Kiểm tra internet rồi bấm "Tiếp tục" (phần đã xong được giữ lại).';
+function networkError(entry) {
+  const r = entry.lastResult;
+  const bad = (r && r.is_error === true) || (entry.exitCode != null && entry.exitCode !== 0);
+  if (!bad) return null;
+  const text = [entry.stderrTail.join('\n'), typeof r?.result === 'string' ? r.result : ''].join('\n');
+  return NET_RE.test(text) ? NETWORK_ERROR : null;
 }
 
 function fmtMinutes(ms) {
@@ -515,26 +563,16 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
   // ---- kill
   function terminate(entry) {
     if (entry.closed || !entry.child) return;
-    try {
-      entry.child.kill('SIGTERM');
-    } catch {
-      /* đã thoát */
-    }
+    killTree(entry.child, 'SIGTERM');
     if (!entry.killTimer) {
       entry.killTimer = setTimeout(() => {
-        if (!entry.closed) {
-          try {
-            entry.child.kill('SIGKILL');
-          } catch {
-            /* đã thoát */
-          }
-        }
+        if (!entry.closed) killTree(entry.child, 'SIGKILL');
       }, killGraceMs);
     }
   }
 
   // Bắt đầu một lượt: canRun → lock → beginRun → spawn; trả run ngay (throw HttpError 404/409/412).
-  function start(projectId, stepKey, { feedback = null, allowPaid = false, free = false, allowOnce = [], reply = false } = {}) {
+  function start(projectId, stepKey, { feedback = null, allowPaid = false, free = false, allowOnce = [], reply = false, cont = false } = {}) {
     if (closing) throw new HttpError(503, 'shutting_down', 'Server đang tắt — không chạy thêm lượt mới.');
     const chk = projects.canRun(projectId, stepKey, { allowPaid, free });
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
@@ -556,9 +594,12 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     // Trả lời nhanh chỉ dùng được khi có phiên cũ để tiếp tục và lượt trước đang chờ trả lời; ngược lại chạy lại đủ prompt
     const canReply = reply === true && !!fb && stepRow.state === 'needs_input' && (session ? session.resume : project.session_started === 1 || project.session_started === true);
     // Lệnh giọng đọc chỉ gắn cho bước làm giọng (có chi phí hoặc ghi ra audio/).
+    // Tiếp tục chỉ có nghĩa khi lượt gần nhất của bước bị dừng/lỗi
+    const lastRun = store.listRunsByStep(stepRow.id)[0];
+    const isCont = cont === true && !canReply && !!lastRun && (lastRun.state === 'stopped' || lastRun.state === 'failed');
     const wantsTts = !!step.cost || (step.outputs ?? []).some((o) => /^audio\//.test(String(o)));
     const ttsInfo = home && wantsTts ? ttsRunInfo(home) : null;
-    const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', ...promptMemory(project, step), reply: canReply ? fb : null, tts: ttsInfo });
+    const prompt = buildPrompt({ project, preset, step, feedback: fb, prev, allowPaid, freshSession: preset.defaults?.session === 'step', ...promptMemory(project, step), reply: canReply ? fb : null, tts: ttsInfo, cont: isCont });
     const args = buildArgs({ project, preset, step, allowPaid, model: model || readDefaultModel(home), allowOnce: [...readGlobalAllow(home), ...allowOnce, ...(ttsInfo ? [`Bash(node ${ttsInfo.script}:*)`] : [])], session });
 
     acquireLock(dir, projectId);
@@ -711,7 +752,8 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     entry.stderrSplitter = err;
     let child;
     try {
-      child = spawn(cmd, argv, { cwd: entry.dir, env: childEnv(entry.allowPaid ? { VS_TTS_ALLOW_PAID: '1' } : {}), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
+      // detached (POSIX): claude đứng đầu một nhóm tiến trình riêng → Dừng tắt được cả ffmpeg, studio-tts… mà Claude gọi ra
+      child = spawn(cmd, argv, { cwd: entry.dir, env: childEnv(entry.allowPaid ? { VS_TTS_ALLOW_PAID: '1' } : {}), stdio: ['pipe', 'pipe', 'pipe'], shell: false, detached: process.platform !== 'win32' });
     } catch (e) {
       entry.spawnError = e;
       entry.closed = true;
@@ -792,6 +834,8 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
       }
       return { state: 'failed', error: 'Phiên đã tồn tại — lượt sau sẽ tiếp tục bằng --resume, bấm Chạy lại.', structured };
     }
+    const net = status ? null : networkError(entry);
+    if (net) return { state: 'failed', error: net, structured };
     if (result && result.is_error === true) {
       const detail = typeof result.result === 'string' && result.result.trim() ? `: ${truncate(result.result.trim(), 300)}` : '';
       return { state: 'failed', error: `Claude báo lỗi (${result.subtype ?? 'error'})${detail}`, structured };
@@ -813,6 +857,8 @@ export function createRunner({ store, projects, presets, claudeBin, model, home,
     entry.finalized = true;
     clearTimeout(entry.timeoutTimer);
     clearTimeout(entry.killTimer);
+    // claude đã thoát nhưng chương trình con của nó (ffmpeg, render…) có thể còn chạy → dọn nốt khi lượt bị dừng/hết giờ
+    if ((entry.stopping || entry.timedOut) && entry.child) killTree(entry.child, 'SIGKILL');
     try {
       entry.stdoutSplitter?.end();
       entry.stderrSplitter?.end();

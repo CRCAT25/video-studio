@@ -184,9 +184,10 @@ export const api = {
   defaultModel: () => request('GET', '/api/settings/model'),
   setDefaultModel: (model) => request('PUT', '/api/settings/model', { model }),
   stepVoice: (id, key) => request('GET', `/api/projects/${encodeURIComponent(id)}/steps/${encodeURIComponent(key)}/voice`),
-  runStep: (id, key, { feedback, allowPaid, allowOnce, reply, free } = {}) => {
+  runStep: (id, key, { feedback, allowPaid, allowOnce, reply, free, cont } = {}) => {
     const body = {};
     if (feedback) body.feedback = feedback;
+    if (cont) body.cont = true;
     if (allowPaid) body.allowPaid = true;
     if (allowOnce?.length) body.allowOnce = allowOnce;
     if (reply) body.reply = true;

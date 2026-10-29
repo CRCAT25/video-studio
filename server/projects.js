@@ -62,7 +62,13 @@ export function defaultInspect(pid) {
 }
 
 // Mặc định gửi tín hiệu dừng cho process mồ côi.
+// Tắt lượt mồ côi: claude chạy detached nên tắt cả nhóm (ffmpeg, studio-tts…); không phải trưởng nhóm thì tắt riêng pid.
 function defaultKill(pid) {
+  try {
+    if (process.platform !== 'win32') return process.kill(-Number(pid), 'SIGTERM');
+  } catch {
+    /* rơi xuống tắt riêng */
+  }
   process.kill(Number(pid), 'SIGTERM');
 }
 

@@ -10,7 +10,7 @@ import zlib from 'node:zlib';
 const argv = process.argv.slice(2);
 const cwd = process.cwd();
 const MODEL = 'claude-fake-1';
-const SCENARIOS = new Set(['done', 'needs_input', 'fail', 'slow', 'denied', 'crash', 'bad_resume', 'session_in_use']);
+const SCENARIOS = new Set(['done', 'needs_input', 'fail', 'slow', 'denied', 'crash', 'bad_resume', 'session_in_use', 'grandchild', 'net_error']);
 
 function argVal(flag) {
   const i = argv.indexOf(flag);
@@ -515,7 +515,20 @@ async function main() {
     return;
   }
 
-  if (scenario === 'slow') {
+  // Mất mạng: claude thật thử lại rồi báo lỗi kết nối
+  if (scenario === 'net_error') {
+    process.stderr.write('API Error: Connection error. (getaddrinfo ENOTFOUND api.anthropic.com)\n');
+    out(resultLine(sessionId, { isError: true, subtype: 'error_during_execution', turns: 1, text: 'API Error: Connection error.' }));
+    process.exitCode = 1;
+    return;
+  }
+
+  // Như slow nhưng gọi thêm một chương trình con chạy lâu (giống ffmpeg) bỏ qua SIGTERM; pid ghi ra .fake-grandchild
+  if (scenario === 'grandchild') {
+    const gc = spawn(process.execPath, ['-e', "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"], { stdio: 'ignore' });
+    fs.writeFileSync(path.join(cwd, '.fake-grandchild'), String(gc.pid));
+  }
+  if (scenario === 'slow' || scenario === 'grandchild') {
     process.on('SIGTERM', () => process.exit(143));
     for (let i = 1; i <= 200; i++) {
       out(assistant(sessionId, [{ type: 'text', text: `Đang làm… ${i}` }]));

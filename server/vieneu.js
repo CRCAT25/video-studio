@@ -69,7 +69,9 @@ export function createVieneuWorker({ argv = () => vieneuArgv(['--serve']), idleM
     return c;
   }
 
-  async function job({ text, out, voice }) {
+  async function job({ text, out, voice }, signal) {
+    // Lượt đã bị Dừng (studio-tts bị tắt) khi việc còn xếp hàng → bỏ, không đọc nữa
+    if (signal?.aborted) throw fail('Đã hủy (lượt chạy bị dừng).');
     clearTimeout(idle);
     if (!child || child.dead) child = start();
     const c = child;
@@ -93,7 +95,7 @@ export function createVieneuWorker({ argv = () => vieneuArgv(['--serve']), idleM
   }
 
   return {
-    run: (j) => (queue = queue.catch(() => {}).then(() => job(j))),
+    run: (j, { signal } = {}) => (queue = queue.catch(() => {}).then(() => job(j, signal))),
     isWarm: () => !!child?.warm,
     stop() {
       clearTimeout(idle);
@@ -108,8 +110,12 @@ export function serveVieneuSocket(worker, sock) {
   fs.rmSync(sock, { force: true });
   const srv = net.createServer((conn) => {
     let buf = '';
+    let replied = false;
+    const ac = new AbortController();
     conn.setEncoding('utf8');
     conn.on('error', () => {});
+    // studio-tts bị tắt (Dừng lượt) trước khi có kết quả → hủy việc còn xếp hàng
+    conn.on('close', () => replied || ac.abort());
     conn.on('data', async (d) => {
       buf += d;
       const i = buf.indexOf('\n');
@@ -119,11 +125,12 @@ export function serveVieneuSocket(worker, sock) {
       let reply;
       try {
         const j = JSON.parse(line);
-        reply = { ok: true, ...(await worker.run({ text: String(j.text || ''), out: String(j.out || ''), voice: String(j.voice || '') })) };
+        reply = { ok: true, ...(await worker.run({ text: String(j.text || ''), out: String(j.out || ''), voice: String(j.voice || '') }, { signal: ac.signal })) };
       } catch (e) {
         reply = { ok: false, error: e.message };
       }
-      conn.end(JSON.stringify(reply) + '\n');
+      replied = true;
+      if (!conn.destroyed) conn.end(JSON.stringify(reply) + '\n');
     });
   });
   srv.on('error', (e) => console.error('Socket VieNeu lỗi:', e?.message || e));

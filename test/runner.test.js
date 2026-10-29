@@ -14,6 +14,7 @@ import {
   buildPrompt,
   collectArtifacts,
   createRunner,
+  NETWORK_ERROR,
   STEP_RESULT_SCHEMA,
   STUDIO_PROTOCOL,
 } from '../server/runner.js';
@@ -798,4 +799,36 @@ test('buildPrompt reply: chỉ gửi câu trả lời ngắn, vẫn có đầu r
   assert.match(p, /exports\/a\.mp4/);
   assert.match(p, /ĐÃ DUYỆT CHI PHÍ/);
   assert.doesNotMatch(p, /RẤT DÀI/);
+});
+
+test('stop: tắt cả chương trình con mà claude gọi ra (ffmpeg…), kể cả khi nó bỏ qua SIGTERM', async () => {
+  const p = mk();
+  scenario(p, 'grandchild');
+  const run = runner.start(p.id, 'hook', {});
+  await waitForEvent(run.id, (e) => e.kind === 'text' && e.text.startsWith('Đang làm…'));
+  const gc = Number(fs.readFileSync(path.join(p.dir, '.fake-grandchild'), 'utf8'));
+  assert.ok(gc > 0 && !isDead(gc));
+  runner.stop(run.id);
+  await runner.wait(run.id);
+  const t0 = Date.now();
+  while (!isDead(gc) && Date.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 30));
+  assert.ok(isDead(gc), 'chương trình con phải chết theo');
+  assert.equal(store.getRun(run.id).state, 'stopped');
+});
+
+test('mất mạng: lỗi kết nối của claude → báo "Mất mạng", không phải lỗi chung', async () => {
+  const p = mk();
+  const r = await runToEnd(p, 'hook', {}, 'net_error');
+  assert.equal(r.state, 'failed');
+  assert.equal(r.error, NETWORK_ERROR);
+});
+
+test('Tiếp tục: chỉ thêm dặn "giữ file đã xong" khi lượt gần nhất bị dừng/lỗi', async () => {
+  const p = mk();
+  const prompt = (n) => fs.readFileSync(path.join(runDirOf(p, 'hook', n), 'prompt.md'), 'utf8');
+  await runToEnd(p, 'hook', { cont: true }, 'done');
+  assert.ok(!prompt(1).includes('Tiếp tục lượt bị gián đoạn'), 'chưa có lượt hỏng → bỏ qua cờ');
+  await runToEnd(p, 'hook', {}, 'fail');
+  await runToEnd(p, 'hook', { cont: true }, 'done');
+  assert.match(prompt(3), /## Tiếp tục lượt bị gián đoạn[\s\S]*GIỮ NGUYÊN/);
 });

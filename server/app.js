@@ -1132,7 +1132,7 @@ export async function buildApp({
   app.post('/api/projects/:id/steps/:key/run', async (req, reply) => {
     const b = req.body === undefined || req.body === null ? {} : req.body;
     if (!isObject(b)) throw badBody('Cần gửi JSON {feedback?, allowPaid?}.');
-    const { feedback, allowPaid, allowOnce, reply: quick, free } = b;
+    const { feedback, allowPaid, allowOnce, reply: quick, free, cont } = b;
     if (allowOnce !== undefined && allowOnce !== null && (!Array.isArray(allowOnce) || allowOnce.length > 20)) throw badBody('allowOnce phải là danh sách tối đa 20 quy tắc.');
     const once = (allowOnce || []).map((r) => pipelineCall(() => validateGrantRule(r, { once: true })));
     if (feedback !== undefined && feedback !== null && typeof feedback !== 'string') throw badBody('Góp ý phải là chuỗi.');
@@ -1145,7 +1145,7 @@ export async function buildApp({
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
     if (!runner || typeof runner.start !== 'function') throw new Error('Runner chưa sẵn sàng.');
     const fb = typeof feedback === 'string' && feedback.trim() ? feedback : null;
-    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, ...(useFree ? { free: true } : {}), allowOnce: once, ...(quick === true ? { reply: true } : {}) });
+    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, ...(useFree ? { free: true } : {}), allowOnce: once, ...(quick === true ? { reply: true } : {}), ...(cont === true ? { cont: true } : {}) });
     return reply.code(202).send({ run: runSummary(run) });
   });
 

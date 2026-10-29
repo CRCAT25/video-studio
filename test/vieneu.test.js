@@ -93,3 +93,13 @@ test('createTts: báo VieNeu đã nạp sẵn chưa (list + choices)', async () 
   assert.equal((await tts.list()).vieneuWarm, true);
   assert.equal((await tts.choices()).free.warm, true);
 });
+
+test('VieNeu worker: việc còn xếp hàng mà lượt đã bị dừng (signal aborted) → bỏ, không đọc', async (t) => {
+  const { dir, worker, spawns } = mk();
+  t.after(() => worker.stop());
+  const ac = new AbortController();
+  ac.abort();
+  await assert.rejects(worker.run({ text: 'Câu bị hủy.', out: path.join(dir, 'z.mp3'), voice: '' }, { signal: ac.signal }), { message: /Đã hủy/ });
+  assert.equal(fs.existsSync(path.join(dir, 'z.mp3')), false);
+  assert.equal(spawns(), 0);
+});

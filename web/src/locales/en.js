@@ -1577,4 +1577,6 @@ export default {
   'thu lại': 'collapse',
   'mở ra': 'expand',
   'Bấm nhánh để thu/mở, bấm ghi nhớ để sửa. Kéo để di chuyển, Ctrl/⌘ + cuộn để phóng to.': 'Click a branch to collapse/expand, click a memory to edit. Drag to pan, Ctrl/⌘ + scroll to zoom.',
+  'Giữ các file đã xong, chỉ làm phần còn thiếu': 'Keep finished files, only do what is missing',
+  'Mất mạng — không kết nối được tới Claude. Kiểm tra internet rồi bấm "Tiếp tục" (phần đã xong được giữ lại).': 'Network lost — could not reach Claude. Check your internet, then press "Continue" (finished work is kept).',
 };
