@@ -1471,6 +1471,7 @@ export default {
   'Chưa thêm giọng trả phí.': 'No paid voice added yet.',
   'Chưa nhập khóa API.': 'No API key entered yet.',
   'Đổi giọng': 'Change voice',
+  'Không phát được âm thanh: {m}': 'Couldn’t play audio: {m}',
   'Thêm giọng': 'Add a voice',
   '▶ Nghe thử': '▶ Listen',
   '■ Dừng': '■ Stop',

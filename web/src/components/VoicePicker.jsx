@@ -46,7 +46,10 @@ export default function VoicePicker({ info, mode, onMode, disabled = false }) {
     audio.current = a;
     a.onended = () => setPlaying(null);
     setPlaying(which);
-    a.play().catch(() => setPlaying(null));
+    a.play().catch((e) => {
+      setPlaying(null);
+      setErr(t('Không phát được âm thanh: {m}', { m: e.message }));
+    });
   };
 
   const mins = info.chars ? Math.max(1, Math.round(info.chars / CHARS_PER_SEC / 60)) : null;

@@ -143,7 +143,7 @@ test('health không cần token, có header bảo mật + CSP đúng hợp đồ
   assert.equal(r.headers['x-frame-options'], 'DENY');
   assert.equal(
     r.headers['content-security-policy'],
-    "default-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "default-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob: data: https://storage.googleapis.com https://api.us.elevenlabs.io; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   );
   assert.equal(r.headers['content-security-policy'], CSP);
 });

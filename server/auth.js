@@ -5,8 +5,9 @@ export const COOKIE_NAME = 'vs_token';
 export const TOKEN_HEADER = 'x-studio-token';
 export const UNAUTHORIZED_MESSAGE = 'Phiên đăng nhập đã hết — tải lại trang để đăng nhập.';
 
+// media-src: data: cho câu thử giọng (VieNeu/ElevenLabs trả data URL), 2 host file mẫu giọng ElevenLabs.
 export const CSP =
-  "default-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; " +
+  "default-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob: data: https://storage.googleapis.com https://api.us.elevenlabs.io; style-src 'self' 'unsafe-inline'; " +
   "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 export const SECURITY_HEADERS = Object.freeze({
