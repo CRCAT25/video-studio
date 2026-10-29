@@ -11,6 +11,7 @@ import { mediaHandler, resolveMediaPath } from './media.js';
 import { extractFrames } from './frames.js';
 import { isInside, safeJoin } from './paths.js';
 import { MAX_STYLE, readStyle, writeStyle } from './style.js';
+import { MAX_HINT, readHints, writeHint } from './hints.js';
 import { deletePipeline, duplicatePipeline, exportPipeline, importPipeline, formatCatalog, readDefaultModel, readPipeline, savePipeline, updatePipeline, suggestPipeline, validateGrantRule, writeDefaultModel } from './pipeline.js';
 import { REPO_ROOT } from './presets.js';
 import { createSkills } from './skills.js';
@@ -947,6 +948,17 @@ export async function buildApp({
     }
     if (!home) throw new Error('Thiếu thư mục dữ liệu.');
     return { text: pipelineCall(() => writeStyle(home, b.text)) };
+  });
+
+  // Kiến thức gốc: bản sửa của người dùng đè lên chỉ dẫn có sẵn (hints.json); text rỗng = về mặc định.
+  app.get('/api/hints', async () => ({ overrides: home ? readHints(home) : {}, max: MAX_HINT }));
+  app.put('/api/hints/:id', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.text !== 'string') throw badBody('Cần gửi JSON {text}.');
+    if (!home) throw new Error('Thiếu thư mục dữ liệu.');
+    const overrides = pipelineCall(() => writeHint(home, req.params.id, b.text));
+    sse.broadcast('hints', {});
+    return { overrides };
   });
 
   // Bộ não: ghi nhớ dùng chung của trợ lý và các bước. Mục thật chỉ thêm khi người dùng tự viết hoặc nhận đề xuất.

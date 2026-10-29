@@ -17,6 +17,7 @@ import Brain from './pages/Brain.jsx';
 import TTS from './pages/TTS.jsx';
 import YouTubeSetup from './pages/YouTubeSetup.jsx';
 import { api } from './api.js';
+import { setHintOverrides } from './lib/aiHints.js';
 import { useHashRoute } from './lib/router.js';
 import { applyTheme, storeTheme } from './lib/theme.js';
 import { useSSE, useSSEStatus } from './hooks/useSSE.js';
@@ -160,6 +161,11 @@ function Shell() {
     api.brain().then((d) => setBrainPending(d.proposals.length), () => {});
   }, []);
   useEffect(loadBrain, [loadBrain]);
+  // Bản sửa "Kiến thức gốc" cho trợ lý đọc trang.
+  const loadHints = useCallback(() => {
+    api.hints().then((d) => setHintOverrides(d.overrides), () => {});
+  }, []);
+  useEffect(loadHints, [loadHints]);
 
   // Server gửi 'change' mỗi khi state đổi → gom lại 150 ms rồi tải lại số liệu tổng.
   useSSE((msg) => {
@@ -170,6 +176,11 @@ function Shell() {
     if (msg.type === 'reconnect') api.update().then(setUpdate, () => {});
     if (msg.type === 'account') {
       setAccount(msg.data);
+      return;
+    }
+    if (msg.type === 'hints' || msg.type === 'reconnect') loadHints();
+    if (msg.type === 'hints') {
+      setBrainRev((n) => n + 1);
       return;
     }
     if (msg.type === 'brain' || msg.type === 'reconnect') {

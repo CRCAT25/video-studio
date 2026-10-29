@@ -11,7 +11,7 @@ import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
 import { useT } from '../lib/i18n.jsx';
 import { fmtBytes, fmtDateTime } from '../lib/format.js';
-import { HINTS } from '../lib/aiHints.js';
+import { HINTS, hint, setHintOverrides } from '../lib/aiHints.js';
 import BrainMap from './BrainMap.jsx';
 
 const NESTED = new Set(['Kênh', 'Bước làm video']);
@@ -83,6 +83,41 @@ function ItemModal({ title, okLabel, roots, init, onSave, onClose }) {
       <div className="modal-acts">
         <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
         <button type="button" className="btn primary" onClick={save} disabled={busy || !ok}>{okLabel}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// Hộp sửa 1 mục kiến thức gốc: nội dung trợ lý đọc ở vùng màn hình đó; Lưu bản trùng gốc = về mặc định.
+function HintModal({ id, max, onSave, onClose }) {
+  const t = useT();
+  const h = hint(id);
+  const [text, setText] = useState(h.text);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const ok = text.trim() && text.trim().length <= max;
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSave(text.trim());
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={t('Sửa kiến thức gốc')} onClose={onClose} busy={busy}>
+      <label className="fld">
+        <span>{h.title}<Req /></span>
+        <textarea rows={7} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} maxLength={max} data-autofocus />
+        <span className="hint">{t('Trợ lý đọc mục này khi vùng đó hiện trên màn hình. Viết ngắn, đúng tên nút thật. {n}/{max} ký tự.', { n: text.trim().length, max })}</span>
+      </label>
+      {err ? <div className="err-note" role="alert">{err}</div> : null}
+      <div className="modal-acts">
+        <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>
+        <button type="button" className="btn primary" onClick={save} disabled={busy || !ok}>{t('Lưu')}</button>
       </div>
     </Modal>
   );
@@ -217,7 +252,7 @@ export default function Brain({ rev = 0 }) {
   const toast = useToast();
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
-  const [modal, setModal] = useState(null); // {kind:'add'|'edit'|'accept', ...}
+  const [modal, setModal] = useState(null); // {kind:'add'|'edit'|'accept'|'hint', ...}
   const [confirm, setConfirm] = useState(null); // {title, body, okLabel, danger, onOk}
   const [compact, setCompact] = useState(false);
   const [view, setView] = useState(readView); // 'tree' | 'map', nhớ theo trình duyệt
@@ -229,9 +264,17 @@ export default function Brain({ rev = 0 }) {
     try { localStorage.setItem('vs-brain-view', v); } catch { /* trình duyệt chặn lưu thì thôi */ }
   };
 
+  const [hintMax, setHintMax] = useState(600);
+  const [hintRev, setHintRev] = useState(0);
   const load = useCallback(() => {
     api.brain().then((d) => { setData(d); setErr(null); }).catch((e) => setErr(e));
+    api.hints().then((d) => { setHintOverrides(d.overrides); setHintMax(d.max); setHintRev((n) => n + 1); }, () => {});
   }, []);
+  const saveHint = async (id, text) => {
+    const d = await api.saveHint(id, text);
+    setHintOverrides(d.overrides);
+    setHintRev((n) => n + 1);
+  };
   useEffect(load, [load, rev]);
 
   const act = async (fn, msg) => {
@@ -246,7 +289,8 @@ export default function Brain({ rev = 0 }) {
 
   const pct = data ? Math.min(100, (data.bytes / data.max) * 100) : 0;
   const bar = data ? { ok: 'q-ok', warn: 'q-wait', full: 'q-err' }[data.level] : 'q-ok';
-  const hints = Object.entries(HINTS);
+  const hints = Object.keys(HINTS).map(hint);
+  const edited = hints.filter((h) => h.custom).length;
 
   return (
     <>
@@ -334,12 +378,21 @@ export default function Brain({ rev = 0 }) {
             <details className="br-node card">
               <summary>
                 <b>{t('Kiến thức gốc')}</b>
-                <span className="muted"> · {t('{n} mục', { n: hints.length })} · {t('có sẵn trong app, chỉ xem')}</span>
+                <span className="muted"> · {t('{n} mục', { n: hints.length })}{edited ? ` · ${t('{n} đã sửa', { n: edited })}` : ''} · {t('trợ lý đọc theo màn đang mở')}</span>
               </summary>
               <ul className="br-items">
-                {hints.map(([id, h]) => (
+                {Object.keys(HINTS).map((id, i) => (
                   <li key={id} className="br-item">
-                    <div className="br-text"><b>{h.title}</b> — {h.text}</div>
+                    <div className="br-text"><b>{hints[i].title}</b> — {hints[i].text}</div>
+                    <div className="br-meta">
+                      <span className="muted">{hints[i].custom ? t('Bạn đã sửa') : t('Mặc định')}</span>
+                      <span className="br-acts">
+                        <button type="button" className="btn sm ghost" onClick={() => setModal({ kind: 'hint', id })}>{t('Sửa')}</button>
+                        {hints[i].custom ? (
+                          <button type="button" className="btn sm ghost" onClick={() => setConfirm({ title: t('Khôi phục mặc định?'), body: HINTS[id].text, okLabel: t('Khôi phục'), onOk: async () => { await saveHint(id, ''); toast(t('Đã về nội dung mặc định.'), 'ok'); } })}>{t('Khôi phục mặc định')}</button>
+                        ) : null}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -385,6 +438,9 @@ export default function Brain({ rev = 0 }) {
       ) : null}
       {modal?.kind === 'accept' ? (
         <ItemModal title={t('Sửa rồi nhận')} okLabel={t('Nhận')} roots={data.roots} init={modal.init} onClose={() => setModal(null)} onSave={async (b) => { await api.brainAccept(modal.id, b); toast(t('Đã nhận vào bộ não.'), 'ok'); load(); }} />
+      ) : null}
+      {modal?.kind === 'hint' ? (
+        <HintModal id={modal.id} max={hintMax} onClose={() => setModal(null)} onSave={async (text) => { await saveHint(modal.id, text); toast(t('Đã lưu kiến thức gốc.'), 'ok'); }} />
       ) : null}
       {confirm ? <ConfirmModal {...confirm} onClose={() => setConfirm(null)} /> : null}
       {compact ? <CompactModal onClose={() => setCompact(false)} onDone={load} /> : null}

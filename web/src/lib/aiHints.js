@@ -52,6 +52,17 @@ export const HINTS = {
   },
   brain: {
     title: 'Bộ não',
-    text: 'Cây ghi nhớ dùng chung (sở thích, quy tắc, bài học) mà trợ lý và các bước video đọc trước khi làm. Mục mới chỉ vào khi người dùng duyệt: muốn nhớ điều gì thì dùng công cụ đề xuất (brain_propose), KHÔNG tự bấm "Nhận"/"Sửa rồi nhận" thay người dùng. "+ Thêm ghi nhớ", "Sửa", "Xóa", "Khôi phục" chỉ làm khi người dùng yêu cầu rõ. "Nén" gọi Claude mức suy nghĩ cao nhất (tốn token) — hỏi trước khi bấm; "Áp dụng" bản nén là việc của người dùng.',
+    text: 'Cây ghi nhớ dùng chung (sở thích, quy tắc, bài học) mà trợ lý và các bước video đọc trước khi làm. Mục mới chỉ vào khi người dùng duyệt: muốn nhớ điều gì thì dùng công cụ đề xuất (brain_propose), KHÔNG tự bấm "Nhận"/"Sửa rồi nhận" thay người dùng. "+ Thêm ghi nhớ", "Sửa", "Xóa", "Khôi phục" chỉ làm khi người dùng yêu cầu rõ. "Nén" gọi Claude mức suy nghĩ cao nhất (tốn token) — hỏi trước khi bấm; "Áp dụng" bản nén là việc của người dùng. "Kiến thức gốc" là các chỉ dẫn này; người dùng sửa được ("Sửa", "Khôi phục mặc định") — chỉ sửa khi được yêu cầu rõ.',
   },
 };
+
+// Bản sửa của người dùng (server hints.json) — App/Bộ não nạp vào; hint(id) trả bản đang dùng.
+let custom = {};
+export function setHintOverrides(o) {
+  custom = o && typeof o === 'object' ? o : {};
+}
+export function hint(id) {
+  const h = HINTS[id];
+  if (!h) return null;
+  return Object.hasOwn(custom, id) ? { ...h, text: custom[id], custom: true } : { ...h, custom: false };
+}

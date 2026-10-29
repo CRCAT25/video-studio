@@ -2,7 +2,7 @@
 // Kiểm an toàn ở đây: data-ai="block" (cấm hẳn), data-ai="confirm" hoặc chữ nhạy cảm → hỏi người dùng trước.
 
 import { tr } from './i18n.jsx';
-import { HINTS } from './aiHints.js';
+import { HINTS, hint } from './aiHints.js';
 
 const PANEL = '.ai-panel';
 const INTERACTIVE = [
@@ -114,7 +114,7 @@ function hintsIn(roots) {
       ids.push(id);
     }
   }
-  return ids.map((id) => `- ${HINTS[id].title}: ${HINTS[id].text}`);
+  return ids.map((id) => `- ${hint(id).title}: ${hint(id).text}`);
 }
 
 // Đọc trang → văn bản gọn (đường dẫn, tiêu đề, hộp thoại, nội dung, phần tử có ref).

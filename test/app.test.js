@@ -441,6 +441,17 @@ test('nhân bản / xuất / nhập quy trình + hồ sơ phong cách', async ()
   assert.equal((await req({ method: 'PUT', url: '/api/style', payload: { text: 'x'.repeat(21000) } })).statusCode, 400);
   await req({ method: 'PUT', url: '/api/style', payload: { text: '' } });
   assert.equal((await req({ url: '/api/style' })).json().text, '');
+
+  // Kiến thức gốc: sửa đè, id lạ 404/400, quá dài 400, rỗng = về mặc định.
+  assert.deepEqual((await req({ url: '/api/hints' })).json().overrides, {});
+  const h = await req({ method: 'PUT', url: '/api/hints/brain', payload: { text: 'Chỉ dẫn riêng.' } });
+  assert.equal(h.statusCode, 200, h.body);
+  assert.deepEqual((await req({ url: '/api/hints' })).json().overrides, { brain: 'Chỉ dẫn riêng.' });
+  assert.equal((await req({ method: 'PUT', url: '/api/hints/khongco', payload: { text: 'x' } })).statusCode, 400);
+  assert.equal((await req({ method: 'PUT', url: '/api/hints/brain', payload: { text: 'x'.repeat(601) } })).statusCode, 400);
+  assert.equal((await req({ method: 'PUT', url: '/api/hints/brain', payload: { nope: 1 } })).statusCode, 400);
+  await req({ method: 'PUT', url: '/api/hints/brain', payload: { text: '' } });
+  assert.deepEqual((await req({ url: '/api/hints' })).json().overrides, {});
 });
 
 test('POST /api/projects với pipeline: kênh tùy chọn, saveAs lưu mẫu, lỗi invalid_pipeline kèm problems', async () => {
