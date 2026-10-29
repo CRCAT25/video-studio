@@ -88,6 +88,20 @@ export const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'brain_propose',
+    description: 'Đề xuất ghi một điều LÂU DÀI vào Bộ não của app (người dùng duyệt ở trang Bộ não rồi mới ghi): sở thích người dùng vừa nói rõ, hoặc bài học sau khi làm sai. Không dùng cho chi tiết của riêng việc đang làm.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        branch: { type: 'string', enum: ['Chung', 'Phong cách', 'Cách dùng app', 'Bài học'] },
+        text: { type: 'string', maxLength: 600 },
+        reason: { type: 'string', maxLength: 200 },
+      },
+      required: ['branch', 'text'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // Tool hỏi quyền cho --permission-prompt-tool: claude gọi khi cần sửa file / chạy lệnh; trả JSON allow/deny theo người dùng.

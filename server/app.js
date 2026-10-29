@@ -133,6 +133,8 @@ export async function buildApp({
   skillRepo = null,
   tts = null,
   distill = null,
+  brain = null,
+  brainCompact = null,
   pickDir = createDirPicker(),
   resetAll = null,
   hub = null,
@@ -306,6 +308,7 @@ export async function buildApp({
     offUpdater();
     offAssistant();
     offUsage();
+    offBrain();
   });
 
   // ---- doctor (cache 60 s; ?refresh=1 bỏ cache; lỗi không cache)
@@ -347,6 +350,7 @@ export async function buildApp({
   const offUpdater = updater ? updater.on(() => sse.broadcast('update', updater.status())) : () => {};
   const offAssistant = assistant ? assistant.on((d) => sse.broadcast('assistant', d)) : () => {};
   const offUsage = usage ? usage.on((d) => sse.broadcast('usage', d)) : () => {};
+  const offBrain = brain ? brain.on(() => sse.broadcast('brain', {})) : () => {};
 
   // ---- Trợ lý AI (claude -p + MCP điều khiển trang). Không có assistant → 503.
   const needAssistant = () => {
@@ -932,14 +936,66 @@ export async function buildApp({
 
   app.get('/api/pipelines/:id/export', async (req) => pipelineCall(() => exportPipeline(presetById(req.params.id))));
 
-  // Hồ sơ phong cách (style.md) — gắn vào lời nhắc của mọi bước.
-  app.get('/api/style', async () => ({ text: home ? readStyle(home) : '', max: MAX_STYLE }));
+  // Hồ sơ phong cách — có Bộ não thì là nhánh "Phong cách" của nó, không thì style.md như cũ.
+  app.get('/api/style', async () => ({ text: brain ? brain.styleText() : home ? readStyle(home) : '', max: MAX_STYLE }));
   app.put('/api/style', async (req) => {
     const b = req.body;
     if (!isObject(b) || typeof b.text !== 'string') throw badBody('Cần gửi JSON {text}.');
+    if (brain) {
+      if (Buffer.byteLength(b.text) > MAX_STYLE) throw badBody(`Phong cách dài quá ${MAX_STYLE / 1024} KB.`);
+      return { text: pipelineCall(() => brain.setStyleText(b.text)) };
+    }
     if (!home) throw new Error('Thiếu thư mục dữ liệu.');
     return { text: pipelineCall(() => writeStyle(home, b.text)) };
   });
+
+  // Bộ não: ghi nhớ dùng chung của trợ lý và các bước. Mục thật chỉ thêm khi người dùng tự viết hoặc nhận đề xuất.
+  const needBrain = () => {
+    if (!brain) throw new HttpError(503, 'brain_unavailable', 'Bộ não chưa bật trên server này.');
+    return brain;
+  };
+  const brainBody = (req) => (isObject(req.body) ? req.body : {});
+  const brainStr = (v, name) => {
+    if (v !== undefined && typeof v !== 'string') throw badBody(`"${name}" phải là chuỗi.`);
+    return v;
+  };
+  app.get('/api/brain', async () => needBrain().tree());
+  app.post('/api/brain/items', async (req, reply) => {
+    const b = brainBody(req);
+    if (typeof b.branch !== 'string' || typeof b.text !== 'string') throw badBody('Cần gửi JSON {branch, text}.');
+    return reply.code(201).send(pipelineCall(() => needBrain().add(b.branch, b.text, { src: 'user' })));
+  });
+  app.patch('/api/brain/items/:id', async (req) => {
+    const b = brainBody(req);
+    return pipelineCall(() => needBrain().update(req.params.id, { text: brainStr(b.text, 'text'), branch: brainStr(b.branch, 'branch') }));
+  });
+  app.delete('/api/brain/items/:id', async (req) => pipelineCall(() => needBrain().remove(req.params.id)));
+  // Đề xuất từ giao diện: 👎 trên câu trả lời của trợ lý (feedback) hoặc người dùng tự gợi ý.
+  app.post('/api/brain/proposals', async (req, reply) => {
+    const b = brainBody(req);
+    if (typeof b.text !== 'string') throw badBody('Cần gửi JSON {text}.');
+    const src = b.src === 'feedback' ? 'feedback' : 'user';
+    const r = needBrain().propose({ branch: brainStr(b.branch, 'branch') ?? 'Bài học', text: b.text, reason: brainStr(b.reason, 'reason') ?? '', src });
+    if (!r.ok) {
+      const msg = { empty: 'Nội dung đang trống.', known: 'Bộ não đã nhớ điều này rồi.', pending: 'Điều này đang chờ duyệt.', queue_full: 'Hàng chờ duyệt đã đầy — duyệt bớt trước.' }[r.reason];
+      throw new HttpError(r.reason === 'queue_full' ? 409 : 400, `proposal_${r.reason}`, msg || 'Không thêm được đề xuất.');
+    }
+    return reply.code(201).send(r);
+  });
+  app.post('/api/brain/proposals/:id/accept', async (req) => {
+    const b = brainBody(req);
+    return pipelineCall(() => needBrain().accept(req.params.id, { text: brainStr(b.text, 'text'), branch: brainStr(b.branch, 'branch') }));
+  });
+  app.post('/api/brain/proposals/:id/reject', async (req) => pipelineCall(() => needBrain().reject(req.params.id)));
+  // Nén (effort max, tốn token): soạn bản nháp + kiểm; chỉ ghi khi người dùng bấm Áp dụng.
+  app.post('/api/brain/compact', async () => {
+    const br = needBrain();
+    if (!brainCompact) throw new HttpError(503, 'brain_unavailable', 'Nén bộ não chưa bật trên server này.');
+    const raw = await brainCompact.draft(br.read(), home || process.cwd());
+    return pipelineCall(() => br.stagePreview(raw));
+  });
+  app.post('/api/brain/compact/apply', async (req) => pipelineCall(() => needBrain().applyPreview(brainBody(req).id)));
+  app.post('/api/brain/restore', async (req) => pipelineCall(() => needBrain().restore(brainBody(req).name)));
 
   app.get('/api/pipelines/:id', async (req) => {
     if (!home) throw new Error('Thiếu thư mục dữ liệu.');

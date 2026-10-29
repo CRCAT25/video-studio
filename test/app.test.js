@@ -1356,3 +1356,69 @@ test('POST /api/tts/test: câu đã đọc → trả lại từ bộ nhớ (khô
   await say('Xin chào');
   assert.equal(reads, 3);
 });
+
+test('Bộ não: /api/brain thêm/sửa/xóa, đề xuất nhận/bỏ, /api/style đi qua nhánh Phong cách, nén xem trước rồi áp dụng', async () => {
+  const { createBrain } = await import('../server/brain.js');
+  const { createBrainCompact } = await import('../server/brain-compact.js');
+  const brain = createBrain({ home });
+  const fake = path.join(REPO_ROOT, 'test', 'fixtures', 'fake-claude.mjs');
+  await makeApp({ brain, brainCompact: createBrainCompact({ claudeBin: fake, env: process.env }) });
+
+  assert.equal((await req({ url: '/api/brain' })).json().items, 0);
+  const a = await req({ method: 'POST', url: '/api/brain/items', payload: { branch: 'Chung', text: 'Luôn trả lời tiếng Việt.' } });
+  assert.equal(a.statusCode, 201, a.body);
+  const id = a.json().item.id;
+  await req({ method: 'POST', url: '/api/brain/items', payload: { branch: 'Chung', text: 'Câu ngắn, rõ ý.' } });
+  assert.equal((await req({ method: 'POST', url: '/api/brain/items', payload: { branch: 'Chung' } })).statusCode, 400);
+  assert.equal((await req({ method: 'PATCH', url: `/api/brain/items/${id}`, payload: { text: 'Luôn trả lời bằng tiếng Việt có dấu.' } })).statusCode, 200);
+  assert.equal((await req({ method: 'PATCH', url: '/api/brain/items/khongco', payload: { text: 'x' } })).statusCode, 404);
+  assert.equal((await req({ method: 'PATCH', url: `/api/brain/items/${id}`, payload: { text: 5 } })).statusCode, 400);
+
+  // /api/style tương thích: ghi thành mục nhánh Phong cách.
+  assert.equal((await req({ method: 'PUT', url: '/api/style', payload: { text: '- Giọng ấm\n- Không dùng tiếng lóng' } })).statusCode, 200);
+  assert.equal((await req({ url: '/api/style' })).json().text, '- Giọng ấm\n- Không dùng tiếng lóng');
+  assert.equal((await req({ url: '/api/brain' })).json().branches.find((b) => b.path === 'Phong cách').items.length, 2);
+
+  // Đề xuất 👎: vào hàng chờ, nhận (có sửa chữ) / bỏ, trùng thì 400.
+  const p = await req({ method: 'POST', url: '/api/brain/proposals', payload: { text: 'Đừng tự bấm nút trả phí.', src: 'feedback' } });
+  assert.equal(p.statusCode, 201, p.body);
+  assert.equal(p.json().proposal.branch, 'Bài học');
+  assert.equal(p.json().proposal.src, 'feedback');
+  assert.equal((await req({ method: 'POST', url: '/api/brain/proposals', payload: { text: 'Đừng tự bấm nút trả phí.' } })).json().error, 'proposal_pending');
+  const acc = await req({ method: 'POST', url: `/api/brain/proposals/${p.json().proposal.id}/accept`, payload: { text: 'Không bao giờ tự bấm nút trả phí.' } });
+  assert.equal(acc.statusCode, 200, acc.body);
+  const q = await req({ method: 'POST', url: '/api/brain/proposals', payload: { text: 'Thử bỏ.' } });
+  assert.equal((await req({ method: 'POST', url: `/api/brain/proposals/${q.json().proposal.id}/reject`, payload: {} })).statusCode, 200);
+  assert.equal((await req({ method: 'POST', url: `/api/brain/proposals/${q.json().proposal.id}/reject`, payload: {} })).statusCode, 404);
+  const t = (await req({ url: '/api/brain' })).json();
+  assert.equal(t.items, 5);
+  assert.equal(t.proposals.length, 0);
+
+  // Nén: fake-claude giữ mục đầu mỗi nhánh → nhỏ hơn; áp dụng tạo bản sao lưu; khôi phục về được.
+  const c = await req({ method: 'POST', url: '/api/brain/compact', payload: {} });
+  assert.equal(c.statusCode, 200, c.body);
+  assert.ok(c.json().after < c.json().before);
+  const log = fs.readFileSync(path.join(home, '.fake-brain-compact.jsonl'), 'utf8');
+  assert.match(log, /"--effort","max"/);
+  const ap = await req({ method: 'POST', url: '/api/brain/compact/apply', payload: { id: c.json().id } });
+  assert.equal(ap.statusCode, 200, ap.body);
+  assert.equal(ap.json().items, 3);
+  assert.equal((await req({ method: 'POST', url: '/api/brain/compact/apply', payload: { id: c.json().id } })).statusCode, 404);
+  const rs = await req({ method: 'POST', url: '/api/brain/restore', payload: { name: ap.json().backup } });
+  assert.equal(rs.statusCode, 200, rs.body);
+  assert.equal(rs.json().items, 5);
+  assert.equal((await req({ method: 'POST', url: '/api/brain/restore', payload: { name: '../x.md' } })).statusCode, 400);
+
+  // Bản nén cũ khi bộ não đã đổi → 409.
+  const c2 = (await req({ method: 'POST', url: '/api/brain/compact', payload: {} })).json();
+  const del = await req({ method: 'DELETE', url: `/api/brain/items/${id}`, payload: {} });
+  assert.equal(del.statusCode, 200, del.body);
+  assert.ok(c2.id, JSON.stringify(c2));
+  assert.equal((await req({ method: 'POST', url: '/api/brain/compact/apply', payload: { id: c2.id } })).statusCode, 409);
+});
+
+test('Bộ não chưa bật: /api/brain trả 503, /api/style vẫn dùng style.md', async () => {
+  await makeApp();
+  assert.equal((await req({ url: '/api/brain' })).statusCode, 503);
+  assert.equal((await req({ method: 'POST', url: '/api/brain/compact', payload: {} })).statusCode, 503);
+});

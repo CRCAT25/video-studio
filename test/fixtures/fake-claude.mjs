@@ -441,10 +441,32 @@ async function skillSearchMode() {
   out({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: so, session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1 } });
 }
 
+// Nén bộ não: ghi lại argv/prompt; mặc định giữ mục đầu của mỗi nhánh (FAKE_BRAIN_COMPACT = JSON để ép kết quả).
+async function brainCompactMode() {
+  const prompt = await readStdin();
+  try {
+    fs.appendFileSync(path.join(cwd, '.fake-brain-compact.jsonl'), JSON.stringify({ argv, prompt }) + '\n');
+  } catch {
+    /* bỏ qua */
+  }
+  const branches = [];
+  for (const line of prompt.split('\n')) {
+    const h = /^## (.+)$/.exec(line);
+    if (h) branches.push({ path: h[1], items: [] });
+    const it = /^- \[[^\]]*\] (.+)$/.exec(line);
+    if (it && branches.length && !branches[branches.length - 1].items.length) branches[branches.length - 1].items.push(it[1]);
+  }
+  const so = process.env.FAKE_BRAIN_COMPACT ? JSON.parse(process.env.FAKE_BRAIN_COMPACT) : { branches, summary: 'Giữ mục đầu mỗi nhánh.' };
+  const sessionId = uuid();
+  out({ type: 'system', subtype: 'init', session_id: sessionId, model: MODEL, tools: [] });
+  out({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: so, session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1 } });
+}
+
 // ---- kịch bản
 async function main() {
   if (await doctorCommand()) return;
   if (argv.includes('--mcp-config')) return assistantMode();
+  if (argv.includes('--json-schema') && argv.join(' ').includes('"branches"')) return brainCompactMode();
   if (argv.includes('--json-schema') && argv.includes('--no-session-persistence')) return skillSearchMode();
   if (argv.includes('--no-session-persistence')) return usageCheckMode();
   const scenario = pickScenario();

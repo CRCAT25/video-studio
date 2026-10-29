@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { forward, handle, serve, TOOLS, WAIT_MAX_MS } from '../server/assistant-mcp.js';
-import { buildAssistantArgs, createAssistant } from '../server/assistant.js';
+import { ASSISTANT_PROTOCOL, buildAssistantArgs, createAssistant } from '../server/assistant.js';
 import { REPO_ROOT } from '../server/presets.js';
 
 const FAKE = path.join(REPO_ROOT, 'test', 'fixtures', 'fake-claude.mjs');
@@ -83,7 +83,7 @@ test('MCP: initialize giữ protocolVersion, tools/list, ping, method lạ, noti
   assert.equal(init.result.serverInfo.name, 'studio');
   assert.equal((await handle({ id: 2, method: 'initialize' })).result.protocolVersion, '2024-11-05');
   const list = await handle({ id: 3, method: 'tools/list' });
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait', 'project_images', 'view_images', 'make_short', 'approve']);
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait', 'project_images', 'view_images', 'make_short', 'brain_propose', 'approve']);
   assert.deepEqual((await handle({ id: 4, method: 'ping' })).result, {});
   assert.equal((await handle({ id: 5, method: 'bogus' })).error.code, -32601);
   assert.equal(await handle({ method: 'notifications/initialized' }), null);
@@ -126,7 +126,7 @@ test('MCP serve: đọc từng dòng, JSON lỗi → -32700, trả lời theo id
   await until(() => lines.length === 3, 2000);
   assert.deepEqual(lines.find((l) => l.id === 1).result, {});
   assert.equal(lines.find((l) => l.id === null).error.code, -32700);
-  assert.equal(lines.find((l) => l.id === 2).result.tools.length, 9);
+  assert.equal(lines.find((l) => l.id === 2).result.tools.length, 10);
 });
 
 // ---------- tham số + vòng đời lượt
@@ -137,8 +137,12 @@ test('buildAssistantArgs: chỉ tool studio, không --model khi mặc định, r
   assert.equal(a[a.indexOf('--tools') + 1], '');
   assert.ok(a.includes('--strict-mcp-config'));
   assert.equal(a[a.indexOf('--mcp-config') + 1], '/c.json');
-  assert.equal(a[a.indexOf('--allowedTools') + 1], 'mcp__studio__read_page,mcp__studio__click,mcp__studio__fill,mcp__studio__navigate,mcp__studio__wait,mcp__studio__project_images,mcp__studio__view_images,mcp__studio__make_short');
+  assert.equal(a[a.indexOf('--allowedTools') + 1], 'mcp__studio__read_page,mcp__studio__click,mcp__studio__fill,mcp__studio__navigate,mcp__studio__wait,mcp__studio__project_images,mcp__studio__view_images,mcp__studio__make_short,mcp__studio__brain_propose');
   assert.ok(!a.includes('--model'));
+  // Bộ não nối sau giao thức, không có thì giữ nguyên giao thức.
+  assert.equal(a[a.indexOf('--append-system-prompt') + 1], ASSISTANT_PROTOCOL);
+  const m = buildAssistantArgs({ sessionId: 's1', mcpConfig: '/c.json', memory: '## Bộ não\n- Xưng mình' });
+  assert.equal(m[m.indexOf('--append-system-prompt') + 1], `${ASSISTANT_PROTOCOL}\n\n## Bộ não\n- Xưng mình`);
   const b = buildAssistantArgs({ sessionId: 's1', resume: true, mcpConfig: '/c.json', model: 'opus' });
   assert.equal(b[b.indexOf('--resume') + 1], 's1');
   assert.equal(b[b.indexOf('--model') + 1], 'opus');

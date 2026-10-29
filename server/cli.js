@@ -14,6 +14,8 @@ import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
 import { createSkillSearch } from './skill-search.js';
 import { createDistill } from './distill.js';
+import { createBrain } from './brain.js';
+import { createBrainCompact } from './brain-compact.js';
 import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
 import { createTts } from './tts.js';
@@ -251,11 +253,18 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   // Mức dùng gói Claude: bắt % từ mọi lượt claude -p; Kiểm tra hỏi API như /usage (token Claude Code chỉ đọc lúc kiểm tra),
   // lỗi thì chạy 1 câu ngắn. VS_CLAUDE_CREDENTIALS / VS_CLAUDE_API_BASE: file token + API giả khi test.
   const usage = createUsage({ home, store, claudeBin, env: authEnv, planApi: createPlanApi({ env }) });
-  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage, serverTools: createShortTools({ store }) });
+  // Bộ não: trợ lý và các bước cùng đọc; trợ lý chỉ được đề xuất (brain_propose), người dùng duyệt trên trang Bộ não.
+  const brain = createBrain({ home });
+  const brainPropose = async (a) => {
+    const r = brain.propose({ branch: a.branch, text: a.text, reason: a.reason, src: 'assistant' });
+    const why = { known: 'đã có trong bộ não', pending: 'đang chờ duyệt', queue_full: 'hàng chờ đã đầy', empty: 'nội dung trống' }[r.reason];
+    return { text: r.ok ? 'Đã gửi đề xuất — người dùng sẽ duyệt trên trang Bộ não.' : `Không thêm: ${why || r.reason}.` };
+  };
+  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage, brain, serverTools: { ...createShortTools({ store }), brain_propose: brainPropose } });
   try {
     const projects = createProjects({ store, presets, channels, home });
     const fixed = projects.recoverOnStartup();
-    runner = createRunner({ store, projects, presets, claudeBin, model: opts.model, home, lockHost: os.hostname() });
+    runner = createRunner({ store, projects, presets, claudeBin, model: opts.model, home, lockHost: os.hostname(), brain });
     runner.on('rate_limit', (info) => usage.observe(info));
     const youtube = createYouTube({
       store,
@@ -301,6 +310,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       usage,
       skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
       distill: createDistill({ claudeBin, env: authEnv }),
+      brain,
+      brainCompact: createBrainCompact({ claudeBin, env: authEnv }),
       youtube,
       googleWizard: wizard,
       login: createLogin({

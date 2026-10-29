@@ -60,6 +60,7 @@ Quy tắc:
 - Chỉ làm qua trang và các tool dưới đây, trừ khi được cấp thêm tool đọc/sửa file (khi đó mỗi lần sửa file hoặc chạy lệnh người dùng sẽ được hỏi). Việc không làm được thì nói rõ.
 Tạo Short từ ảnh dự án: project_images (liệt kê ảnh + trích storyboard/script; bỏ projectId để xem dự án), view_images (xem tối đa 4 ảnh), make_short (dựng Short 9:16).
 Trước khi gọi make_short PHẢI hỏi người dùng (trong chat, chờ trả lời): (1) Short dài bao nhiêu giây và làm mấy Short; (2) có giọng đọc không — không giọng, hoặc giọng máy miễn phí (Linh); giọng ElevenLabs tốn tiền thì không tự dùng, nhờ người dùng duyệt chi phí riêng; (3) có phụ đề không; (4) có hiệu ứng vẽ dần từ giấy trắng không (reveal=draw cho từng cảnh; mặc định cả ảnh hiện ngay). Không tự đề nghị tạo dự án mới chỉ để có hiệu ứng vẽ. Chọn ảnh theo nội dung (xem bằng view_images), chia thời lượng cảnh cho khớp tổng, rồi báo file; luôn ghi NGUYÊN đường dẫn /media/… (không rút gọn, không bọc dấu nháy) để người dùng bấm nút xem ngay.
+Bộ não: mục "## Bộ não" (nếu có) là điều người dùng đã duyệt cho bạn nhớ — làm theo. Khi người dùng nói rõ một sở thích/quy tắc lâu dài, hoặc bạn vừa làm sai và rút ra bài học, gọi brain_propose (1 câu, không trùng điều đã có); người dùng sẽ duyệt sau, đừng hỏi lại trong chat.
 - Trả lời tiếng Việt, ngắn gọn; xong việc thì báo kết quả trong 1–2 câu.`;
 
 // Tệp chữ đính kèm → [{name, text}] (cắt ở MAX_FILE_CHARS).
@@ -78,7 +79,7 @@ CHẾ ĐỘ LẬP KẾ HOẠCH: bạn chỉ được đọc (không sửa file, 
 
 // Tham số dòng lệnh cho một lượt: phiên mới dùng --session-id, lượt sau --resume.
 // mode: page = không tool file (--tools ''), plan = chỉ đọc, ask/edit = có đọc/sửa/chạy lệnh, mỗi việc nhạy cảm hỏi qua tool approve.
-export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model = null, effort = null, images = false, mode = 'page', protect = [] }) {
+export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model = null, effort = null, images = false, mode = 'page', protect = [], memory = '' }) {
   const args = ['-p', '--output-format', 'stream-json', '--verbose'];
   if (images) args.push('--input-format', 'stream-json'); // ảnh đi qua khối base64, model không cần quyền đọc file
   args.push(resume ? '--resume' : '--session-id', sessionId);
@@ -90,7 +91,9 @@ export function buildAssistantArgs({ sessionId, resume = false, mcpConfig, model
   // thư mục bí mật (token, khóa): chặn cả đọc lẫn sửa, kể cả khi không qua bước hỏi quyền
   const guard = [...new Set(protect.filter(Boolean).map((d) => path.resolve(d)))].flatMap((d) => ['Read', 'Edit', 'Write'].map((t) => `${t}(/${d}/**)`));
   if (mode !== 'page' && guard.length) args.push('--disallowedTools', guard.join(','));
-  args.push('--append-system-prompt', mode === 'plan' ? ASSISTANT_PROTOCOL + PLAN_PROTOCOL : ASSISTANT_PROTOCOL);
+  // Bộ não gửi lại mỗi lượt (kể cả --resume) nên luôn là bản mới nhất người dùng đã duyệt.
+  const sys = (mode === 'plan' ? ASSISTANT_PROTOCOL + PLAN_PROTOCOL : ASSISTANT_PROTOCOL) + (memory && memory.trim() ? `\n\n${memory.trim()}` : '');
+  args.push('--append-system-prompt', sys);
   if (model) args.push('--model', model);
   if (effort) args.push('--effort', effort);
   return args;
@@ -125,6 +128,7 @@ export function createAssistant({
   env = {},
   usage = null, // createUsage(): nhận % mức dùng + token của mỗi lượt
   serverTools = {}, // {tên: async (args) → {text, isError, images}} chạy ngay trên server
+  brain = null, // createBrain(): nạp nhánh của trợ lý vào lời nhắc hệ thống
   claudeHome = path.join(os.homedir(), '.claude'), // nơi tìm skill / lệnh tự định nghĩa cho "/"
   workDir = null, // thư mục làm việc khi trợ lý được đọc/sửa file (mặc định <home>/assistant/work)
   toolTimeoutMs = TOOL_TIMEOUT_MS,
@@ -138,6 +142,14 @@ export function createAssistant({
   const work = workDir ? path.resolve(workDir) : path.join(dir, 'work');
   const listeners = new Set();
   const pending = new Map(); // id → {resolve, timer} lệnh thao tác trang
+  // Bộ não lỗi đọc thì trợ lý vẫn chạy, chỉ thiếu phần ghi nhớ.
+  const brainText = () => {
+    try {
+      return brain ? brain.forPrompt('assistant') : '';
+    } catch {
+      return '';
+    }
+  };
   const perms = new Map(); // id → {resolve, timer, chatId, tool, input, summary} xin quyền sửa file / chạy lệnh
   const turns = new Map(); // chatId → {key, tabId, child, stopped, finished, cfgFile, chat…}
   const queues = new Map(); // chatId → [entry] tin nhắn chờ khi trợ lý đang bận
@@ -335,7 +347,7 @@ export function createAssistant({
     const t = { key, tabId, child: null, stopped: false, finished: false, cfgFile, gotResult: false, stderr: '', resume, chat: c, lastCtx: 0 };
     turns.set(c.id, t);
     const isScript = /\.(mjs|cjs|js)$/i.test(bin);
-    const argv = buildAssistantArgs({ sessionId: c.sessionId, resume, mcpConfig: cfgFile, model: c.model || model, effort: c.effort, images: imgs.length > 0, mode: c.mode, protect: [home, path.join(os.homedir(), '.ssh'), path.join(os.homedir(), '.aws'), path.join(claudeHome)] });
+    const argv = buildAssistantArgs({ sessionId: c.sessionId, resume, mcpConfig: cfgFile, model: c.model || model, effort: c.effort, images: imgs.length > 0, mode: c.mode, protect: [home, path.join(os.homedir(), '.ssh'), path.join(os.homedir(), '.aws'), path.join(claudeHome)], memory: brainText() });
     let cwd = dir;
     if (c.mode !== 'page') {
       try {
