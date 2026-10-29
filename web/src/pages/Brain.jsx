@@ -6,6 +6,7 @@ import ConfirmModal from '../components/ConfirmModal.jsx';
 import Select from '../components/Select.jsx';
 import Progress from '../components/Progress.jsx';
 import Req from '../components/Req.jsx';
+import { BranchIcon } from '../components/icons.jsx';
 import { Sk, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
@@ -211,17 +212,19 @@ function Item({ it, onEdit, onDelete }) {
 }
 
 // Một gốc của cây: các mục trực tiếp, và (Kênh / Bước làm video) các nhánh con.
-function RootNode({ root, branches, readers, onEdit, onDelete }) {
+function RootNode({ root, branches, readers, onEdit, onDelete, onAdd }) {
   const t = useT();
   const own = branches.filter((b) => b.path === root);
   const subs = branches.filter((b) => b.path.startsWith(`${root}/`));
   const count = [...own, ...subs].reduce((n, b) => n + b.items.length, 0);
-  const who = [readers.assistant.includes(root) ? t('Trợ lý') : null, readers.step.includes(root) ? t('Bước video') : null].filter(Boolean);
   return (
+    <div className={`br-node-w${onAdd ? ' can-add' : ''}${count ? '' : ' is-empty'}`}>
     <details className="br-node card" open={count > 0}>
       <summary>
+        <BranchIcon name={ROOT_ICONS[root]} />
         <b>{rootLabel(root, t)}</b>
-        <span className="muted"> · {t('{n} mục', { n: count })}{who.length ? ` · ${t('đọc bởi: {w}', { w: who.join(', ') })}` : ''}</span>
+        <span className="muted">· {t('{n} mục', { n: count })}</span>
+        <Readers ast={readers.assistant.includes(root)} step={readers.step.includes(root)} />
       </summary>
       {!count ? <p className="note">{t('Chưa có ghi nhớ nào ở nhánh này.')}</p> : null}
       {own.map((b) => (
@@ -238,6 +241,23 @@ function RootNode({ root, branches, readers, onEdit, onDelete }) {
         </div>
       ))}
     </details>
+    {onAdd ? <button type="button" className="btn sm ghost br-add" onClick={() => onAdd(root)} aria-label={t('Thêm vào {b}', { b: rootLabel(root, t) })}>{t('+ Thêm')}</button> : null}
+    </div>
+  );
+}
+
+// Biểu tượng của từng gốc (gốc lạ dùng hộp chung).
+const ROOT_ICONS = { Chung: 'pin', 'Phong cách': 'palette', 'Cách dùng app': 'app', Kênh: 'video', 'Bước làm video': 'film', 'Bài học': 'book', 'Chưa phân loại': 'inbox' };
+
+// Nhãn quyền đọc: ai được đọc nhánh này.
+function Readers({ ast, step }) {
+  const t = useT();
+  if (!ast && !step) return null;
+  return (
+    <span className="br-who">
+      {ast ? <span className="tag r-ast">{t('Trợ lý')}</span> : null}
+      {step ? <span className="tag r-step">{t('Bước video')}</span> : null}
+    </span>
   );
 }
 
@@ -371,14 +391,18 @@ export default function Brain({ rev = 0 }) {
                 root={r}
                 branches={data.branches}
                 readers={data.readers}
+                onAdd={data.level === 'full' ? null : (b) => setModal({ kind: 'add', init: { branch: b, text: '' } })}
                 onEdit={(it) => setModal({ kind: 'edit', id: it.id, init: { branch: it.branch, text: it.text } })}
                 onDelete={(it) => setConfirm({ title: t('Xóa ghi nhớ?'), body: it.text, okLabel: t('Xóa'), danger: true, onOk: async () => { await api.brainRemove(it.id); load(); } })}
               />
             ))}
+            <div className="br-node-w">
             <details className="br-node card">
               <summary>
+                <BranchIcon name="bulb" />
                 <b>{t('Kiến thức gốc')}</b>
-                <span className="muted"> · {t('{n} mục', { n: hints.length })}{edited ? ` · ${t('{n} đã sửa', { n: edited })}` : ''} · {t('trợ lý đọc theo màn đang mở')}</span>
+                <span className="muted">· {t('{n} mục', { n: hints.length })}{edited ? ` · ${t('{n} đã sửa', { n: edited })}` : ''} · {t('theo màn đang mở')}</span>
+                <Readers ast />
               </summary>
               <ul className="br-items">
                 {Object.keys(HINTS).map((id, i) => (
@@ -397,6 +421,7 @@ export default function Brain({ rev = 0 }) {
                 ))}
               </ul>
             </details>
+            </div>
           </section>
           )}
 
@@ -431,7 +456,7 @@ export default function Brain({ rev = 0 }) {
       ) : null}
 
       {modal?.kind === 'add' ? (
-        <ItemModal title={t('Thêm ghi nhớ')} okLabel={t('Lưu')} roots={data.roots} onClose={() => setModal(null)} onSave={async (b) => { await api.brainAdd(b.branch, b.text); toast(t('Đã thêm vào bộ não.'), 'ok'); load(); }} />
+        <ItemModal title={t('Thêm ghi nhớ')} okLabel={t('Lưu')} roots={data.roots} init={modal.init} onClose={() => setModal(null)} onSave={async (b) => { await api.brainAdd(b.branch, b.text); toast(t('Đã thêm vào bộ não.'), 'ok'); load(); }} />
       ) : null}
       {modal?.kind === 'edit' ? (
         <ItemModal title={t('Sửa ghi nhớ')} okLabel={t('Lưu')} roots={data.roots} init={modal.init} onClose={() => setModal(null)} onSave={async (b) => { await api.brainEdit(modal.id, b); load(); }} />
