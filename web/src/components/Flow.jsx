@@ -94,10 +94,27 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
     };
   }, []);
 
+  // Sơ đồ lớn: bước đã xong (trừ bước đang xem) thu gọn thành một hàng nhãn nhỏ phía trên cho gọn.
+  const mini = large && !staticMode ? items.map((it, i) => ({ ...it, i })).filter((it) => it.state === 'done' && it.key !== currentKey) : [];
+  const miniKeys = new Set(mini.map((it) => it.key));
+
   return (
     <div ref={ref} className={`flow${large ? ' lg' : ''}${staticMode ? ' static' : ''}`} aria-label={label || t('Các bước')} tabIndex={staticMode ? -1 : undefined}>
+      {mini.length ? (
+        <div className="belt-mini">
+          {mini.map((it) => (
+            <a key={it.key} className={`mini${it.unapproved ? ' unap' : ''}`} href={stepHref(projectId, it.key)} title={it.title} style={{ '--i': it.i }}>
+              <span className="ck" aria-hidden="true">✓</span>
+              <span className="no">{two(it.i + 1)}</span>
+              <span className="nm">{tr(it.name)}</span>
+              {it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}
+            </a>
+          ))}
+        </div>
+      ) : null}
       <div className="belt">
         {items.map((it, i) => {
+          if (miniKeys.has(it.key)) return null;
           const Tag = staticMode ? 'div' : 'a';
           const linkProps = staticMode ? {} : { href: stepHref(projectId, it.key) };
           const cur = it.key === currentKey;

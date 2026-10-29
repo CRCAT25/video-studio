@@ -59,3 +59,16 @@ a.box:hover{border-color:var(--line-2);background:var(--surface-2)}
 @keyframes box-in{from{opacity:0;transform:translateY(8px) scale(.97)}}
 @keyframes cur-glow{50%{box-shadow:0 0 0 1px var(--accent),0 6px 26px -4px var(--accent)}}
 @media (prefers-reduced-motion:reduce){.flow.lg .box,.flow.lg .box.cur{animation:none;transition:none}.flow.lg a.box:hover{transform:none}}
+
+/* Bước đã xong ở sơ đồ lớn: nhãn nhỏ một dòng, xếp hàng trên lưới */
+.belt-mini{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.mini{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid color-mix(in srgb,var(--ok) 35%,var(--line));
+  background:var(--surface);color:var(--text);text-decoration:none;font-size:var(--fs-sm);max-width:100%;
+  transition:border-color .12s,background .12s;animation:box-in .42s cubic-bezier(.2,.7,.3,1) backwards;animation-delay:calc(var(--i,0) * 30ms)}
+.mini:hover{border-color:var(--ok);background:var(--surface-2)}
+.mini .ck{color:var(--ok);font-weight:600}
+.mini .no{font-size:var(--fs-xs);color:var(--dim);font-variant-numeric:tabular-nums}
+.mini .nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mini .unap{font-style:normal;font-size:var(--fs-xs);color:var(--ask)}
+.mini.unap{border-color:color-mix(in srgb,var(--ask) 45%,var(--line))}
+@media (prefers-reduced-motion:reduce){.mini{animation:none;transition:none}}
