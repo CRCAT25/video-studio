@@ -18,6 +18,10 @@ export const HINTS = {
     title: 'Chọn giọng đọc',
     text: '2 thẻ radio: "Miễn phí" (VieNeu, chạy trên máy) và thẻ trả phí (vd ElevenLabs). Muốn đổi giọng: click thẻ đó, rồi bấm nút chạy (nút tự ghi chi phí) và nhờ người dùng tự đồng ý chi phí. App tự báo giọng đã chọn cho bước khi chạy — KHÔNG sửa lời dặn/quy trình. Thẻ trả phí bấm được, có "Nghe thử" nghĩa là khóa API đã có, tên giọng ghi sẵn trên thẻ — không hỏi lại. Muốn giọng khác: link "Đổi giọng". "▶ Nghe thử" không tốn tiền.',
   },
+  'own-pick': {
+    title: 'Tôi có sẵn / Để Claude làm',
+    text: '2 thẻ radio. "Tôi có sẵn": người dùng kéo thả/chọn file hoặc dán chữ (file tự đặt đúng chỗ theo đầu ra của bước), rồi bấm "Dùng nguyên, xong bước" (đánh dấu xong, không gọi Claude) hoặc "Để Claude hoàn thiện từ file của tôi" (Claude giữ nội dung người dùng, chỉ bổ sung). "Để Claude làm": chọn chip cách làm (vd Vẽ bằng code / Ảnh-video CC0) rồi bấm Chạy ở trên. Không tự tải file thay người dùng.',
+  },
   'step-approve': {
     title: 'Duyệt kết quả',
     text: '"Duyệt" chỉ xác nhận kết quả bước này ổn, không chạy gì. "Sang bước tiếp →" mở bước sau; bước sau chưa tự chạy, phải bấm "Chạy" ở đó.',

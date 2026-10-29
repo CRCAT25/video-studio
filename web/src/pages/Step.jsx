@@ -6,6 +6,7 @@ import { MODELS, defaultModelLabel } from '../components/StepEditor.jsx';
 import Flow from '../components/Flow.jsx';
 import CostModal from '../components/CostModal.jsx';
 import VoicePicker, { paidEstimate } from '../components/VoicePicker.jsx';
+import OwnInput from '../components/OwnInput.jsx';
 import Modal from '../components/Modal.jsx';
 import DistillModal from '../components/DistillModal.jsx';
 import ProjectPipelineModal from '../components/ProjectPipelineModal.jsx';
@@ -36,6 +37,7 @@ import { tr, useT } from '../lib/i18n.jsx';
 const FEEDBACK_MAX = 20000;
 const RUNNABLE = new Set(['ready', 'done', 'failed', 'needs_input', 'stale']);
 const COMPLETABLE = new Set(['failed', 'needs_input', 'stale', 'manual']);
+const OWN_STATES = new Set(['ready', 'stale', 'failed']); // trạng thái hiện khung "Tôi có sẵn / Để Claude làm"
 
 // Trang Chi tiết bước; thiếu stepKey thì chuyển tới bước hiện tại của dự án.
 // Lựa chọn giọng (miễn phí/trả phí) nhớ theo dự án + bước trong trình duyệt; lỗi lưu trữ thì bỏ qua.
@@ -51,6 +53,23 @@ function readVoiceMode(p, k) {
 function saveVoiceMode(p, k, m) {
   try {
     localStorage.setItem(voiceKey(p, k), m);
+  } catch {
+    /* trình duyệt chặn lưu trữ */
+  }
+}
+// Nguồn nội dung ('own' | 'claude') và cách làm Claude của bước, nhớ như lựa chọn giọng.
+const pickKey = (n, p, k) => `vs.${n}.${p}.${k}`;
+function readPick(n, p, k) {
+  try {
+    return localStorage.getItem(pickKey(n, p, k));
+  } catch {
+    return null;
+  }
+}
+function savePick(n, p, k, v) {
+  try {
+    if (v) localStorage.setItem(pickKey(n, p, k), v);
+    else localStorage.removeItem(pickKey(n, p, k));
   } catch {
     /* trình duyệt chặn lưu trữ */
   }
@@ -411,6 +430,32 @@ function StepPage({ projectId, stepKey }) {
     saveVoiceMode(projectId, stepKey, m);
   };
 
+  // "Tôi có sẵn / Để Claude làm": thông tin file nhận được + file đã thêm; tải lại khi có lượt mới.
+  const [own, setOwn] = useState(null);
+  const [ownSrc, setOwnSrc] = useState(null);
+  const [ownMethod, setOwnMethod] = useState(null);
+  const ownReq = useRef(0);
+  const loadOwn = useCallback(() => {
+    const my = ++ownReq.current; // bỏ kết quả về muộn của bước cũ
+    api.stepOwn(projectId, stepKey).then((v) => my === ownReq.current && setOwn(v), () => my === ownReq.current && setOwn(null));
+  }, [projectId, stepKey]);
+  useEffect(() => {
+    loadOwn();
+  }, [loadOwn, runCount]);
+  useEffect(() => {
+    setOwn(null);
+    setOwnSrc(readPick('src', projectId, stepKey));
+    setOwnMethod(readPick('method', projectId, stepKey));
+  }, [projectId, stepKey]);
+  const pickSrc = (m) => {
+    setOwnSrc(m);
+    savePick('src', projectId, stepKey, m);
+  };
+  const pickMethod = (m) => {
+    setOwnMethod(m);
+    savePick('method', projectId, stepKey, m);
+  };
+
   useSSE((msg) => {
     const hit = (msg.type === 'change' && (!msg.data?.projectId || msg.data.projectId === projectId)) || msg.type === 'reconnect';
     if (!hit) return;
@@ -477,6 +522,10 @@ function StepPage({ projectId, stepKey }) {
   const freeMode = mode === 'free';
   const paid = !!(step.cost || step.has_cost) && !freeMode;
   const fbTrim = feedback.trim();
+  const showOwn = !!own && own.accept.length > 0 && !step.manual && OWN_STATES.has(st);
+  const src = ownSrc === 'own' || ownSrc === 'claude' ? ownSrc : own?.files?.length ? 'own' : 'claude';
+  // Cách làm chỉ gửi khi chọn "Để Claude làm" và bước còn cách đó
+  const runMethod = showOwn && src === 'claude' && own.methods.some((m) => m.id === ownMethod) ? ownMethod : null;
 
   // Cho phép quy tắc bị chặn: thêm vào allow của dự án (scope 'pipeline' ghi thêm vào quy trình đã lưu), rồi gợi ý chạy lại.
   const onGrant = async (rules, scope) => {
@@ -498,11 +547,11 @@ function StepPage({ projectId, stepKey }) {
   };
 
 
-  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = freeMode, cont = false) => {
+  const doRun = async (fb, allowPaid = false, allowOnce = undefined, reply = false, free = freeMode, cont = false, withOwn = false) => {
     setBusy('run');
     setActionErr(null);
     try {
-      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply, free, cont });
+      await api.runStep(projectId, stepKey, { feedback: fb || undefined, allowPaid, allowOnce, reply, free, cont, method: withOwn ? undefined : runMethod || undefined, own: withOwn });
       setCostAsk(null);
       if (fb) setFeedback('');
       setSelRunId(null);
@@ -511,7 +560,7 @@ function StepPage({ projectId, stepKey }) {
       await load();
     } catch (e) {
       if (e.status === 412) {
-        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce, reply, cont });
+        setCostAsk({ cost: e.data?.cost || step.cost, feedback: fb, allowOnce, reply, cont, own: withOwn });
       } else {
         setCostAsk(null);
         setActionErr(e.message);
@@ -524,12 +573,12 @@ function StepPage({ projectId, stepKey }) {
   };
 
   // Bước tốn tiền → luôn mở modal xác nhận trước; Hủy không gọi API.
-  const requestRun = (fb, reply = false, cont = false) => {
+  const requestRun = (fb, reply = false, cont = false, withOwn = false) => {
     if (paid) {
-      setCostAsk({ cost: step.cost, feedback: fb, reply, cont });
+      setCostAsk({ cost: step.cost, feedback: fb, reply, cont, own: withOwn });
       return;
     }
-    doRun(fb, false, undefined, reply, freeMode, cont);
+    doRun(fb, false, undefined, reply, freeMode, cont, withOwn);
   };
 
   // Chỉ gửi câu trả lời (prompt ngắn, tiếp tục phiên cũ) — khác "Chạy lại" là chạy lại cả bước
@@ -874,6 +923,25 @@ function StepPage({ projectId, stepKey }) {
       <div className="line-panel">
         <Flow steps={project.steps || []} projectId={project.id} currentKey={step.key} large label={t('Các bước của {n}', { n: project.title })} />
       </div>
+      {showOwn ? (
+        <OwnInput
+          projectId={projectId}
+          stepKey={stepKey}
+          info={own}
+          src={src}
+          onSrc={pickSrc}
+          method={runMethod}
+          onMethod={pickMethod}
+          onChanged={loadOwn}
+          disabled={st === 'running'}
+          busy={busy}
+          paid={paid}
+          canDone={prevOk}
+          canRun={canRun.ok}
+          onUseAsIs={doComplete}
+          onRefine={() => requestRun('', false, false, true)}
+        />
+      ) : null}
       {voice ? <VoicePicker info={voice} mode={mode} onMode={pickVoice} disabled={st === 'running'} /> : null}
 
       <div className="subtabs" role="group" aria-label={t('Nội dung bước')}>
@@ -1015,8 +1083,8 @@ function StepPage({ projectId, stepKey }) {
           withFeedback={!!costAsk.feedback}
           busy={busy === 'run'}
           onClose={() => setCostAsk(null)}
-          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce, !!costAsk.reply, undefined, !!costAsk.cont)}
-          onFree={() => doRun(costAsk.feedback, false, costAsk.allowOnce, !!costAsk.reply, true, !!costAsk.cont)}
+          onConfirm={() => doRun(costAsk.feedback, true, costAsk.allowOnce, !!costAsk.reply, undefined, !!costAsk.cont, !!costAsk.own)}
+          onFree={() => doRun(costAsk.feedback, false, costAsk.allowOnce, !!costAsk.reply, true, !!costAsk.cont, !!costAsk.own)}
         />
       ) : null}
     </>

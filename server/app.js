@@ -22,6 +22,7 @@ import { createHub } from './sse.js';
 import { CALLBACK_PATH } from './youtube/index.js';
 import { createDirPicker } from './pick-dir.js';
 import { buildReferenceMd } from './reference.js';
+import { MAX_OWN_FILE, MAX_OWN_TEXT, destFor, listOwn, ownSpec, removeOwn, saveOwnStream, saveOwnText } from './own-input.js';
 
 export const BODY_LIMIT = 256 * 1024;
 export const MAX_FEEDBACK = 20_000;
@@ -168,6 +169,8 @@ export async function buildApp({
     return defaultJson(req, body, done);
   });
   // Form HTML của trang đăng nhập (/auth/setup, /auth/password); /api vẫn chỉ nhận JSON (hook 415 bên dưới).
+  // File người dùng tải lên: giữ nguyên luồng để ghi thẳng xuống đĩa (route tự giới hạn cỡ).
+  app.addContentTypeParser('application/octet-stream', (req, payload, done) => done(null, payload));
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit: 4096 }, (req, body, done) => {
     done(null, Object.fromEntries(new URLSearchParams(body)));
   });
@@ -257,6 +260,7 @@ export async function buildApp({
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
     if (!req.routeOptions?.url || !splitUrl(req.url).pathname.startsWith('/api/')) return; // route lạ → để 404
     const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    if (type === 'application/octet-stream' && req.routeOptions.config?.rawUpload) return; // tải file người dùng (PUT, có preflight)
     if (type !== 'application/json') throw new HttpError(415, 'invalid_body', 'Chỉ nhận dữ liệu JSON (Content-Type: application/json).');
   });
 
@@ -1129,15 +1133,73 @@ export async function buildApp({
     };
   });
 
+  // "Tôi có sẵn": bước nhận file gì, file người dùng đã thêm, các cách làm để chọn khi "Để Claude làm".
+  const ownStep = (req) => {
+    const v = projects.stepView(req.params.id, req.params.key);
+    if (!v) throw notFound(`Không tìm thấy bước "${req.params.key}" trong dự án "${req.params.id}".`);
+    const dir = store.getProject(req.params.id)?.dir;
+    if (!dir) throw notFound('Dự án không có thư mục.');
+    return { v, dir };
+  };
+  const ownWritable = (v) => {
+    if (v.step.state === 'running') throw new HttpError(409, 'step_running', 'Bước đang chạy — dừng lượt đó trước khi thêm file.');
+    if (v.step.state === 'pending') throw new HttpError(409, 'not_runnable', 'Các bước trước phải xong trước.');
+  };
+  const ownView = (v, dir) => ({ ...ownSpec(v.step), files: listOwn(dir, v.step.key) });
+  app.get('/api/projects/:id/steps/:key/own', async (req) => {
+    const { v, dir } = ownStep(req);
+    return ownView(v, dir);
+  });
+  app.put('/api/projects/:id/steps/:key/own', { config: { rawUpload: true } }, async (req) => {
+    const { v, dir } = ownStep(req);
+    ownWritable(v);
+    const rel = destFor(v.step, req.query?.name);
+    if (!rel) {
+      req.body?.resume?.();
+      const acc = ownSpec(v.step).accept;
+      throw new HttpError(400, 'bad_file', acc.length ? `Bước này chỉ nhận file: ${acc.map((x) => '.' + x).join(', ')}.` : 'Bước này không nhận file.');
+    }
+    if (!req.body || typeof req.body.pipe !== 'function') throw badBody('Cần gửi nội dung file (application/octet-stream).');
+    try {
+      await saveOwnStream(dir, v.step.key, rel, req.body, MAX_OWN_FILE);
+    } catch (e) {
+      if (e.code === 'too_large') throw new HttpError(413, 'too_large', 'File quá lớn (tối đa 4 GB).');
+      if (e.code === 'empty') throw badBody('File rỗng.');
+      throw e;
+    }
+    sse.broadcast('change', { projectId: req.params.id });
+    return ownView(v, dir);
+  });
+  app.post('/api/projects/:id/steps/:key/own/text', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.text !== 'string' || !b.text.trim()) throw badBody('Cần gửi JSON {text}.');
+    if (Buffer.byteLength(b.text) > MAX_OWN_TEXT) throw badBody('Văn bản tối đa 500 KB.');
+    const { v, dir } = ownStep(req);
+    ownWritable(v);
+    const rel = ownSpec(v.step).text;
+    if (!rel) throw new HttpError(400, 'bad_file', 'Bước này không nhận văn bản dán vào.');
+    saveOwnText(dir, v.step.key, rel, b.text);
+    sse.broadcast('change', { projectId: req.params.id });
+    return ownView(v, dir);
+  });
+  app.delete('/api/projects/:id/steps/:key/own', async (req) => {
+    const { v, dir } = ownStep(req);
+    ownWritable(v);
+    if (!removeOwn(dir, v.step.key, String(req.query?.path ?? ''))) throw notFound('Không có file này trong danh sách bạn đã thêm.');
+    sse.broadcast('change', { projectId: req.params.id });
+    return ownView(v, dir);
+  });
+
   app.post('/api/projects/:id/steps/:key/run', async (req, reply) => {
     const b = req.body === undefined || req.body === null ? {} : req.body;
     if (!isObject(b)) throw badBody('Cần gửi JSON {feedback?, allowPaid?}.');
-    const { feedback, allowPaid, allowOnce, reply: quick, free, cont } = b;
+    const { feedback, allowPaid, allowOnce, reply: quick, free, cont, method, own } = b;
     if (allowOnce !== undefined && allowOnce !== null && (!Array.isArray(allowOnce) || allowOnce.length > 20)) throw badBody('allowOnce phải là danh sách tối đa 20 quy tắc.');
     const once = (allowOnce || []).map((r) => pipelineCall(() => validateGrantRule(r, { once: true })));
     if (feedback !== undefined && feedback !== null && typeof feedback !== 'string') throw badBody('Góp ý phải là chuỗi.');
     if (typeof feedback === 'string' && feedback.length > MAX_FEEDBACK) throw badBody('Góp ý tối đa 20 000 ký tự.');
     if (allowPaid !== undefined && allowPaid !== null && typeof allowPaid !== 'boolean') throw badBody('allowPaid phải là true/false.');
+    if (method !== undefined && method !== null && typeof method !== 'string') throw badBody('method phải là chuỗi.');
     const paid = allowPaid === true;
     // free: chạy bước tốn tiền bằng phương án miễn phí (vd. giọng VieNeu) — không cần duyệt chi phí.
     const useFree = !paid && free === true;
@@ -1145,7 +1207,7 @@ export async function buildApp({
     if (!chk.ok) throw new HttpError(chk.status, chk.code, chk.message, chk.cost ? { cost: chk.cost } : undefined);
     if (!runner || typeof runner.start !== 'function') throw new Error('Runner chưa sẵn sàng.');
     const fb = typeof feedback === 'string' && feedback.trim() ? feedback : null;
-    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, ...(useFree ? { free: true } : {}), allowOnce: once, ...(quick === true ? { reply: true } : {}), ...(cont === true ? { cont: true } : {}) });
+    const run = await runner.start(req.params.id, req.params.key, { feedback: fb, allowPaid: paid, ...(useFree ? { free: true } : {}), allowOnce: once, ...(quick === true ? { reply: true } : {}), ...(cont === true ? { cont: true } : {}), ...(method ? { method } : {}), ...(own === true ? { own: true } : {}) });
     return reply.code(202).send({ run: runSummary(run) });
   });
 

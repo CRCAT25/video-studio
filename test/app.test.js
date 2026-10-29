@@ -1433,3 +1433,53 @@ test('Bộ não chưa bật: /api/brain trả 503, /api/style vẫn dùng style.
   assert.equal((await req({ url: '/api/brain' })).statusCode, 503);
   assert.equal((await req({ method: 'POST', url: '/api/brain/compact', payload: {} })).statusCode, 503);
 });
+
+test('Tôi có sẵn: tải file/dán chữ đặt đúng chỗ theo đầu ra, chặn tên/đuôi lạ, gỡ file; run nhận method/own', async () => {
+  await makeApp();
+  const p = await createProject('Có sẵn');
+  const dir = store.getProject(p.id).dir;
+  const base = `/api/projects/${p.id}/steps/hook/own`;
+  const g = await req({ url: base });
+  assert.equal(g.statusCode, 200, g.body);
+  assert.deepEqual(g.json().accept, ['md', 'txt']);
+  assert.equal(g.json().text, 'script.md');
+  assert.deepEqual(g.json().methods.map((m) => m.id), ['idea', 'outline']);
+
+  const up = await req({ method: 'PUT', url: `${base}?name=${encodeURIComponent('kịch bản.txt')}`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.from('Xin chào') });
+  assert.equal(up.statusCode, 200, up.body);
+  assert.equal(fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), 'Xin chào');
+  assert.deepEqual(up.json().files, [{ path: 'script.md', size: 9 }]);
+
+  const bad = await req({ method: 'PUT', url: `${base}?name=a.mp3`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.from('x') });
+  assert.equal(bad.statusCode, 400);
+  assert.equal(bad.json().error, 'bad_file');
+  const dot = await req({ method: 'PUT', url: `${base}?name=..%2F..%2F.bashrc`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.from('x') });
+  assert.equal(dot.statusCode, 400);
+  const empty = await req({ method: 'PUT', url: `${base}?name=a.md`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.alloc(0) });
+  assert.equal(empty.statusCode, 400);
+  // octet-stream chỉ được nhận ở route tải file (các route khác vẫn 415)
+  const csrf = await req({ method: 'POST', url: `/api/projects/${p.id}/steps/hook/complete`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.from('x') });
+  assert.equal(csrf.statusCode, 415);
+
+  const txt = await req({ method: 'POST', url: `${base}/text`, payload: { text: 'Lời đọc của tôi' } });
+  assert.equal(txt.statusCode, 200, txt.body);
+  assert.equal(fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), 'Lời đọc của tôi\n');
+  assert.equal((await req({ method: 'POST', url: `${base}/text`, payload: { text: '  ' } })).statusCode, 400);
+
+  const r = await req({ method: 'POST', url: `/api/projects/${p.id}/steps/hook/run`, payload: { method: 'outline', own: true } });
+  assert.equal(r.statusCode, 202, r.body);
+  assert.equal(runner.calls[0].opts.method, 'outline');
+  assert.equal(runner.calls[0].opts.own, true);
+  // đang chạy → không cho thêm/gỡ file
+  assert.equal((await req({ method: 'POST', url: `${base}/text`, payload: { text: 'x' } })).statusCode, 409);
+  await req({ method: 'POST', url: `/api/runs/${r.json().run.id}/stop`, payload: {} });
+
+  const del = await req({ method: 'DELETE', url: `${base}?path=script.md`, payload: {} });
+  assert.equal(del.statusCode, 200, del.body);
+  assert.deepEqual(del.json().files, []);
+  assert.equal(fs.existsSync(path.join(dir, 'script.md')), false);
+  assert.equal((await req({ method: 'DELETE', url: `${base}?path=project.json`, payload: {} })).statusCode, 404);
+
+  // bước sau chưa tới lượt → 409
+  assert.equal((await req({ method: 'PUT', url: `/api/projects/${p.id}/steps/voice/own?name=a.wav`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.from('x') })).statusCode, 409);
+});

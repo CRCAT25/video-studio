@@ -69,9 +69,13 @@ export function apiError(status, code, message, data = null) {
   return err;
 }
 
-async function request(method, url, body, { signal } = {}) {
+async function request(method, url, body, { signal, raw = null } = {}) {
   const init = { method, credentials: 'same-origin', cache: 'no-store', signal, headers: { accept: 'application/json' } };
-  if (body !== undefined) {
+  if (raw) {
+    // Gửi nguyên file (Blob/File) — chỉ route tải file nhận application/octet-stream
+    init.headers['content-type'] = 'application/octet-stream';
+    init.body = raw;
+  } else if (body !== undefined) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
@@ -184,8 +188,14 @@ export const api = {
   defaultModel: () => request('GET', '/api/settings/model'),
   setDefaultModel: (model) => request('PUT', '/api/settings/model', { model }),
   stepVoice: (id, key) => request('GET', `/api/projects/${encodeURIComponent(id)}/steps/${encodeURIComponent(key)}/voice`),
-  runStep: (id, key, { feedback, allowPaid, allowOnce, reply, free, cont } = {}) => {
+  stepOwn: (id, key) => request('GET', `${stepPath(id, key)}/own`),
+  uploadOwn: (id, key, file) => request('PUT', `${stepPath(id, key)}/own${qs({ name: file.name })}`, undefined, { raw: file }),
+  pasteOwn: (id, key, text) => request('POST', `${stepPath(id, key)}/own/text`, { text }),
+  removeOwn: (id, key, p) => request('DELETE', `${stepPath(id, key)}/own${qs({ path: p })}`, {}),
+  runStep: (id, key, { feedback, allowPaid, allowOnce, reply, free, cont, method, own } = {}) => {
     const body = {};
+    if (method) body.method = method;
+    if (own) body.own = true;
     if (feedback) body.feedback = feedback;
     if (cont) body.cont = true;
     if (allowPaid) body.allowPaid = true;

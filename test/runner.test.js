@@ -832,3 +832,13 @@ test('Tiếp tục: chỉ thêm dặn "giữ file đã xong" khi lượt gần n
   await runToEnd(p, 'hook', { cont: true }, 'done');
   assert.match(prompt(3), /## Tiếp tục lượt bị gián đoạn[\s\S]*GIỮ NGUYÊN/);
 });
+
+test('buildPrompt: cách làm người dùng chọn + file người dùng có sẵn', () => {
+  const preset = { id: 'p', name: 'P', steps: [{ key: 'kb', name: 'Kịch bản', prompt: 'Viết script.md', outputs: ['script.md'] }] };
+  const step = preset.steps[0];
+  const p = buildPrompt({ project: { id: 'x', title: 'T', dir: '/d' }, preset, step, method: { label: 'Viết theo dàn ý', hint: 'Bám sát outline.md' }, own: ['script.md'] });
+  assert.match(p, /## Cách làm người dùng chọn: Viết theo dàn ý\nBám sát outline\.md/);
+  assert.match(p, /## File người dùng có sẵn[\s\S]*- script\.md[\s\S]*\.orig/);
+  const plain = buildPrompt({ project: { id: 'x', title: 'T', dir: '/d' }, preset, step });
+  assert.doesNotMatch(plain, /Cách làm người dùng chọn|File người dùng có sẵn/);
+});
