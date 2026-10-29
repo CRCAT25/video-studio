@@ -206,6 +206,19 @@ test('callTool: sai key → 403; tool lạ/wait → 400; không có lượt → 
   await until(() => !assistant.state().busy);
 });
 
+test('serverTool trả proposal → dòng action trong chat mang đề xuất để duyệt ngay', async () => {
+  const brain_propose = async () => ({ text: 'ok', proposal: { id: 'p1', branch: 'Chung', text: 'Gọi tôi là anh' } });
+  assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => 'http://127.0.0.1:9', serverTools: { brain_propose } });
+  assistant.send('chậm thôi', { tabId: 't' });
+  const key = JSON.parse(fs.readFileSync(path.join(home, 'assistant', fs.readdirSync(path.join(home, 'assistant')).find((f) => f.startsWith('mcp-'))), 'utf8')).mcpServers.studio.env.STUDIO_ASSIST_KEY;
+  await assistant.callTool(key, 'brain_propose', { branch: 'Chung', text: 'Gọi tôi là anh' });
+  const act = assistant.state().messages.find((m) => m.role === 'action');
+  assert.equal(act.text, 'brain_propose');
+  assert.deepEqual(act.proposal, { id: 'p1', branch: 'Chung', text: 'Gọi tôi là anh' });
+  assistant.stop();
+  await until(() => !assistant.state().busy);
+});
+
 test('toolResult: hết giờ → lỗi "không phản hồi"; hold gia hạn; id lạ → 404; Dừng/kết thúc trả lời lệnh còn treo', async () => {
   assistant = createAssistant({ home, claudeBin: FAKE, baseUrl: () => 'http://127.0.0.1:9', toolTimeoutMs: 80, holdTimeoutMs: 300, killGraceMs: 200 });
   const ids = [];

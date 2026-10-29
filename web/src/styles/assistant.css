@@ -25,6 +25,9 @@ body.ai-open .modal-bg{right:var(--ai-w,380px)}
 .ai-bot{color:var(--text)}
 .ai-act{font-size:var(--fs-sm);color:var(--muted);padding-left:10px;border-left:2px solid var(--line-2)}
 .ai-act.bad{color:var(--err);border-left-color:var(--err)}
+.ai-prop{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);white-space:normal}
+.ai-prop .muted{font-size:var(--fs-sm)}
+.ai-prop .ai-ask-acts{margin-top:4px}
 .ai-note{font-size:var(--fs-sm);color:var(--muted)}
 .ai-err{font-size:var(--fs-sm);color:var(--err)}
 .ai-fe{padding:0 16px 8px}

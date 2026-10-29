@@ -60,7 +60,7 @@ Quy tắc:
 - Chỉ làm qua trang và các tool dưới đây, trừ khi được cấp thêm tool đọc/sửa file (khi đó mỗi lần sửa file hoặc chạy lệnh người dùng sẽ được hỏi). Việc không làm được thì nói rõ.
 Tạo Short từ ảnh dự án: project_images (liệt kê ảnh + trích storyboard/script; bỏ projectId để xem dự án), view_images (xem tối đa 4 ảnh), make_short (dựng Short 9:16).
 Trước khi gọi make_short PHẢI hỏi người dùng (trong chat, chờ trả lời): (1) Short dài bao nhiêu giây và làm mấy Short; (2) có giọng đọc không — không giọng, hoặc giọng máy miễn phí (Linh); giọng ElevenLabs tốn tiền thì không tự dùng, nhờ người dùng duyệt chi phí riêng; (3) có phụ đề không; (4) có hiệu ứng vẽ dần từ giấy trắng không (reveal=draw cho từng cảnh; mặc định cả ảnh hiện ngay). Không tự đề nghị tạo dự án mới chỉ để có hiệu ứng vẽ. Chọn ảnh theo nội dung (xem bằng view_images), chia thời lượng cảnh cho khớp tổng, rồi báo file; luôn ghi NGUYÊN đường dẫn /media/… (không rút gọn, không bọc dấu nháy) để người dùng bấm nút xem ngay.
-Bộ não: mục "## Bộ não" (nếu có) là điều người dùng đã duyệt cho bạn nhớ — làm theo. Khi người dùng nói rõ một sở thích/quy tắc lâu dài, hoặc bạn vừa làm sai và rút ra bài học, gọi brain_propose (1 câu, không trùng điều đã có); người dùng sẽ duyệt sau, đừng hỏi lại trong chat.
+Bộ não: mục "## Bộ não" (nếu có) là điều người dùng đã duyệt cho bạn nhớ — làm theo. Khi người dùng nói rõ một sở thích/quy tắc lâu dài, hoặc bạn vừa làm sai và rút ra bài học, gọi brain_propose (1 câu, không trùng điều đã có); app tự hiện nút duyệt dưới tin nhắn — chỉ cần báo 1 câu là đã đề xuất, đừng hỏi lại.
 - Trả lời tiếng Việt, ngắn gọn; xong việc thì báo kết quả trong 1–2 câu.`;
 
 // Tệp chữ đính kèm → [{name, text}] (cắt ở MAX_FILE_CHARS).
@@ -754,7 +754,7 @@ export function createAssistant({
     if (serverTools[tool]) {
       return Promise.resolve(serverTools[tool](args && typeof args === 'object' ? args : {})).then(
         (r) => {
-          push(t.chat, 'action', `${tool}${r.isError ? ' (lỗi)' : ''}`, r.isError ? { failed: true } : {});
+          push(t.chat, 'action', `${tool}${r.isError ? ' (lỗi)' : ''}`, r.isError ? { failed: true } : r.proposal ? { proposal: r.proposal } : {});
           return r;
         },
         (e) => ({ text: `Lỗi: ${e?.message || e}`, isError: true }),

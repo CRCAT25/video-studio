@@ -253,12 +253,14 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   // Mức dùng gói Claude: bắt % từ mọi lượt claude -p; Kiểm tra hỏi API như /usage (token Claude Code chỉ đọc lúc kiểm tra),
   // lỗi thì chạy 1 câu ngắn. VS_CLAUDE_CREDENTIALS / VS_CLAUDE_API_BASE: file token + API giả khi test.
   const usage = createUsage({ home, store, claudeBin, env: authEnv, planApi: createPlanApi({ env }) });
-  // Bộ não: trợ lý và các bước cùng đọc; trợ lý chỉ được đề xuất (brain_propose), người dùng duyệt trên trang Bộ não.
+  // Bộ não: trợ lý và các bước cùng đọc; trợ lý chỉ được đề xuất (brain_propose), người dùng duyệt ngay trong chat hoặc trên trang Bộ não.
   const brain = createBrain({ home });
   const brainPropose = async (a) => {
     const r = brain.propose({ branch: a.branch, text: a.text, reason: a.reason, src: 'assistant' });
     const why = { known: 'đã có trong bộ não', pending: 'đang chờ duyệt', queue_full: 'hàng chờ đã đầy', empty: 'nội dung trống' }[r.reason];
-    return { text: r.ok ? 'Đã gửi đề xuất — người dùng sẽ duyệt trên trang Bộ não.' : `Không thêm: ${why || r.reason}.` };
+    if (!r.ok) return { text: `Không thêm: ${why || r.reason}.` };
+    const { id, branch, text } = r.proposal;
+    return { text: 'Đã gửi đề xuất — người dùng duyệt bằng nút ngay dưới tin nhắn (hoặc ở trang Bộ não).', proposal: { id, branch, text } };
   };
   const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage, brain, serverTools: { ...createShortTools({ store }), brain_propose: brainPropose } });
   try {

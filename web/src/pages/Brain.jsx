@@ -24,7 +24,7 @@ function srcLabel(src, t) {
 }
 
 // Tên gốc của cây theo ngôn ngữ đang chọn (khóa vẫn là tên tiếng Việt trong brain.md).
-function rootLabel(r, t) {
+export function rootLabel(r, t) {
   return { Chung: t('Chung'), 'Phong cách': t('Phong cách'), 'Cách dùng app': t('Cách dùng app'), Kênh: t('Kênh'), 'Bước làm video': t('Bước làm video'), 'Bài học': t('Bài học'), 'Chưa phân loại': t('Chưa phân loại') }[r] || r;
 }
 
@@ -34,13 +34,13 @@ function kindLabel(kind, t) {
 }
 
 // Tách "Kênh/goc-kham-pha" → {root, sub}.
-function splitPath(p) {
+export function splitPath(p) {
   const i = p.indexOf('/');
   return i < 0 ? { root: p, sub: '' } : { root: p.slice(0, i), sub: p.slice(i + 1) };
 }
 
 // Hộp thêm/sửa một ghi nhớ (dùng cả cho "Sửa rồi nhận" đề xuất): chọn nhánh + nội dung.
-function ItemModal({ title, okLabel, roots, init, onSave, onClose }) {
+export function ItemModal({ title, okLabel, roots, init, onSave, onClose }) {
   const t = useT();
   const start = splitPath(init?.branch || 'Chung');
   const [root, setRoot] = useState(start.root);

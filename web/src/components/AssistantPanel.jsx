@@ -13,6 +13,8 @@ import Req from './Req.jsx';
 import Select from './Select.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
 import { McpModal, MemoryModal } from './ClaudeFilesModal.jsx';
+import { useToast } from './Toast.jsx';
+import { ItemModal, rootLabel, splitPath } from '../pages/Brain.jsx';
 import { T, getLang, intlLocale, tr, useT } from '../lib/i18n.jsx';
 
 const OPEN_KEY = 'vs-ai-open';
@@ -154,14 +156,73 @@ export function useAssistant() {
   return { open, setOpen, draft, prefill, data, error, ask, answer, send, stop, reset, openChat, removeChat, settings, compact, command, permit, approvePlan, reload: load };
 }
 
+// Đề xuất trong chat: {pending: Set id, known: Set chữ đã nhớ, roots}; chỉ tải khi chat có đề xuất, tải lại khi bộ não đổi.
+function useBrainPending(enabled) {
+  const [st, setSt] = useState(null);
+  const load = useCallback(() => {
+    api.brain().then((d) => setSt({ pending: new Set(d.proposals.map((p) => p.id)), known: new Set(d.branches.flatMap((b) => b.items.map((it) => it.text))), roots: d.roots }), () => {});
+  }, []);
+  useEffect(() => {
+    if (enabled) load();
+  }, [enabled, load]);
+  useSSE((msg) => {
+    if (enabled && (msg.type === 'brain' || msg.type === 'reconnect')) load();
+  });
+  return st;
+}
+
+// Thẻ đề xuất ghi nhớ của trợ lý: duyệt ngay trong chat (Nhận / Sửa rồi nhận / Bỏ) như trang Bộ não.
+function ProposalCard({ m, brain }) {
+  const t = useT();
+  const toast = useToast();
+  const p = m.proposal;
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const pending = !done && brain?.pending.has(p.id);
+  const state = done || (brain?.known.has(p.text) ? 'ok' : null);
+  const act = async (fn, d, msg) => {
+    setBusy(true);
+    try {
+      await fn();
+      setDone(d);
+      if (msg) toast(msg, 'ok');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const { root, sub } = splitPath(p.branch);
+  return (
+    <div className="ai-msg ai-prop">
+      <div className="muted">{t('Đề xuất ghi nhớ')} · {rootLabel(root, t)}{sub ? `/${sub}` : ''}</div>
+      <div>{p.text}</div>
+      {pending ? (
+        <div className="ai-ask-acts">
+          <button type="button" className="btn sm primary" disabled={busy} onClick={() => act(() => api.brainAccept(p.id), 'ok', t('Đã nhận vào bộ não.'))}>{t('Nhận')}</button>
+          <button type="button" className="btn sm" disabled={busy} onClick={() => setEdit(true)}>{t('Sửa rồi nhận')}</button>
+          <button type="button" className="btn sm ghost" disabled={busy} onClick={() => act(() => api.brainReject(p.id), 'no')}>{t('Bỏ')}</button>
+        </div>
+      ) : brain || done ? (
+        <div className="muted">{state === 'ok' ? t('✓ Đã nhận vào bộ não.') : state === 'no' ? t('Đã bỏ đề xuất.') : t('Đề xuất này đã được xử lý.')}</div>
+      ) : null}
+      {edit ? (
+        <ItemModal title={t('Sửa rồi nhận')} okLabel={t('Nhận')} roots={brain?.roots || []} init={{ branch: p.branch, text: p.text }} onClose={() => setEdit(false)} onSave={async (b) => { await api.brainAccept(p.id, b); setDone('ok'); toast(t('Đã nhận vào bộ não.'), 'ok'); }} />
+      ) : null}
+    </div>
+  );
+}
+
 // Một dòng trong cuộc chat.
-function Msg({ m }) {
+function Msg({ m, brain }) {
   if (m.role === 'user') return (
       <div className="ai-msg ai-user">
         {m.images?.length ? <div className="ai-imgnames">{m.images.map((n, i) => <span key={i}>📎 {n}</span>)}</div> : null}
         {m.text}
       </div>
     );
+  if (m.role === 'action' && m.proposal) return <ProposalCard m={m} brain={brain} />;
   if (m.role === 'action') return <div className={`ai-msg ai-act${m.failed ? ' bad' : ''}`}>{m.text}</div>;
   if (m.role === 'note') return <div className="ai-msg ai-note">{tr(m.text)}</div>;
   if (m.role === 'error') return <div className="ai-msg ai-err">{tr(m.text)}</div>;
@@ -335,6 +396,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
   const { data, error, ask } = a;
   const busy = !!data?.busy;
   const msgs = data?.messages || [];
+  const brain = useBrainPending(msgs.some((m) => m.proposal));
   const slash = /^\/[^\s]*$/.test(text) && cmds ? text.slice(1).toLowerCase() : null;
   const shown = slash == null ? [] : cmds.filter((c) => c.name.toLowerCase().startsWith(slash)).slice(0, 8);
   const mode = data?.mode || 'page';
@@ -533,7 +595,7 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
             </div>
           </div>
         ) : (
-          msgs.map((m) => <Msg key={m.id} m={m} />)
+          msgs.map((m) => <Msg key={m.id} m={m} brain={brain} />)
         )}
         {busy && !ask ? (
           compacting ? (
