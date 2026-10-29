@@ -1,4 +1,4 @@
-// "Tôi có sẵn": người dùng tự thêm file (kịch bản, giọng, hình, video) cho một bước; "Để Claude làm": chọn cách làm của bước.
+// "Tôi có sẵn": người dùng tự thêm file (kịch bản, giọng, hình, video) cho một bước; "Để trợ lý giúp bạn": chọn cách làm của bước.
 // File được đặt vào đúng chỗ theo đầu ra của bước; danh sách file người dùng thêm ghi ở .studio/own/<bước>.json.
 import fs from 'node:fs';
 import path from 'node:path';

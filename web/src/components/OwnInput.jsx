@@ -1,4 +1,4 @@
-// Khung "Tôi có sẵn / Để Claude làm" ở trang bước: người dùng tự thêm file (kéo thả/chọn/dán chữ) rồi dùng nguyên hoặc nhờ Claude hoàn thiện; hoặc chọn cách Claude làm.
+// Khung "Tôi có sẵn / Để trợ lý giúp bạn" ở trang bước: người dùng tự thêm file (kéo thả/chọn/dán chữ) rồi dùng nguyên hoặc nhờ Claude hoàn thiện; hoặc chọn cách Claude làm.
 import { useRef, useState } from 'react';
 import { api } from '../api.js';
 import { fmtBytes } from '../lib/format.js';
@@ -80,7 +80,7 @@ export default function OwnInput({ projectId, stepKey, info, src, onSrc, method,
   return (
     <section className="voice-pick own-pick" aria-label={t('Nguồn nội dung của bước')} data-ai-help="own-pick">
       <p className="vp-what">
-        <b>{t('Bạn có sẵn nội dung cho bước này?')}</b> {t('Tự thêm file của bạn, hoặc để Claude làm.')}
+        <b>{t('Bạn có sẵn nội dung cho bước này?')}</b> {t('Tự thêm file của bạn, hoặc để trợ lý giúp bạn.')}
       </p>
       <div className="vp-cards" role="radiogroup" aria-label={t('Nguồn nội dung')}>
         <div role="radio" tabIndex={0} aria-checked={src === 'own'} aria-disabled={disabled} className={`fmt-card vp-card${src === 'own' ? ' on' : ''}`} onClick={() => pick('own')} onKeyDown={key('own')}>
@@ -88,8 +88,8 @@ export default function OwnInput({ projectId, stepKey, info, src, onSrc, method,
           <span>{t('Thêm kịch bản, giọng, hình hay video của bạn')}</span>
         </div>
         <div role="radio" tabIndex={0} aria-checked={src === 'claude'} aria-disabled={disabled} className={`fmt-card vp-card${src === 'claude' ? ' on' : ''}`} onClick={() => pick('claude')} onKeyDown={key('claude')}>
-          <b>{t('Để Claude làm')}</b>
-          <span>{info.methods.length ? t('Chọn cách làm bên dưới rồi bấm Chạy') : t('Bấm Chạy, Claude làm từ đầu')}</span>
+          <b>{t('Để trợ lý giúp bạn')}</b>
+          <span>{info.methods.length ? t('Chọn cách làm bên dưới rồi bấm Chạy') : t('Bấm Chạy, trợ lý làm từ đầu')}</span>
         </div>
       </div>
 
@@ -141,7 +141,7 @@ export default function OwnInput({ projectId, stepKey, info, src, onSrc, method,
               <button type="button" className={`btn${paid ? ' paid' : ''}`} onClick={onRefine} disabled={locked || !!busy || !canRun}>
                 {busy === 'run' ? <span className="spinner" aria-hidden="true" /> : null}
                 {paid ? '$ ' : ''}
-                {t('Để Claude hoàn thiện từ file của tôi')}
+                {t('Để trợ lý hoàn thiện từ file của tôi')}
               </button>
             </div>
           ) : null}
@@ -149,7 +149,7 @@ export default function OwnInput({ projectId, stepKey, info, src, onSrc, method,
       ) : info.methods.length ? (
         <div className="own-body">
           <div className="chips" role="radiogroup" aria-label={t('Cách làm')}>
-            {[{ id: null, label: t('Claude tự chọn') }, ...info.methods.map((m) => ({ id: m.id, label: t(m.label) }))].map((m) => (
+            {[{ id: null, label: t('Trợ lý tự chọn') }, ...info.methods.map((m) => ({ id: m.id, label: t(m.label) }))].map((m) => (
               <button key={m.id || 'auto'} type="button" role="radio" aria-checked={method === m.id} className={`chip${method === m.id ? ' on' : ''}`} onClick={() => onMethod(m.id)} disabled={disabled}>
                 {m.label}
               </button>
