@@ -2,6 +2,7 @@
 // Kiểm an toàn ở đây: data-ai="block" (cấm hẳn), data-ai="confirm" hoặc chữ nhạy cảm → hỏi người dùng trước.
 
 import { tr } from './i18n.jsx';
+import { HINTS } from './aiHints.js';
 
 const PANEL = '.ai-panel';
 const INTERACTIVE = [
@@ -102,6 +103,20 @@ function scopes() {
   return { roots: [document.body], dialog: null };
 }
 
+// Chỉ dẫn của các vùng đang thấy (data-ai-help) trong phạm vi đọc → dòng "- tiêu đề: nội dung".
+function hintsIn(roots) {
+  const ids = [];
+  for (const root of roots) {
+    const els = [...(root.matches?.('[data-ai-help]') ? [root] : []), ...root.querySelectorAll('[data-ai-help]')];
+    for (const el of els) {
+      const id = el.getAttribute('data-ai-help');
+      if (!HINTS[id] || ids.includes(id) || el.closest(PANEL) || !visible(el)) continue;
+      ids.push(id);
+    }
+  }
+  return ids.map((id) => `- ${HINTS[id].title}: ${HINTS[id].text}`);
+}
+
 // Đọc trang → văn bản gọn (đường dẫn, tiêu đề, hộp thoại, nội dung, phần tử có ref).
 export function snapshot() {
   refs = new Map();
@@ -123,6 +138,8 @@ export function snapshot() {
       items.push(el);
     }
   }
+  const hints = hintsIn(roots);
+  if (hints.length) lines.push('Cách dùng màn này:', ...hints);
   const text = squash(roots.map((r) => (r === document.body ? textOutsidePanel() : r.innerText)).join('\n'), TEXT_MAX);
   lines.push(`Nội dung: ${text}`);
   const toasts = squash(document.querySelector('.toasts')?.innerText || '', 300);

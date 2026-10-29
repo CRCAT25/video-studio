@@ -312,7 +312,7 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
   const q = yt.quota;
   return (
     <>
-      <div className="page-h">
+      <div className="page-h" data-ai-help="channels">
         <div>
           <h1>{t('Kênh YouTube')}</h1>
           <p className="muted small">
@@ -804,7 +804,7 @@ function ChannelCard({ c }) {
   const { lamp, text: stText } = chState(c);
 
   return (
-    <section className="card yt-card" aria-label={t('Kênh {name}', { name: c.name })}>
+    <section className="card yt-card" aria-label={t('Kênh {name}', { name: c.name })} data-ai-help="channel">
       <div className="yt-h">
         <div className="yt-id">
           <h1>{c.name}</h1>

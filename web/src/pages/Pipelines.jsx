@@ -480,7 +480,7 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
 
   return (
     <>
-      <div className="page-h">
+      <div className="page-h" data-ai-help="pipelines">
         <h1>{t('Quy trình')}</h1>
         <div className="page-acts">
           <label className="chk mode-sw" title={t('Hiện thêm lựa chọn kỹ thuật: lời dặn AI, model, YAML')}>

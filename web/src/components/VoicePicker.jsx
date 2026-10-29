@@ -72,7 +72,7 @@ export default function VoicePicker({ info, mode, onMode, disabled = false }) {
   );
 
   return (
-    <section className="voice-pick" aria-label={t('Chọn giọng đọc')}>
+    <section className="voice-pick" aria-label={t('Chọn giọng đọc')} data-ai-help="voice-pick">
       <p className="vp-what">
         <b>{t('Bước này làm gì?')}</b>{' '}
         {t('Đọc lời thoại trong {f}', { f: info.source || t('kịch bản') })}

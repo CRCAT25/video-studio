@@ -443,7 +443,7 @@ export default function Skills({ onReloadPresets }) {
 
   return (
     <>
-      <div className="page-h">
+      <div className="page-h" data-ai-help="skills">
         <h1>Skills</h1>
         <div className="sk-acts">
           <button type="button" className="btn sm" onClick={load}>{t('Tải lại')}</button>

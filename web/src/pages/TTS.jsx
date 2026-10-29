@@ -294,7 +294,7 @@ export default function TTS() {
   const list = data?.providers || [];
   return (
     <>
-      <div className="page-h">
+      <div className="page-h" data-ai-help="tts">
         <h1>{t('Giọng đọc')}</h1>
         <div className="sk-acts">
           <button type="button" className="btn sm primary" onClick={() => setKindPick(true)}>{t('Thêm giọng đọc')}</button>

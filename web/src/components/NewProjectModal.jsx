@@ -139,7 +139,7 @@ export default function NewProjectModal({ presetsData, channels, doctor, default
 
   if (stage === 1) {
     return (
-      <Modal title={t('Dự án mới')} wide onClose={onClose}>
+      <Modal title={t('Dự án mới')} wide aiHelp="new-project" onClose={onClose}>
         {saved.length ? (
           <div className="seg src-tabs" role="tablist" aria-label={t('Nguồn quy trình')}>
             <button type="button" role="tab" aria-selected={source === 'suggest'} className={source === 'suggest' ? 'on' : ''} onClick={() => setSource('suggest')}>
@@ -211,7 +211,7 @@ export default function NewProjectModal({ presetsData, channels, doctor, default
   }
 
   return (
-    <Modal title={t('Dự án mới')} wide xwide onClose={onClose} busy={busy}>
+    <Modal title={t('Dự án mới')} wide xwide aiHelp="new-project" onClose={onClose} busy={busy}>
       <form onSubmit={submit} noValidate>
         <p className="lead">{draft?.name ? tr(draft.name) : draft?.name}</p>
         <div className="np-grid">

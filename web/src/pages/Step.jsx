@@ -658,7 +658,7 @@ function StepPage({ projectId, stepKey }) {
   let nextBtn = null;
   if (st === 'done' && nextStep) {
     nextBtn = (
-      <div key="next" className="tab-next-grp">
+      <div key="next" className="tab-next-grp" data-ai-help="step-approve">
         {step.approved ? (
           <span className="approved-tag" title={t('Bạn đã duyệt kết quả bước này')}>{t('✓ Đã duyệt')}</span>
         ) : (
@@ -776,7 +776,7 @@ function StepPage({ projectId, stepKey }) {
         <a href="#/">{t('Tổng quan')}</a> <span className="sep">/</span> <span>{project.title}</span> <span className="sep">/</span> <span>{tr(step.name)}</span>
       </div>
 
-      <div className="step-head">
+      <div className="step-head" data-ai-help="step-actions">
         <div>
           <h1>
             {tr(step.name)}
@@ -885,7 +885,7 @@ function StepPage({ projectId, stepKey }) {
       </div>
 
       {decide ? (
-        <div className="card pad decide ask side" style={{ marginBottom: 16 }}>
+        <div className="card pad decide ask side" style={{ marginBottom: 16 }} data-ai-help="step-reply">
           <h2>{t('Claude cần bạn trả lời')}</h2>
           <ResultBody run={selRun} grant={grant} hideQuestions={multiQ} />
           {multiQ ? (

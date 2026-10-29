@@ -238,7 +238,7 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
 
   return (
     <>
-      <div className="page-h">
+      <div className="page-h" data-ai-help="projects">
         <h1>{t('Các dự án')}</h1>
         <button type="button" className="btn primary" onClick={openNew}>
           {t('+ Dự án mới')}

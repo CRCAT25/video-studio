@@ -17,8 +17,8 @@ function inertOutside(bg) {
   return () => touched.forEach((el) => { el.inert = false; });
 }
 
-// Hiển thị hộp thoại; paid = viền đỏ (bước tốn tiền); wide = rộng hơn.
-export default function Modal({ title, lead, onClose, wide = false, xwide = false, paid = false, children, busy = false }) {
+// Hiển thị hộp thoại; paid = viền đỏ (bước tốn tiền); wide = rộng hơn; aiHelp = id chỉ dẫn cho Trợ lý AI (lib/aiHints.js).
+export default function Modal({ title, lead, onClose, wide = false, xwide = false, paid = false, children, busy = false, aiHelp = null }) {
   const ref = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -77,7 +77,7 @@ export default function Modal({ title, lead, onClose, wide = false, xwide = fals
         if (e.target === e.currentTarget && !busy) onClose?.();
       }}
     >
-      <div ref={ref} className={`modal card pad${wide ? ' wide' : ''}${xwide ? ' xwide' : ''}${paid ? ' paid-m' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div ref={ref} className={`modal card pad${wide ? ' wide' : ''}${xwide ? ' xwide' : ''}${paid ? ' paid-m' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} data-ai-help={aiHelp || undefined}>
         <button type="button" className="x" aria-label={t('Đóng')} title={t('Đóng (Esc)')} onClick={() => !busy && onClose?.()}>
           ✕
         </button>

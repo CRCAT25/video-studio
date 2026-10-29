@@ -10,7 +10,7 @@ export default function CostModal({ stepName, cost, withFeedback = false, busy =
   const c = cost || {};
   const hasVal = c.estimate_value != null && !Number.isNaN(Number(c.estimate_value));
   return (
-    <Modal title={t('Xác nhận chi phí')} paid onClose={onClose} busy={busy} lead={withFeedback ? t('Bước "{n}" sẽ chạy lại kèm góp ý và gọi dịch vụ trả phí.', { n: stepName }) : t('Bước "{n}" gọi dịch vụ trả phí.', { n: stepName })}>
+    <Modal title={t('Xác nhận chi phí')} paid aiHelp="cost" onClose={onClose} busy={busy} lead={withFeedback ? t('Bước "{n}" sẽ chạy lại kèm góp ý và gọi dịch vụ trả phí.', { n: stepName }) : t('Bước "{n}" gọi dịch vụ trả phí.', { n: stepName })}>
       <div className="cost-box">
         <div className="svc">{c.service || t('Dịch vụ không rõ')}</div>
         <div className="est">
