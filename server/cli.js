@@ -17,6 +17,7 @@ import { createDistill } from './distill.js';
 import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
 import { createTts } from './tts.js';
+import { createVieneuWorker, serveVieneuSocket, vieneuSocket } from './vieneu.js';
 import { openStore } from './db.js';
 import { runDoctor } from './doctor.js';
 import { expandHome, studioHome } from './paths.js';
@@ -239,6 +240,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   let wizard = null;
   let stopBackups = () => {};
   let closeRef = null;
+  let vieneu = null;
+  let vieneuSock = null;
   let backupDir = null;
   // Lệnh `claude auth` không cần (và không được thấy) biến VS_* như token của app.
   const authEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('VS_')));
@@ -279,9 +282,12 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       restart: opts.service || env[SUPERVISED_ENV] === '1' ? () => closeRef?.().finally(() => process.exit(RESTART_CODE)) : null,
     });
     const secretStore = createSecretStore({ home, platform: env.VS_SECRETS === 'file' ? 'file' : process.platform });
+    // VieNeu nạp sẵn dùng chung cho Đọc thử và lệnh studio-tts (qua socket); rảnh 10 phút tự tắt.
+    vieneu = createVieneuWorker();
+    vieneuSock = serveVieneuSocket(vieneu, vieneuSocket(home));
     app = await buildApp({
       store,
-      tts: createTts({ home, secrets: secretStore }),
+      tts: createTts({ home, secrets: secretStore, vieneu }),
       updater,
       projects,
       runner,
@@ -353,6 +359,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
 
     const close = async () => {
       stopBackups();
+      vieneu.stop();
+      await vieneuSock.close();
       account.dispose();
       assistant.dispose();
       usage.dispose();
@@ -376,6 +384,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     account.dispose();
     assistant.dispose();
     wizard?.dispose();
+    vieneu?.stop();
+    await vieneuSock?.close();
     try {
       if (app) await app.close();
     } catch {

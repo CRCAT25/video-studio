@@ -311,7 +311,8 @@ export default function TTS() {
     setAudio(null);
     try {
       const r = await api.ttsTest({ id, text: text.trim() || undefined });
-      setAudio({ id, src: r.audio, chars: r.chars, cost: r.cost, label: r.label, paid: r.paid });
+      setAudio({ id, src: r.audio, chars: r.chars, cost: r.cost, label: r.label, paid: r.paid, cached: r.cached });
+      if (data?.providers?.find((x) => x.id === r.provider)?.kind === 'vieneu') setData((d) => (d ? { ...d, vieneuWarm: true } : d));
     } catch (e) {
       toast(e.message, 'err');
     } finally {
@@ -370,7 +371,7 @@ export default function TTS() {
                       <td><Plan p={p} i={info[p.id]} /></td>
                       <td className="tts-c-act">
                         <div className="sk-acts tts-acts">
-                          <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing === p.id ? t('Đang đọc…') : t('Đọc thử')}</button>
+                          <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : t('Đang đọc…')}</button>
                           {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
                           <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
                           {p.builtin ? null : <button type="button" className="btn sm" onClick={() => setRemoving(p)}>{t('Xóa')}</button>}
@@ -382,7 +383,7 @@ export default function TTS() {
                         <td colSpan={4}>
                           <div className="tts-play">
                             <audio controls autoPlay src={audio.src} />
-                            {audio.paid ? <p className="note">{t('Đã dùng khoảng {n} {l}.', { n: audio.cost, l: audio.label || '' })}</p> : null}
+                            {audio.paid ? <p className="note">{audio.cached ? t('Câu này đã đọc trước đó — phát lại, không tốn thêm {l}.', { l: audio.label || 'credit' }) : t('Đã dùng khoảng {n} {l}.', { n: audio.cost, l: audio.label || '' })}</p> : null}
                           </div>
                         </td>
                       </tr>

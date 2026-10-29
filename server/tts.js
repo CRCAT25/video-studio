@@ -5,12 +5,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { VIENEU_SCRIPT } from './vieneu.js';
 
 // Danh sách giọng gợi ý đi kèm app (giọng có sẵn của ElevenLabs + giọng tiếng Việt); không chứa khóa API.
 const BUNDLED_VOICES = fileURLToPath(new URL('./tts-voices.json', import.meta.url));
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const KINDS = new Set(['elevenlabs', 'http', 'command', 'vieneu']);
-const VIENEU_SCRIPT = fileURLToPath(new URL('./bin/vieneu_tts.py', import.meta.url));
 // Giọng VieNeu có sẵn (tên preset của thư viện vieneu); giọng đầu là mặc định.
 export const VIENEU_VOICES = [
   ['Thiện Minh', 'Nam · Bắc · kể chuyện'], ['Ngọc Linh', 'Nữ · Bắc · kể chuyện'], ['Thiền Tâm Đức', 'Nam · Bắc · kể chuyện'], ['Thanh Bình', 'Nam · Bắc · kể chuyện'],
@@ -108,7 +108,9 @@ function cleanProvider(p) {
   return o;
 }
 
-export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(...a), timeoutMs = TIMEOUT_MS } = {}) {
+// vieneu: { run({text, out, voice}), isWarm?() } — tiến trình VieNeu nạp sẵn (server) hoặc nhờ server qua socket (studio-tts);
+// run trả null = không có ai nhận → chạy một lần như cũ (nạp model mỗi lần).
+export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(...a), timeoutMs = TIMEOUT_MS, vieneu = null } = {}) {
   const file = path.join(home, 'tts.json');
   const read = () => {
     try {
@@ -131,7 +133,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     const c = read();
     const providers = [];
     for (const p of c.providers) providers.push({ ...p, hasKey: !!(await keyOf(p.id)) });
-    return { default: c.providers.some((p) => p.id === c.default) ? c.default : providers[0]?.id ?? null, providers, vieneuVoices: VIENEU_VOICES };
+    return { default: c.providers.some((p) => p.id === c.default) ? c.default : providers[0]?.id ?? null, providers, vieneuVoices: VIENEU_VOICES, vieneuWarm: warm() };
   }
 
   // key: undefined = giữ khóa cũ; '' = xóa khóa; chuỗi = đặt khóa mới.
@@ -258,8 +260,9 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     });
   }
 
-  // VieNeu chạy bằng uv (tự cài thư viện lần đầu); ghi thẳng ra `out` (.mp3/.wav).
-  function runVieneu(text, out, voice) {
+  // VieNeu chạy bằng uv (tự cài thư viện lần đầu); ghi thẳng ra `out` (.mp3/.wav). Có tiến trình nạp sẵn thì dùng nó.
+  async function runVieneu(text, out, voice) {
+    if (vieneu && (await vieneu.run({ text, out, voice }))) return;
     const uv = process.env.VS_UV || [path.join(os.homedir(), '.local/bin/uv'), '/opt/homebrew/bin/uv'].find((f) => fs.existsSync(f)) || 'uv';
     const cmd = `${uv} run --no-project --python 3.12 --with vieneu --with "onnxruntime<1.23" --with soundfile python "${VIENEU_SCRIPT}" --in {in} --out {out} --voice "{voice}"`;
     return runCommand({ command: cmd }, text, out, voice, null, timeoutMs * 15);
@@ -372,6 +375,9 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     return p ? { id: p.id, name: p.name, paid: isPaid(p), label: p.price?.label || '', free: f ? { id: f.id, name: f.name } : null } : null;
   }
 
+  // VieNeu đã nạp sẵn chưa (chưa → lần đọc tới mất thêm ~6 giây nạp model).
+  const warm = () => !!vieneu?.isWarm?.();
+
   // Hai lựa chọn cho khung chọn giọng ở bước Giọng đọc: miễn phí (VieNeu) và trả phí (mặc định nếu trả phí, không thì cái trả phí đầu tiên).
   async function choices() {
     const c = read();
@@ -388,6 +394,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
         id: p.id, name: p.name, kind: p.kind, voice: p.voice || '', voiceName: (known?.name || '').trim(), desc: known?.desc || '',
         preview: p.kind === 'vieneu' ? '' : known?.preview || '', perChar: p.price?.perChar ?? 0, label: p.price?.label || '',
         hasKey: p.kind === 'vieneu' || p.kind === 'command' ? true : !!(await keyOf(p.id)),
+        ...(p.kind === 'vieneu' ? { warm: warm() } : {}),
       };
     };
     const def = c.providers.find((x) => x.id === c.default);

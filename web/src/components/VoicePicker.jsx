@@ -16,6 +16,7 @@ export function paidEstimate(info) {
 export default function VoicePicker({ info, mode, onMode, disabled = false }) {
   const t = useT();
   const [playing, setPlaying] = useState(null); // 'free' | 'paid' | 'load-free'
+  const [warm, setWarm] = useState(!!info.free?.warm); // VieNeu đã nạp sẵn → không cần báo chờ nạp
   const [err, setErr] = useState(null);
   const audio = useRef(null);
   useEffect(() => () => audio.current?.pause(), []);
@@ -35,6 +36,7 @@ export default function VoicePicker({ info, mode, onMode, disabled = false }) {
       setPlaying('load-free');
       try {
         src = (await api.ttsTest({ id: info.free.id })).audio;
+        setWarm(true);
       } catch (e) {
         setPlaying(null);
         setErr(e.message);
@@ -65,7 +67,7 @@ export default function VoicePicker({ info, mode, onMode, disabled = false }) {
   const listenBtn = (which) => (
     <button type="button" className="btn sm" onClick={(e) => (e.stopPropagation(), listen(which))} disabled={playing === 'load-free'}>
       {playing === 'load-free' && which === 'free' ? <span className="spinner" aria-hidden="true" /> : null}
-      {playing === which ? t('■ Dừng') : t('▶ Nghe thử')}
+      {playing === 'load-free' && which === 'free' ? (warm ? t('Đang đọc…') : t('Đang nạp giọng… (~7 giây)')) : playing === which ? t('■ Dừng') : t('▶ Nghe thử')}
     </button>
   );
 

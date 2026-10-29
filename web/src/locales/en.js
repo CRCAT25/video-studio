@@ -1473,6 +1473,8 @@ export default {
   'Xóa giọng đọc "{n}"?': 'Delete voice "{n}"?',
   'Giọng đọc này và khóa API đã lưu sẽ bị xóa khỏi máy. Muốn dùng lại phải thêm và nhập khóa lại.': 'This voice and its saved API key will be removed from this computer. To use it again, add it and enter the key again.',
   'Giọng đọc này sẽ bị xóa khỏi máy.': 'This voice will be removed from this computer.',
+  'Đang nạp giọng… (~7 giây)': 'Loading voice… (~7 seconds)',
+  'Câu này đã đọc trước đó — phát lại, không tốn thêm {l}.': 'Already read before — replayed without using more {l}.',
   'Không phát được âm thanh: {m}': 'Couldn’t play audio: {m}',
   'Thêm giọng': 'Add a voice',
   '▶ Nghe thử': '▶ Listen',

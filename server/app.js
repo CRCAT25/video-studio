@@ -755,25 +755,42 @@ export async function buildApp({
       throw e;
     }
   };
+  // Câu đọc thử đã đọc (theo nhà cung cấp + giọng + câu) → bấm lại phát ngay, giọng trả phí không tốn credit lần 2.
+  // Sửa/xóa nhà cung cấp thì bỏ hết cho chắc.
+  const ttsTestCache = new Map();
+  const TTS_TEST_CACHE_MAX = 20;
+  let ttsTestSeq = 0;
   app.get('/api/tts', async () => ttsCall((t) => t.list()));
   app.put('/api/tts/providers', async (req) =>
     ttsCall(async (t) => {
+      ttsTestCache.clear();
       const b = req.body ?? {};
       const p = await t.save(b.provider, typeof b.key === 'string' ? b.key : undefined);
       if (b.makeDefault) t.setDefault(p.id);
       return t.list();
     }));
-  app.delete('/api/tts/providers/:id', async (req) => ttsCall(async (t) => (await t.remove(req.params.id), t.list())));
+  app.delete('/api/tts/providers/:id', async (req) => ttsCall(async (t) => (ttsTestCache.clear(), await t.remove(req.params.id), t.list())));
   app.post('/api/tts/default', async (req) => ttsCall(async (t) => (t.setDefault(String(req.body?.id || '')), t.list())));
   app.post('/api/tts/voices', async (req) => ttsCall((t) => t.voices({ id: req.body?.id || null, key: req.body?.key || '' })));
   // Đọc thử một câu ngắn; trả âm thanh dạng data URL để nghe ngay trong trang.
   app.post('/api/tts/test', async (req) =>
     ttsCall(async (t) => {
       const text = String(req.body?.text || 'Xin chào, đây là giọng đọc thử của Video Studio.').slice(0, 300);
-      const out = path.join(home || os.tmpdir(), `.tts-test-${process.pid}.mp3`);
+      const p = t.pick(req.body?.id || null);
+      const key = JSON.stringify([p.id, p.kind, p.voice || '', p.model || '', p.command || '', p.http?.url || '', text]);
+      const hit = ttsTestCache.get(key);
+      if (hit) {
+        ttsTestCache.delete(key);
+        ttsTestCache.set(key, hit);
+        return { ...hit, cost: 0, cached: true };
+      }
+      const out = path.join(home || os.tmpdir(), `.tts-test-${process.pid}-${++ttsTestSeq}.mp3`);
       try {
-        const r = await t.synth({ provider: req.body?.id || null, text, out });
-        return { ...r, out: undefined, audio: `data:audio/mpeg;base64,${fs.readFileSync(out).toString('base64')}` };
+        const r = await t.synth({ provider: p.id, text, out });
+        const res = { ...r, out: undefined, audio: `data:audio/mpeg;base64,${fs.readFileSync(out).toString('base64')}` };
+        ttsTestCache.set(key, res);
+        if (ttsTestCache.size > TTS_TEST_CACHE_MAX) ttsTestCache.delete(ttsTestCache.keys().next().value);
+        return res;
       } finally {
         fs.rmSync(out, { force: true });
       }

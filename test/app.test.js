@@ -12,6 +12,7 @@ import { openStore } from '../server/db.js';
 import { loadChannels, loadPresets, REPO_ROOT } from '../server/presets.js';
 import { createProjects } from '../server/projects.js';
 import { createHub } from '../server/sse.js';
+import { createTts } from '../server/tts.js';
 import { createClaudeAccount } from '../server/claude-account.js';
 import { cachedPresets, DEFAULT_PORT, listenWithFallback, main, parseArgs, parsePort, resolveClaudeBin, resolveHome } from '../server/cli.js';
 
@@ -1334,4 +1335,24 @@ test('GET …/steps/:key/voice: bước không có giọng miễn phí → enabl
   assert.deepEqual(r.json(), { enabled: false });
   assert.equal((await req({ url: '/api/projects/khong-co/steps/voice/voice' })).statusCode, 404);
   assert.equal((await req({ url: '/api/projects/giong-thu/steps/khong-co/voice' })).statusCode, 404);
+});
+
+test('POST /api/tts/test: câu đã đọc → trả lại từ bộ nhớ (không đọc lại, không tính tiền); sửa nhà cung cấp → đọc lại', async () => {
+  let reads = 0;
+  const vieneu = { run: async ({ out, text }) => (reads++, fs.writeFileSync(out, `MP3 ${text}`), { ok: true }), isWarm: () => true };
+  await makeApp({ tts: createTts({ home, vieneu }) });
+  const say = (text) => req({ method: 'POST', url: '/api/tts/test', payload: { id: 'vieneu', text } });
+  const a = await say('Xin chào');
+  assert.equal(a.statusCode, 200, a.body);
+  assert.equal(a.json().audio, `data:audio/mpeg;base64,${Buffer.from('MP3 Xin chào').toString('base64')}`);
+  const b = (await say('Xin chào')).json();
+  assert.equal(b.cached, true);
+  assert.equal(b.cost, 0);
+  assert.equal(b.audio, a.json().audio);
+  assert.equal(reads, 1);
+  await say('Câu khác');
+  assert.equal(reads, 2);
+  await req({ method: 'PUT', url: '/api/tts/providers', payload: { provider: { id: 'vieneu', name: 'VieNeu (miễn phí, trên máy)', kind: 'vieneu', voice: 'Ngọc Linh' } } });
+  await say('Xin chào');
+  assert.equal(reads, 3);
 });
