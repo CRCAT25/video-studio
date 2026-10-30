@@ -94,22 +94,27 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
     };
   }, []);
 
-  // Sơ đồ lớn: bước đã xong (trừ bước đang xem) thu gọn thành một hàng nhãn nhỏ phía trên cho gọn.
-  const mini = large && !staticMode ? items.map((it, i) => ({ ...it, i })).filter((it) => it.state === 'done' && it.key !== currentKey) : [];
+  // Sơ đồ lớn: bước đã xong thu gọn thành một hàng nhãn nhỏ phía trên cho gọn; bước đang xem giữ nguyên chỗ, chỉ nhãn của nó mở rộng.
+  const mini = large && !staticMode ? items.map((it, i) => ({ ...it, i })).filter((it) => it.state === 'done') : [];
   const miniKeys = new Set(mini.map((it) => it.key));
 
   return (
     <div ref={ref} className={`flow${large ? ' lg' : ''}${staticMode ? ' static' : ''}`} aria-label={label || t('Các bước')} tabIndex={staticMode ? -1 : undefined}>
       {mini.length ? (
         <div className="belt-mini">
-          {mini.map((it) => (
-            <a key={it.key} className={`mini${it.unapproved ? ' unap' : ''}`} href={stepHref(projectId, it.key)} title={it.title} style={{ '--i': it.i }}>
-              <span className="ck" aria-hidden="true">✓</span>
-              <span className="no">{two(it.i + 1)}</span>
-              <span className="nm">{tr(it.name)}</span>
-              {it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}
-            </a>
-          ))}
+          {mini.map((it) => {
+            const cur = it.key === currentKey;
+            return (
+              <a key={it.key} className={`mini${it.unapproved ? ' unap' : ''}${cur ? ' cur' : ''}`} href={stepHref(projectId, it.key)} title={it.title} aria-current={cur ? 'step' : undefined} style={{ '--i': it.i }}>
+                <span className="ck" aria-hidden="true">✓</span>
+                <span className="no">{two(it.i + 1)}</span>
+                <span className="nm">{tr(it.name)}</span>
+                {cur && (it.model || defModel) ? <span className="mdl" title={t('Model dùng ở bước này')}>{cap(it.model || defModel)}</span> : null}
+                {cur ? <span className="st">{it.label}</span> : null}
+                {it.unapproved ? <em className="unap">{t('Chưa duyệt')}</em> : null}
+              </a>
+            );
+          })}
         </div>
       ) : null}
       <div className="belt">

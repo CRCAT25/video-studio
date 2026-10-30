@@ -53,7 +53,7 @@ a.box:hover{border-color:var(--line-2);background:var(--surface-2)}
 .flow.lg a.box:active{transform:translateY(-1px);transition-duration:.1s}
 .flow.lg .box .nm{font-size:var(--fs-md);font-weight:600;line-height:1.3}
 .flow.lg .box .no{font-size:var(--fs-xs);letter-spacing:.04em}
-.flow.lg .box .mdl{font-size:var(--fs-xs);padding:1px 7px;border-radius:999px;background:var(--surface-2)}
+.flow.lg .box .mdl,.mini .mdl{font-size:var(--fs-xs);padding:1px 7px;border-radius:999px;background:var(--surface-2)}
 .flow.lg .box.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 6px 22px -8px var(--accent);animation:box-in .42s cubic-bezier(.2,.7,.3,1) backwards,cur-glow 2.8s ease-in-out 1s infinite}
 .flow.lg .box.cur:before{background:var(--accent);opacity:1}
 @keyframes box-in{from{opacity:0;transform:translateY(8px) scale(.97)}}
@@ -71,4 +71,8 @@ a.box:hover{border-color:var(--line-2);background:var(--surface-2)}
 .mini .nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .mini .unap{font-style:normal;font-size:var(--fs-xs);color:var(--ask)}
 .mini.unap{border-color:color-mix(in srgb,var(--ask) 45%,var(--line))}
+/* Bước đã xong đang xem: nhãn mở rộng tại chỗ, viền nhấn + model + trạng thái */
+.mini.cur{border-color:var(--accent);background:var(--surface-2);box-shadow:0 0 0 1px var(--accent);gap:8px;padding-right:14px}
+.mini.cur .mdl{background:var(--surface)}
+.mini .st{font-size:var(--fs-xs);color:var(--ok)}
 @media (prefers-reduced-motion:reduce){.mini{animation:none;transition:none}}
