@@ -59,11 +59,18 @@ function edge(f) {
 }
 
 // Hiển thị sơ đồ; staticMode = bản xem preset (không link); large = sơ đồ ở trang bước.
+// Dự án đã hiện sơ đồ lớn trong phiên này: lần sau (đổi bước) không chạy lại hiệu ứng trượt vào.
+const shown = new Set();
+
 export default function Flow({ steps = [], projectId, currentKey, large = false, staticMode = false, label }) {
   const ref = useRef(null);
   const t = useT();
   const items = steps.map((s) => normalize(s, staticMode));
   const defModel = useDefaultModel(!staticMode);
+  const [calm] = useState(() => large && shown.has(projectId));
+  useEffect(() => {
+    if (large) shown.add(projectId);
+  }, [large, projectId]);
 
   // Cuộn để bước hiện tại nằm giữa khung.
   useLayoutEffect(() => {
@@ -99,7 +106,7 @@ export default function Flow({ steps = [], projectId, currentKey, large = false,
   const miniKeys = new Set(mini.map((it) => it.key));
 
   return (
-    <div ref={ref} className={`flow${large ? ' lg' : ''}${staticMode ? ' static' : ''}`} aria-label={label || t('Các bước')} tabIndex={staticMode ? -1 : undefined}>
+    <div ref={ref} className={`flow${large ? ' lg' : ''}${calm ? ' calm' : ''}${staticMode ? ' static' : ''}`} aria-label={label || t('Các bước')} tabIndex={staticMode ? -1 : undefined}>
       {mini.length ? (
         <div className="belt-mini">
           {mini.map((it) => {

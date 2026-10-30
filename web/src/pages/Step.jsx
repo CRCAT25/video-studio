@@ -364,10 +364,21 @@ function ResultCard({ run, live, grant }) {
   );
 }
 
+// Dữ liệu bước đã tải (theo dự án/bước): đổi bước hiện ngay bản đã nhớ rồi mới làm mới, khỏi chớp khung "Đang tải".
+const viewCache = new Map();
+const cacheKey = (p, k) => `${p}/${k}`;
+// Tải sẵn các bước khác của dự án sau khi bước đang xem đã hiện, để bấm sang bước nào cũng có ngay.
+function prefetchSteps(projectId, steps, current) {
+  for (const s of steps || []) {
+    if (s.key === current || viewCache.has(cacheKey(projectId, s.key))) continue;
+    api.step(projectId, s.key).then((v) => viewCache.set(cacheKey(projectId, s.key), v), () => {});
+  }
+}
+
 function StepPage({ projectId, stepKey }) {
   const t = useT();
   const toast = useToast();
-  const [view, setView] = useState(null);
+  const [view, setView] = useState(() => viewCache.get(cacheKey(projectId, stepKey)) || null);
   const [err, setErr] = useState(null);
   const [selRunId, setSelRunId] = useState(null);
   const [rerunAsk, setRerunAsk] = useState(false); // hộp xác nhận trước khi Chạy lại một bước đã chạy
@@ -399,6 +410,7 @@ function StepPage({ projectId, stepKey }) {
     try {
       const v = await api.step(projectId, stepKey);
       if (my !== reqRef.current) return;
+      viewCache.set(cacheKey(projectId, stepKey), v);
       setView(v);
       setErr(null);
     } catch (e) {
@@ -472,6 +484,12 @@ function StepPage({ projectId, stepKey }) {
 
   const project = view?.project;
   const step = view?.step;
+  const prefetched = useRef(false);
+  useEffect(() => {
+    if (!project || prefetched.current) return;
+    prefetched.current = true;
+    prefetchSteps(projectId, project.steps, stepKey);
+  }, [project, projectId, stepKey]);
   const runs = view?.runs || [];
   const latest = view?.latest || null;
   const selRun = (selRunId && runs.find((r) => r.id === selRunId)) || runs[0] || null;

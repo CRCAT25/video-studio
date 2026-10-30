@@ -76,3 +76,6 @@ a.box:hover{border-color:var(--line-2);background:var(--surface-2)}
 .mini.cur .mdl{background:var(--surface)}
 .mini .st{font-size:var(--fs-xs);color:var(--ok)}
 @media (prefers-reduced-motion:reduce){.mini{animation:none;transition:none}}
+/* Đổi bước trong cùng dự án: sơ đồ đứng yên, không trượt vào lại */
+.flow.calm .box,.flow.calm .mini{animation:none}
+.flow.calm .box.cur{animation:cur-glow 2.8s ease-in-out 1s infinite}

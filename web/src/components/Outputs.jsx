@@ -49,28 +49,41 @@ function prettyJson(text) {
   }
 }
 
+// Nhớ nội dung file chữ đã tải (theo src + mtime) để đổi bước không nháy khung chờ.
+const textCache = new Map();
+const TEXT_CACHE_MAX = 24;
+
 // Xem trước file chữ: tải tối đa 256 KB, hiện trong <pre> (không bao giờ render HTML/markdown).
 function TextPreview({ projectId, a, auto }) {
   const t = useT();
   const [open, setOpen] = useState(auto);
-  const [state, setState] = useState({ loading: false, text: null, truncated: false, error: null });
   const src = srcOf(projectId, a.path);
+  const key = `${src}|${a.mtime || ''}`;
+  const [state, setState] = useState(() => textCache.get(key) || { loading: false, text: null, truncated: false, error: null });
 
   useEffect(() => {
     if (!open) return undefined;
+    const hit = textCache.get(key);
+    if (hit) {
+      setState(hit);
+      return undefined;
+    }
     const ac = new AbortController();
     setState({ loading: true, text: null, truncated: false, error: null });
     fetchText(src, { signal: ac.signal })
       .then(({ text, truncated }) => {
         const shown = a.kind === 'json' && !truncated ? prettyJson(text) : text;
-        setState({ loading: false, text: shown, truncated, error: null });
+        const next = { loading: false, text: shown, truncated, error: null };
+        textCache.set(key, next);
+        if (textCache.size > TEXT_CACHE_MAX) textCache.delete(textCache.keys().next().value);
+        setState(next);
       })
       .catch((e) => {
         if (e?.name === 'AbortError') return;
         setState({ loading: false, text: null, truncated: false, error: e });
       });
     return () => ac.abort();
-  }, [open, src, a.kind]);
+  }, [open, src, key, a.kind]);
 
   return (
     <div className="text-out">

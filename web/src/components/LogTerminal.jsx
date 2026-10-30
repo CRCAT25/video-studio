@@ -94,6 +94,10 @@ function EventLine({ ev }) {
   );
 }
 
+// Nhớ nhật ký đã nạp theo lượt — quay lại bước cũ hiện ngay, chỉ bù dòng mới.
+const logCache = new Map();
+const LOG_CACHE_MAX = 12;
+
 // Terminal nhật ký cho một lượt; run = RunSummary (state 'running' → nhận live).
 export default function LogTerminal({ run, offline = false }) {
   const t = useT();
@@ -101,10 +105,10 @@ export default function LogTerminal({ run, offline = false }) {
   const live = run?.state === 'running';
   const logRef = useRef(null);
   const atBottom = useRef(true);
-  const store = useRef({ list: [], seen: new Set(), hidden: 0, maxSeq: 0, pending: [] });
+  const store = useRef(logCache.get(runId) || { list: [], seen: new Set(), hidden: 0, maxSeq: 0, pending: [] });
   const raf = useRef(0);
   const [, setTick] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !logCache.has(runId));
   const [error, setError] = useState(null);
   const [showJump, setShowJump] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -158,7 +162,8 @@ export default function LogTerminal({ run, offline = false }) {
 
   // Đổi lượt → xóa màn, nạp lịch sử từ đầu.
   useEffect(() => {
-    store.current = { list: [], seen: new Set(), hidden: 0, maxSeq: 0, pending: [] };
+    const cached = runId ? logCache.get(runId) : null;
+    store.current = cached || { list: [], seen: new Set(), hidden: 0, maxSeq: 0, pending: [] };
     atBottom.current = true;
     setShowJump(false);
     setError(null);
@@ -167,7 +172,11 @@ export default function LogTerminal({ run, offline = false }) {
       setLoading(false);
       return undefined;
     }
-    setLoading(true);
+    if (!cached) {
+      logCache.set(runId, store.current);
+      if (logCache.size > LOG_CACHE_MAX) logCache.delete(logCache.keys().next().value);
+    }
+    setLoading(!cached);
     const ac = new AbortController();
     backfill(ac.signal)
       .then(() => setLoading(false))
