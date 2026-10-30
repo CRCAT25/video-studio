@@ -285,6 +285,7 @@ test('stats: 28 ngày kết thúc hôm qua, tổng đúng, cache 6 giờ, refres
   assert.equal(s.days[0].date, '2026-09-26');
   assert.equal(s.totals.views, s.days.reduce((a, d) => a + d.views, 0));
   assert.equal(s.totals.avgViewDuration, 60);
+  assert.deepEqual(s.latest, { date: '2026-10-23', views: 37, subs: 0 }); // ngày cuối Analytics có dòng
   assert.equal(s.channel.subscribers, 1234);
   assert.equal(s.channel.uploads, undefined);
   assert.equal(store.ytQuota('2026-10-24') - before, 1);

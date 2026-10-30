@@ -115,8 +115,12 @@ export function createYouTubeApi({ endpoints, fetch: fetchFn = globalThis.fetch,
       weighted += (num(r.averageViewDuration) ?? 0) * row.views;
     }
     if (totals.views > 0) totals.avgViewDuration = Math.round(weighted / totals.views);
+    // Ngày gần nhất Analytics đã có số (thường trễ 1–2 ngày); ngày chưa có dòng không tính.
+    const lastDay = [...byDay.keys()].sort().pop();
+    const last = lastDay ? days.find((d) => d.date === lastDay) : null;
+    const latest = last ? { date: last.date, views: last.views, subs: last.subsGained - last.subsLost } : null;
     const { uploads, ...pub } = channel || {};
-    return { channel: channel ? pub : null, period: { start, end, days: span }, totals, days };
+    return { channel: channel ? pub : null, period: { start, end, days: span }, totals, days, latest };
   }
 
   // Ảnh thu nhỏ cỡ vừa; chỉ nhận i.ytimg.com (CSP img-src chỉ mở host này).
