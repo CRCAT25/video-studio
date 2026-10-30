@@ -266,11 +266,10 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
             <thead>
               <tr>
                 <th>{t('Kênh')}</th>
-                <th className="num">{t('Người đăng ký')}</th>
-                <th className="num">{t('Hôm nay')}</th>
-                <th className="num hide-sm">{t('Hôm qua')}</th>
                 <th className="num hide-sm">{t('Video')}</th>
                 <th className="num hide-sm">{t('Shorts')}</th>
+                <th className="num">{t('Người đăng ký')}</th>
+                <th className="num">{t('Hôm nay')}</th>
                 <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
                 <th>
                   <span className="sr-only">{t('Thao tác')}</span>
@@ -288,6 +287,12 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
                       <Sk w="6em" />
                     </span>
                   </td>
+                  <td className="num hide-sm">
+                    <Sk w="2em" />
+                  </td>
+                  <td className="num hide-sm">
+                    <Sk w="2em" />
+                  </td>
                   <td className="num">
                     <Sk w="3em" />
                   </td>
@@ -296,18 +301,6 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
                       <Sk w="3.5em" />
                       <Sk w="5em" />
                     </span>
-                  </td>
-                  <td className="num hide-sm">
-                    <span className="yt-day">
-                      <Sk w="3.5em" />
-                      <Sk w="5em" />
-                    </span>
-                  </td>
-                  <td className="num hide-sm">
-                    <Sk w="2em" />
-                  </td>
-                  <td className="num hide-sm">
-                    <Sk w="2em" />
                   </td>
                   <td className="num hide-sm">
                     <Sk w="4em" />
@@ -471,20 +464,16 @@ function chState(c) {
 // Bảng danh sách kênh: tên, trạng thái, số chung; cuối hàng có menu "…" (chi tiết, tạo video, xóa).
 function ChannelList({ channels, stats, range, onNew, onDelete }) {
   const t = useT();
-  const head = latestHead(stats);
   return (
     <div className="tbl-wrap yt-chlist">
       <table className="yt-tbl">
         <thead>
           <tr>
             <th>{t('Kênh')}</th>
-            <th className="num">{t('Người đăng ký')}</th>
-            <th className="num">{t('Hôm nay')}</th>
-            <th className="num hide-sm" title={t('Theo mốc app ghi lại; chưa có thì theo YouTube Analytics (trễ 1–2 ngày)')}>
-              {head.label}
-            </th>
             <th className="num hide-sm">{t('Video')}</th>
             <th className="num hide-sm">{t('Shorts')}</th>
+            <th className="num">{t('Người đăng ký')}</th>
+            <th className="num">{t('Hôm nay')}</th>
             <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
             <th>
               <span className="sr-only">{t('Thao tác')}</span>
@@ -493,7 +482,7 @@ function ChannelList({ channels, stats, range, onNew, onDelete }) {
         </thead>
         <tbody>
           {channels.map((c) => (
-            <ChannelRow key={c.id} c={c} s={stats[c.id]} head={head.day} onNew={onNew} onDelete={onDelete} />
+            <ChannelRow key={c.id} c={c} s={stats[c.id]} onNew={onNew} onDelete={onDelete} />
           ))}
         </tbody>
       </table>
@@ -519,40 +508,20 @@ function Delta({ v, unit }) {
   );
 }
 
-// 'YYYY-MM-DD' → 'dd/mm'.
-const ddmm = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-
-// Hôm qua theo giờ máy, dạng 'YYYY-MM-DD'.
-function yesterday() {
-  const y = new Date();
-  y.setDate(y.getDate() - 1);
-  return `${y.getFullYear()}-${two(y.getMonth() + 1)}-${two(y.getDate())}`;
-}
-
-// Số hôm qua: ưu tiên mốc app tự ghi (đủ cả ngày), không có thì lấy ngày gần nhất Analytics có số.
-const dayOf = (s) => s?.yesterday || s?.latest || null;
-
-// Tiêu đề cột ngày gần nhất có số: đúng hôm qua → "Hôm qua", không thì ghi ngày.
-function latestHead(stats) {
-  const day = Object.values(stats || {}).map((s) => dayOf(s)?.date).filter(Boolean).sort().pop() || null;
-  return { day, label: !day || day === yesterday() ? tr('Hôm qua') : tr('Ngày {d}', { d: ddmm(day) }) };
-}
-
-// Ô số liệu một ngày (sub + lượt xem); date khác ngày của tiêu đề cột thì ghi rõ ngày.
-function DayCell({ d, title, date, head }) {
+// Ô số liệu một ngày (sub + lượt xem).
+function DayCell({ d, title }) {
   const t = useT();
   if (!d) return <span className="muted" title={title}>—</span>;
   return (
     <span className="yt-day" title={title}>
       <Delta v={d.subs} unit={t('sub')} />
       <Delta v={d.views} unit={t('lượt xem')} />
-      {date && date !== head ? <span className="muted small">{t('ngày {d}', { d: ddmm(date) })}</span> : null}
     </span>
   );
 }
 
 // Một hàng kênh; s = số liệu (undefined: đang tải, false: lỗi) do trang danh sách tải.
-function ChannelRow({ c, s, head, onNew, onDelete }) {
+function ChannelRow({ c, s, onNew, onDelete }) {
   const t = useT();
   const ok = c.status !== 'reauth' && !c.pending;
   const st = chState(c);
@@ -570,11 +539,10 @@ function ChannelRow({ c, s, head, onNew, onDelete }) {
           <i className={`lamp ${st.lamp}`} /> {st.text}
         </span>
       </td>
-      <td className="num">{ok ? cell(ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)) : '—'}</td>
-      <td className="num">{ok ? cell(<DayCell d={s?.today} title={s?.today ? sinceLabel(s.today.since) : t('Đang ghi mốc — số hôm nay có sau lần làm mới tiếp theo')} />) : '—'}</td>
-      <td className="num hide-sm">{ok ? cell(<DayCell d={dayOf(s)} title={s?.yesterday ? t('Theo mốc app ghi lại (tổng lượt xem từng video)') : t('Theo YouTube Analytics (trễ 1–2 ngày)')} date={dayOf(s)?.date} head={head} />) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.video)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.short)) : '—'}</td>
+      <td className="num">{ok ? cell(ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)) : '—'}</td>
+      <td className="num">{ok ? cell(<DayCell d={s?.today} title={s?.today ? sinceLabel(s.today.since) : t('Đang ghi mốc — số hôm nay có sau lần làm mới tiếp theo')} />) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
       <td className="yt-chact">
         <RowMenu
