@@ -558,3 +558,24 @@ test('route: thêm kênh → callback công khai (không cần token, chỉ cầ
     await app.close();
   }
 });
+
+test('stats.today: chụp mốc sub/view theo ngày, so với mốc đầu hôm nay rồi mốc cuối ngày trước', async () => {
+  await yt.setup(FAKE_CLIENT_SECRET);
+  await connectChannel();
+  assert.equal((await yt.stats('kenh-gia')).today, null); // mới một mốc → chưa so được
+  google.state.channel = { ...google.state.channel, subscribers: '1240', views: '56800' };
+  clock += 60_000;
+  const a = await yt.stats('kenh-gia', { refresh: true });
+  assert.equal(a.today.subs, 6);
+  assert.equal(a.today.views, 11);
+  assert.match(a.today.since, /T/); // mốc đầu hôm nay (giờ)
+  assert.deepEqual((await yt.stats('kenh-gia')).today, a.today); // đọc cache vẫn có
+  clock += 24 * 3600_000;
+  google.state.channel = { ...google.state.channel, subscribers: '1230', views: '56900' };
+  const b = await yt.stats('kenh-gia', { refresh: true });
+  assert.equal(b.today.subs, -10);
+  assert.equal(b.today.views, 100);
+  assert.match(b.today.since, /^\d{4}-\d{2}-\d{2}$/); // mốc cuối của ngày trước
+  store.ytDeleteChannel('kenh-gia');
+  assert.equal(store.ytDailyPrev('kenh-gia', '2999-01-01'), null);
+});

@@ -1,4 +1,4 @@
-// Biểu tượng SVG: logo, tải về, nhánh Bộ não.
+// Biểu tượng SVG: logo, tải về, nhánh Bộ não, mũi tên xu hướng.
 
 // Logo: ô bo góc có nút play.
 export function Logo() {
@@ -36,6 +36,15 @@ export function BranchIcon({ name }) {
   return (
     <svg className="ic-br" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d={BRANCH_PATHS[name] || BRANCH_PATHS.inbox} />
+    </svg>
+  );
+}
+
+// Mũi tên xu hướng: up (tăng) / down (giảm); màu do lớp cha quyết định.
+export function TrendIcon({ dir }) {
+  return (
+    <svg className="ic-tr" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={dir === 'down' ? 'M8 3v10M4 9l4 4 4-4' : 'M8 13V3M4 7l4-4 4 4'} />
     </svg>
   );
 }

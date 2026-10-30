@@ -253,6 +253,21 @@ export function createYouTube({
     return inflight.get(key);
   }
 
+  // Thay đổi sub/view "hôm nay" theo giờ máy: số mới nhất − mốc cuối của ngày trước (chưa có thì mốc đầu hôm nay).
+  // Lượt vừa gọi Google thì ghi mốc trước; null khi chưa đủ hai mốc để so.
+  function todayOf(id, res) {
+    const d = new Date(now());
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!res.cached && res.channel) store.ytDailyPut(id, day, { subs: res.channel.subscribers ?? null, views: res.channel.views ?? null }, res.fetchedAt);
+    const cur = store.ytDailyGet(id, day);
+    if (!cur) return null;
+    const prev = store.ytDailyPrev(id, day);
+    const base = prev ? { subs: prev.subs, views: prev.views, since: prev.day } : cur.first_at !== cur.at ? { subs: cur.first_subs, views: cur.first_views, since: cur.first_at } : null;
+    if (!base) return null;
+    const diff = (a, b) => (a == null || b == null ? null : a - b);
+    return { subs: diff(cur.subs, base.subs), views: diff(cur.views, base.views), since: base.since, at: cur.at };
+  }
+
   return {
     status,
     setup,
@@ -264,7 +279,8 @@ export function createYouTube({
     // range: "7"|"28"|"90"|"365"|"YYYY-MM-DD_YYYY-MM-DD"; 28 ngày giữ kind 'stats' cũ.
     stats: async (id, { refresh = false, range } = {}) => {
       const r = needRange(range);
-      return cached(id, r.key === String(PERIOD_DAYS) ? 'stats' : `stats:${r.key}`, refresh, (t, today) => api.channelStats(t, { today, range: r.key }));
+      const res = await cached(id, r.key === String(PERIOD_DAYS) ? 'stats' : `stats:${r.key}`, refresh, (t, today) => api.channelStats(t, { today, range: r.key }));
+      return { ...res, today: todayOf(id, res) };
     },
     videos: (id, { refresh = false } = {}) => cached(id, 'videos', refresh, (t, today) => api.videos(t, { today })),
     videoStats: async (id, { refresh = false, range } = {}) => {

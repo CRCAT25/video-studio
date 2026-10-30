@@ -150,3 +150,6 @@
 .yt-rowmenu .menu.yt-rowpop{position:fixed;left:auto}
 .yt-rowmenu .btn svg{display:block}
 .link-btn{background:none;border:0;padding:0;font:inherit;text-align:left;cursor:pointer}
+.yt-delta{display:inline-flex;align-items:center;gap:3px;color:var(--muted)}
+.yt-delta.up{color:var(--ok)}
+.yt-delta.down{color:var(--err)}

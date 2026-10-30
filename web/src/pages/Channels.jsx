@@ -7,12 +7,13 @@ import NewProjectModal from '../components/NewProjectModal.jsx';
 import { Sk, SkZone } from '../components/Skeleton.jsx';
 import RangePicker, { rangeLabel, savedRange } from '../components/RangePicker.jsx';
 import YtChart from '../components/YtChart.jsx';
+import { TrendIcon } from '../components/icons.jsx';
 import Select, { DEFAULT_BROWSER, profileOptions, saveProfile, savedProfile } from '../components/Select.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
 import { navigate, stepHref } from '../lib/router.js';
 import { useNow } from '../hooks/useNow.js';
-import { fmtDate, fmtNum, fmtRelative, two } from '../lib/format.js';
+import { fmtDate, fmtDateTime, fmtNum, fmtRelative, two } from '../lib/format.js';
 import { T, intlLocale, tr, useT } from '../lib/i18n.jsx';
 
 // Giây → "11:30" / "1:02:03".
@@ -266,9 +267,11 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
               <tr>
                 <th>{t('Kênh')}</th>
                 <th className="num">{t('Người đăng ký')}</th>
+                <th className="num">{t('Sub hôm nay')}</th>
                 <th className="num hide-sm">{t('Video')}</th>
                 <th className="num hide-sm">{t('Shorts')}</th>
                 <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
+                <th className="num hide-sm">{t('Lượt xem hôm nay')}</th>
                 <th>
                   <span className="sr-only">{t('Thao tác')}</span>
                 </th>
@@ -288,6 +291,9 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
                   <td className="num">
                     <Sk w="3em" />
                   </td>
+                  <td className="num">
+                    <Sk w="2.5em" />
+                  </td>
                   <td className="num hide-sm">
                     <Sk w="2em" />
                   </td>
@@ -296,6 +302,9 @@ export default function Channels({ yt, error, onReload, presetsData, doctor }) {
                   </td>
                   <td className="num hide-sm">
                     <Sk w="4em" />
+                  </td>
+                  <td className="num hide-sm">
+                    <Sk w="3em" />
                   </td>
                   <td>
                     <Sk block w={74} h={28} />
@@ -463,9 +472,11 @@ function ChannelList({ channels, stats, range, onNew, onDelete }) {
           <tr>
             <th>{t('Kênh')}</th>
             <th className="num">{t('Người đăng ký')}</th>
+            <th className="num">{t('Sub hôm nay')}</th>
             <th className="num hide-sm">{t('Video')}</th>
             <th className="num hide-sm">{t('Shorts')}</th>
             <th className="num hide-sm">{t('Lượt xem · {r}', { r: rangeLabel(range) })}</th>
+            <th className="num hide-sm">{t('Lượt xem hôm nay')}</th>
             <th>
               <span className="sr-only">{t('Thao tác')}</span>
             </th>
@@ -478,6 +489,26 @@ function ChannelList({ channels, stats, range, onNew, onDelete }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Mốc so sánh: 'YYYY-MM-DD' (cuối ngày trước) hoặc giờ ISO (mốc đầu hôm nay).
+function sinceLabel(since) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(since || '');
+  return m ? tr('so với cuối ngày {d}', { d: `${m[3]}/${m[2]}/${m[1]}` }) : tr('so với lúc {d}', { d: fmtDateTime(since) });
+}
+
+// Chênh lệch hôm nay: mũi tên xanh lên nếu tăng, đỏ xuống nếu giảm; chưa có mốc → "—".
+function Delta({ v, since }) {
+  const t = useT();
+  if (v == null) return <span className="muted" title={t('Đang ghi mốc — số hôm nay có sau lần làm mới tiếp theo')}>—</span>;
+  const dir = v > 0 ? 'up' : v < 0 ? 'down' : '';
+  return (
+    <span className={`yt-delta ${dir}`} title={sinceLabel(since)}>
+      {dir ? <TrendIcon dir={dir} /> : null}
+      {v > 0 ? '+' : ''}
+      {fmtNum(v)}
+    </span>
   );
 }
 
@@ -501,9 +532,11 @@ function ChannelRow({ c, s, onNew, onDelete }) {
         </span>
       </td>
       <td className="num">{ok ? cell(ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)) : '—'}</td>
+      <td className="num">{ok ? cell(<Delta v={s?.today?.subs} since={s?.today?.since} />) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.video)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.short)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
+      <td className="num hide-sm">{ok ? cell(<Delta v={s?.today?.views} since={s?.today?.since} />) : '—'}</td>
       <td className="yt-chact">
         <RowMenu
           label={t('Thao tác với kênh {name}', { name: c.name })}

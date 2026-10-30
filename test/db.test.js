@@ -26,12 +26,12 @@ function seed(id = 'p1', steps = ['a', 'b']) {
 
 test('tạo schema v5, WAL, foreign_keys, busy_timeout; tạo thư mục cha', () => {
   assert.ok(fs.existsSync(path.join(tmp, 'sub', 'studio.db')));
-  assert.equal(store.db.pragma('user_version', { simple: true }), 6);
+  assert.equal(store.db.pragma('user_version', { simple: true }), 7);
   assert.equal(store.db.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(store.db.pragma('foreign_keys', { simple: true }), 1);
   assert.equal(store.db.pragma('busy_timeout', { simple: true }), 5000);
   const tables = store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(tables, ['artifacts', 'checks', 'costs', 'projects', 'run_events', 'runs', 'sessions', 'settings', 'steps', 'token_usage', 'yt_channels', 'yt_quota', 'yt_stats_cache', 'yt_uploads']);
+  assert.deepEqual(tables, ['artifacts', 'checks', 'costs', 'projects', 'run_events', 'runs', 'sessions', 'settings', 'steps', 'token_usage', 'yt_channels', 'yt_daily', 'yt_quota', 'yt_stats_cache', 'yt_uploads']);
   const idx = store.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'ix_%' ORDER BY name").all().map((r) => r.name);
   assert.deepEqual(idx, ['ix_events_run', 'ix_runs_step', 'ix_token_usage_at']);
 });
@@ -259,7 +259,7 @@ test('nâng cấp DB v4 → v5 giữ dữ liệu, thêm bảng token_usage', () 
   store.db.pragma('user_version = 4');
   store.close();
   store = openStore(path.join(tmp, 'sub', 'studio.db'));
-  assert.equal(store.db.pragma('user_version', { simple: true }), 6);
+  assert.equal(store.db.pragma('user_version', { simple: true }), 7);
   assert.equal(store.listProjects().length, 1);
   store.addTokenUsage('check', { output_tokens: 2 });
   assert.equal(store.tokenTotals('2000-01-01').check.total, 2);

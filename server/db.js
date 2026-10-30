@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS projects(
@@ -94,6 +94,16 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(id_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
 `;
 
+// v7: mốc sub/view tổng của kênh theo ngày (giờ máy) — để tính "hôm nay" vì Analytics trễ 1–3 ngày.
+// first_* = lần chụp đầu trong ngày, subs/views = lần chụp mới nhất.
+const SCHEMA_V7 = `
+CREATE TABLE IF NOT EXISTS yt_daily(
+  channel_id TEXT NOT NULL, day TEXT NOT NULL,
+  first_subs INTEGER, first_views INTEGER, first_at TEXT NOT NULL,
+  subs INTEGER, views INTEGER, at TEXT NOT NULL,
+  PRIMARY KEY(channel_id, day));
+`;
+
 // Cột *_json ↔ key đã parse (không hậu tố).
 const JSON_COLS = { result_json: 'result', denials_json: 'denials', usage_json: 'usage', payload_json: 'payload' };
 const JSON_KEYS = Object.fromEntries(Object.entries(JSON_COLS).map(([c, k]) => [k, c]));
@@ -147,6 +157,7 @@ function migrate(db) {
     if (v < 4) db.exec(SCHEMA_V4);
     if (v < 5) db.exec(SCHEMA_V5);
     if (v < 6) db.exec(SCHEMA_V6);
+    if (v < 7) db.exec(SCHEMA_V7);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
 }
@@ -421,6 +432,7 @@ export function openStore(file) {
     ytDeleteChannel(id) {
       db.transaction(() => {
         st('DELETE FROM yt_stats_cache WHERE channel_id = ?').run(id);
+        st('DELETE FROM yt_daily WHERE channel_id = ?').run(id);
         st('DELETE FROM yt_channels WHERE id = ?').run(id);
       })();
     },
@@ -438,6 +450,19 @@ export function openStore(file) {
           ON CONFLICT(channel_id, kind) DO UPDATE SET data_json = excluded.data_json, fetched_at = excluded.fetched_at`)
         .run(channelId, kind, JSON.stringify(data), at);
       return at;
+    },
+    // Ghi mốc sub/view của kênh trong ngày: lần đầu giữ ở first_*, các lần sau chỉ cập nhật số mới nhất.
+    ytDailyPut(channelId, day, { subs = null, views = null }, at = now()) {
+      st(`INSERT INTO yt_daily(channel_id, day, first_subs, first_views, first_at, subs, views, at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(channel_id, day) DO UPDATE SET subs = excluded.subs, views = excluded.views, at = excluded.at`)
+        .run(channelId, day, subs, views, at, subs, views, at);
+    },
+    ytDailyGet(channelId, day) {
+      return st('SELECT * FROM yt_daily WHERE channel_id = ? AND day = ?').get(channelId, day) || null;
+    },
+    // Ngày gần nhất trước `day` có mốc (không nhất thiết là hôm qua nếu hôm qua không mở app).
+    ytDailyPrev(channelId, day) {
+      return st('SELECT * FROM yt_daily WHERE channel_id = ? AND day < ? ORDER BY day DESC LIMIT 1').get(channelId, day) || null;
     },
     // Cộng đơn vị hạn mức YouTube Data API đã dùng trong ngày (ngày theo giờ Thái Bình Dương).
     ytQuotaAdd(day, units) {
