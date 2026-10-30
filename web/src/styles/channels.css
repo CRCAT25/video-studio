@@ -154,3 +154,9 @@
 .yt-delta{display:inline-flex;align-items:center;gap:3px;color:var(--muted)}
 .yt-delta.up{color:var(--ok)}
 .yt-delta.down{color:var(--err)}
+.yt-live{display:flex;flex-direction:column;gap:12px}
+.yt-live .note{margin:0}
+.yt-top{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.yt-top li{display:flex;align-items:center;gap:12px}
+.yt-top .yt-thumb{width:80px}
+.yt-top .yt-delta{font-variant-numeric:tabular-nums}

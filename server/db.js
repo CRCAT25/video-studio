@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS projects(
@@ -104,6 +104,14 @@ CREATE TABLE IF NOT EXISTS yt_daily(
   PRIMARY KEY(channel_id, day));
 `;
 
+// v8: tổng lượt xem cộng từ từng video (YouTube cập nhật nhanh hơn tổng của kênh) theo ngày,
+// và mốc theo giờ kèm lượt xem từng video — cho "Thời gian thực" 48 giờ.
+const SCHEMA_V8 = `
+CREATE TABLE IF NOT EXISTS yt_hourly(
+  channel_id TEXT NOT NULL, hour TEXT NOT NULL, vviews INTEGER NOT NULL, videos_json TEXT NOT NULL, at TEXT NOT NULL,
+  PRIMARY KEY(channel_id, hour));
+`;
+
 // Cột *_json ↔ key đã parse (không hậu tố).
 const JSON_COLS = { result_json: 'result', denials_json: 'denials', usage_json: 'usage', payload_json: 'payload' };
 const JSON_KEYS = Object.fromEntries(Object.entries(JSON_COLS).map(([c, k]) => [k, c]));
@@ -158,6 +166,11 @@ function migrate(db) {
     if (v < 5) db.exec(SCHEMA_V5);
     if (v < 6) db.exec(SCHEMA_V6);
     if (v < 7) db.exec(SCHEMA_V7);
+    if (v < 8) {
+      const cols = new Set(db.prepare('PRAGMA table_info(yt_daily)').all().map((c) => c.name));
+      for (const c of ['first_vviews', 'vviews']) if (!cols.has(c)) db.exec(`ALTER TABLE yt_daily ADD COLUMN ${c} INTEGER`);
+      db.exec(SCHEMA_V8);
+    }
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
 }
@@ -433,6 +446,7 @@ export function openStore(file) {
       db.transaction(() => {
         st('DELETE FROM yt_stats_cache WHERE channel_id = ?').run(id);
         st('DELETE FROM yt_daily WHERE channel_id = ?').run(id);
+        st('DELETE FROM yt_hourly WHERE channel_id = ?').run(id);
         st('DELETE FROM yt_channels WHERE id = ?').run(id);
       })();
     },
@@ -454,11 +468,29 @@ export function openStore(file) {
     // Ghi mốc sub/view của kênh trong ngày: lần đầu giữ ở first_*, các lần sau chỉ cập nhật số mới nhất.
     ytDailyPut(channelId, day, { subs = null, views = null }, at = now()) {
       st(`INSERT INTO yt_daily(channel_id, day, first_subs, first_views, first_at, subs, views, at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(channel_id, day) DO UPDATE SET subs = excluded.subs, views = excluded.views, at = excluded.at`)
+          ON CONFLICT(channel_id, day) DO UPDATE SET first_subs = COALESCE(first_subs, excluded.subs), first_views = COALESCE(first_views, excluded.views),
+            subs = excluded.subs, views = excluded.views, at = excluded.at`)
         .run(channelId, day, subs, views, at, subs, views, at);
     },
     ytDailyGet(channelId, day) {
       return st('SELECT * FROM yt_daily WHERE channel_id = ? AND day = ?').get(channelId, day) || null;
+    },
+    // Tổng lượt xem cộng từ video: cập nhật dòng ngày (tạo nếu chưa có) + mốc giờ; mốc giờ quá 8 ngày bị xóa.
+    ytViewsPut(channelId, day, hour, vviews, videos, at = now()) {
+      db.transaction(() => {
+        st(`INSERT INTO yt_daily(channel_id, day, first_at, at, first_vviews, vviews) VALUES(?, ?, ?, ?, ?, ?)
+            ON CONFLICT(channel_id, day) DO UPDATE SET first_vviews = COALESCE(first_vviews, excluded.vviews), vviews = excluded.vviews`)
+          .run(channelId, day, at, at, vviews, vviews);
+        st(`INSERT INTO yt_hourly(channel_id, hour, vviews, videos_json, at) VALUES(?, ?, ?, ?, ?)
+            ON CONFLICT(channel_id, hour) DO UPDATE SET vviews = excluded.vviews, videos_json = excluded.videos_json, at = excluded.at`)
+          .run(channelId, hour, vviews, JSON.stringify(videos), at);
+        st('DELETE FROM yt_hourly WHERE channel_id = ? AND at < ?').run(channelId, new Date(Date.parse(at) - 8 * 86_400_000).toISOString());
+      })();
+    },
+    // Mốc giờ từ `fromHour` trở đi, cũ → mới; videos đã parse.
+    ytHourly(channelId, fromHour) {
+      return st('SELECT hour, vviews, videos_json, at FROM yt_hourly WHERE channel_id = ? AND hour >= ? ORDER BY hour').all(channelId, fromHour)
+        .map(({ videos_json, ...r }) => ({ ...r, videos: safeParse(videos_json) || {} }));
     },
     // Ngày gần nhất trước `day` có mốc (không nhất thiết là hôm qua nếu hôm qua không mở app).
     ytDailyPrev(channelId, day) {

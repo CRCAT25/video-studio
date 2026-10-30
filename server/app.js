@@ -601,6 +601,8 @@ export async function buildApp({
 
   app.get('/api/youtube/channels/:id/videos', async (req) => needYoutube().videos(req.params.id, { refresh: isRefresh(req) }));
 
+  app.get('/api/youtube/channels/:id/live', async (req) => needYoutube().live(req.params.id));
+
   app.get('/api/youtube/channels/:id/video-stats', async (req) => needYoutube().videoStats(req.params.id, { refresh: isRefresh(req), range: rangeOf(req) }));
 
   // Trang Google chuyển về: không lộ code/token; chỉ báo kết quả để người dùng quay lại app.

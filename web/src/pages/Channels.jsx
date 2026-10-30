@@ -480,7 +480,7 @@ function ChannelList({ channels, stats, range, onNew, onDelete }) {
             <th>{t('Kênh')}</th>
             <th className="num">{t('Người đăng ký')}</th>
             <th className="num">{t('Hôm nay')}</th>
-            <th className="num hide-sm" title={t('Theo YouTube Analytics (trễ 1–2 ngày)')}>
+            <th className="num hide-sm" title={t('Theo mốc app ghi lại; chưa có thì theo YouTube Analytics (trễ 1–2 ngày)')}>
               {head.label}
             </th>
             <th className="num hide-sm">{t('Video')}</th>
@@ -529,9 +529,12 @@ function yesterday() {
   return `${y.getFullYear()}-${two(y.getMonth() + 1)}-${two(y.getDate())}`;
 }
 
-// Tiêu đề cột ngày gần nhất Analytics có số: đúng hôm qua → "Hôm qua", không thì ghi ngày.
+// Số hôm qua: ưu tiên mốc app tự ghi (đủ cả ngày), không có thì lấy ngày gần nhất Analytics có số.
+const dayOf = (s) => s?.yesterday || s?.latest || null;
+
+// Tiêu đề cột ngày gần nhất có số: đúng hôm qua → "Hôm qua", không thì ghi ngày.
 function latestHead(stats) {
-  const day = Object.values(stats || {}).map((s) => s?.latest?.date).filter(Boolean).sort().pop() || null;
+  const day = Object.values(stats || {}).map((s) => dayOf(s)?.date).filter(Boolean).sort().pop() || null;
   return { day, label: !day || day === yesterday() ? tr('Hôm qua') : tr('Ngày {d}', { d: ddmm(day) }) };
 }
 
@@ -569,7 +572,7 @@ function ChannelRow({ c, s, head, onNew, onDelete }) {
       </td>
       <td className="num">{ok ? cell(ch?.subscribers == null ? t('Ẩn') : fmtNum(ch.subscribers)) : '—'}</td>
       <td className="num">{ok ? cell(<DayCell d={s?.today} title={s?.today ? sinceLabel(s.today.since) : t('Đang ghi mốc — số hôm nay có sau lần làm mới tiếp theo')} />) : '—'}</td>
-      <td className="num hide-sm">{ok ? cell(<DayCell d={s?.latest} title={t('Theo YouTube Analytics (trễ 1–2 ngày)')} date={s?.latest?.date} head={head} />) : '—'}</td>
+      <td className="num hide-sm">{ok ? cell(<DayCell d={dayOf(s)} title={s?.yesterday ? t('Theo mốc app ghi lại (tổng lượt xem từng video)') : t('Theo YouTube Analytics (trễ 1–2 ngày)')} date={dayOf(s)?.date} head={head} />) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.video)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(kind(s?.kinds?.short)) : '—'}</td>
       <td className="num hide-sm">{ok ? cell(fmtNum(s?.totals?.views)) : '—'}</td>
@@ -1004,6 +1007,7 @@ function ChannelStats({ c, tick, onLoading }) {
   const [stats, setStats] = useState(null);
   const [videos, setVideos] = useState(null);
   const [vstats, setVstats] = useState(null);
+  const [live, setLive] = useState(null);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
   const [metric, setMetric] = useState('views');
@@ -1021,6 +1025,8 @@ function ChannelStats({ c, tick, onLoading }) {
         setVideos(v);
         setVstats(vs);
         setErr(null);
+        // Mốc theo giờ được ghi khi tải danh sách video → đọc sau cùng.
+        api.ytLive(c.id).then((l) => my === seq.current && setLive(l)).catch(() => {});
       } catch (e) {
         if (my === seq.current) setErr(e);
       } finally {
@@ -1092,6 +1098,8 @@ function ChannelStats({ c, tick, onLoading }) {
         </>
       ) : null}
 
+      {live ? <LivePanel live={live} /> : null}
+
       {rows ? <VideoTable videos={rows} truncated={videos.truncated} /> : null}
 
       {stats ? (
@@ -1102,6 +1110,48 @@ function ChannelStats({ c, tick, onLoading }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+// Thời gian thực: lượt xem theo giờ trong 48 giờ + video tăng nhiều nhất, từ mốc app ghi khi làm mới (chỉ có khi app đang mở).
+function LivePanel({ live }) {
+  const t = useT();
+  const hours = useMemo(() => live.hours.map((h) => ({ date: h.hour, views: h.views })), [live]);
+  return (
+    <section className="yt-live" aria-label={t('Thời gian thực')}>
+      <div className="yt-chart-h">
+        <h3>
+          {t('Thời gian thực')} <span className="muted small">{t('48 giờ qua')}</span>
+        </h3>
+        <span className="muted small">
+          {live.total == null ? t('Đang ghi mốc') : t('{n} lượt xem từ {d}', { n: fmtNum(live.total), d: fmtDateTime(live.since) })}
+        </span>
+      </div>
+      <YtChart days={hours} unit="hour" field="views" label={t('Lượt xem')} />
+      {live.top.length ? (
+        <ol className="yt-top" aria-label={t('Video tăng nhiều nhất')}>
+          {live.top.map((v) => {
+            const href = `https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}`;
+            return (
+              <li key={v.id}>
+                <a className="yt-thumb" href={href} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true">
+                  {v.thumb ? <img src={v.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}
+                </a>
+                <div className="yt-vtext">
+                  <a href={href} target="_blank" rel="noopener noreferrer">
+                    {v.title}
+                  </a>
+                </div>
+                <span className="yt-delta up">
+                  <TrendIcon dir="up" />+{fmtNum(v.views)}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+      <p className="note">{t('Chỉ ghi được khi app đang mở và tự làm mới (5 phút/lần); giờ trống là lúc app tắt.')}</p>
+    </section>
   );
 }
 

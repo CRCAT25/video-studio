@@ -13,6 +13,13 @@ export const CALLBACK_PATH = '/api/youtube/oauth/callback';
 export const NEW_CHANNEL = '+new';
 
 // Tên kênh → mã nội bộ: bỏ dấu, chữ thường, nối bằng '-' ("Bếp Nhà Mình" → "bep-nha-minh").
+const HOUR_MS = 3_600_000;
+const LIVE_HOURS = 48;
+const pad2 = (n) => String(n).padStart(2, '0');
+// Ngày / giờ theo giờ máy: "YYYY-MM-DD", "YYYY-MM-DDTHH".
+export const localDay = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+export const localHour = (d) => `${localDay(d)}T${pad2(d.getHours())}`;
+
 export function slugify(title) {
   const s = String(title ?? '')
     .normalize('NFD')
@@ -253,19 +260,76 @@ export function createYouTube({
     return inflight.get(key);
   }
 
+  const diff = (a, b) => (a == null || b == null ? null : a - b);
+
   // Thay đổi sub/view "hôm nay" theo giờ máy: số mới nhất − mốc cuối của ngày trước (chưa có thì mốc đầu hôm nay).
-  // Lượt vừa gọi Google thì ghi mốc trước; null khi chưa đủ hai mốc để so.
+  // Lượt xem ưu tiên tổng cộng từ từng video (cập nhật nhanh hơn tổng kênh). Lượt vừa gọi Google thì ghi mốc trước;
+  // null khi chưa đủ hai mốc để so.
   function todayOf(id, res) {
-    const d = new Date(now());
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const day = localDay(new Date(now()));
     if (!res.cached && res.channel) store.ytDailyPut(id, day, { subs: res.channel.subscribers ?? null, views: res.channel.views ?? null }, res.fetchedAt);
     const cur = store.ytDailyGet(id, day);
     if (!cur) return null;
     const prev = store.ytDailyPrev(id, day);
-    const base = prev ? { subs: prev.subs, views: prev.views, since: prev.day } : cur.first_at !== cur.at ? { subs: cur.first_subs, views: cur.first_views, since: cur.first_at } : null;
-    if (!base) return null;
-    const diff = (a, b) => (a == null || b == null ? null : a - b);
-    return { subs: diff(cur.subs, base.subs), views: diff(cur.views, base.views), since: base.since, at: cur.at };
+    if (!prev && cur.first_at === cur.at) return null;
+    const views = cur.vviews != null ? diff(cur.vviews, prev?.vviews ?? cur.first_vviews) : diff(cur.views, prev ? prev.views : cur.first_views);
+    return { subs: diff(cur.subs, prev ? prev.subs : cur.first_subs), views, since: prev ? prev.day : cur.first_at, at: cur.at };
+  }
+
+  // "Hôm qua" theo mốc app tự ghi: mốc cuối hôm qua − mốc cuối hôm kia; thiếu một trong hai ngày → null (dùng Analytics).
+  function yesterdayOf(id) {
+    const d = new Date(now());
+    const y = localDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
+    const a = store.ytDailyGet(id, y);
+    const b = store.ytDailyGet(id, localDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 2)));
+    const views = diff(a?.vviews, b?.vviews);
+    return views == null ? null : { date: y, views, subs: diff(a.subs, b.subs), at: a.at };
+  }
+
+  // Lượt vừa lấy danh sách video từ Google → ghi tổng lượt xem cộng từ video + lượt xem từng video theo giờ.
+  function snapViews(id, res) {
+    const d = new Date(Date.parse(res.fetchedAt));
+    const by = {};
+    let sum = 0;
+    for (const v of res.videos || []) {
+      if (v.views == null) continue;
+      by[v.id] = v.views;
+      sum += v.views;
+    }
+    store.ytViewsPut(id, localDay(d), localHour(d), sum, by, res.fetchedAt);
+  }
+
+  const videosOf = async (id, refresh) => {
+    const res = await cached(id, 'videos', refresh, (t, today) => api.videos(t, { today }));
+    if (!res.cached) snapViews(id, res);
+    return res;
+  };
+
+  // "Thời gian thực" 48 giờ từ mốc theo giờ: lượt xem từng giờ (mốc cuối giờ − mốc cuối giờ trước; thiếu → null)
+  // và video tăng lượt xem nhiều nhất kể từ mốc sớm nhất trong 48 giờ.
+  function live(id) {
+    needChannel(id);
+    const t = now();
+    const rows = store.ytHourly(id, localHour(new Date(t - LIVE_HOURS * HOUR_MS)));
+    const by = new Map(rows.map((r) => [r.hour, r]));
+    const hours = [];
+    for (let i = LIVE_HOURS - 1; i >= 0; i -= 1) {
+      const h = localHour(new Date(t - i * HOUR_MS));
+      const a = by.get(h);
+      const b = by.get(localHour(new Date(t - (i + 1) * HOUR_MS)));
+      hours.push({ hour: h, views: a && b ? Math.max(0, a.vviews - b.vviews) : null });
+    }
+    if (rows.length < 2) return { hours, total: null, top: [], since: rows[0]?.at ?? null, at: rows[0]?.at ?? null };
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+    const meta = new Map((store.ytCacheGet(id, 'videos')?.data?.videos || []).map((v) => [v.id, v]));
+    const top = Object.entries(last.videos)
+      .map(([vid, n]) => ({ id: vid, views: n - (first.videos[vid] ?? 0) }))
+      .filter((v) => v.views > 0)
+      .sort((x, y) => y.views - x.views)
+      .slice(0, 5)
+      .map((v) => ({ ...v, title: meta.get(v.id)?.title ?? v.id, thumb: meta.get(v.id)?.thumb ?? null }));
+    return { hours, total: Math.max(0, last.vviews - first.vviews), top, since: first.at, at: last.at };
   }
 
   return {
@@ -279,10 +343,15 @@ export function createYouTube({
     // range: "7"|"28"|"90"|"365"|"YYYY-MM-DD_YYYY-MM-DD"; 28 ngày giữ kind 'stats' cũ.
     stats: async (id, { refresh = false, range } = {}) => {
       const r = needRange(range);
-      const res = await cached(id, r.key === String(PERIOD_DAYS) ? 'stats' : `stats:${r.key}`, refresh, (t, today) => api.channelStats(t, { today, range: r.key }));
-      return { ...res, today: todayOf(id, res) };
+      // Làm mới thì chờ cả danh sách video (gộp với lượt client gọi song song) để "hôm nay" có lượt xem mới nhất.
+      const [res] = await Promise.all([
+        cached(id, r.key === String(PERIOD_DAYS) ? 'stats' : `stats:${r.key}`, refresh, (t, today) => api.channelStats(t, { today, range: r.key })),
+        refresh ? videosOf(id, true).catch(() => null) : null,
+      ]);
+      return { ...res, today: todayOf(id, res), yesterday: yesterdayOf(id) };
     },
-    videos: (id, { refresh = false } = {}) => cached(id, 'videos', refresh, (t, today) => api.videos(t, { today })),
+    videos: (id, { refresh = false } = {}) => videosOf(id, refresh),
+    live,
     videoStats: async (id, { refresh = false, range } = {}) => {
       const r = needRange(range);
       return cached(id, `vstats:${r.key}`, refresh, (t, today) => api.videoStats(t, { today, range: r.key }));

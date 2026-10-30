@@ -31,12 +31,16 @@ function ticks(max) {
 const dm = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const dayName = (d) => new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
 // Nhãn trục và tooltip theo đơn vị cột.
-const axisLabel = (d, unit) => (unit === 'month' ? `${d.date.slice(5, 7)}/${d.date.slice(2, 4)}` : dm(d.date));
+// Theo giờ: date = 'YYYY-MM-DDTHH' (giờ máy).
+const hh = (d) => Number(d.slice(11, 13));
+const axisLabel = (d, unit) => (unit === 'hour' ? `${hh(d.date)}h` : unit === 'month' ? `${d.date.slice(5, 7)}/${d.date.slice(2, 4)}` : dm(d.date));
 const tipLabel = (d, unit) =>
-  unit === 'month' ? tr('Tháng {m}/{y}', { m: Number(d.date.slice(5, 7)), y: d.date.slice(0, 4) }) : unit === 'week' ? `${dm(d.date)} – ${dm(d.end || d.date)}` : `${dayName(d.date)} ${dm(d.date)}`;
-const UNIT = { day: T('ngày'), week: T('tuần'), month: T('tháng') };
+  unit === 'hour'
+    ? `${hh(d.date)}:00–${(hh(d.date) + 1) % 24}:00 ${dm(d.date)}`
+    : unit === 'month' ? tr('Tháng {m}/{y}', { m: Number(d.date.slice(5, 7)), y: d.date.slice(0, 4) }) : unit === 'week' ? `${dm(d.date)} – ${dm(d.end || d.date)}` : `${dayName(d.date)} ${dm(d.date)}`;
+const UNIT = { hour: T('giờ'), day: T('ngày'), week: T('tuần'), month: T('tháng') };
 
-// days = [{date, end?, ...}], unit = 'day'|'week'|'month', field = khóa số liệu, label = tên số liệu, fmt? = định dạng giá trị tooltip/bảng.
+// days = [{date, end?, ...}], unit = 'hour'|'day'|'week'|'month', field = khóa số liệu, label = tên số liệu, fmt? = định dạng giá trị tooltip/bảng.
 export default function YtChart({ days = [], unit = 'day', field, label, fmt = fmtNum }) {
   const wrap = useRef(null);
   const [w, setW] = useState(600);
@@ -50,7 +54,10 @@ export default function YtChart({ days = [], unit = 'day', field, label, fmt = f
     return () => ro.disconnect();
   }, []);
 
-  const vals = days.map((d) => Number(d[field]) || 0);
+  // null = chưa có số (bỏ trống cột, tooltip ghi rõ).
+  const raw = days.map((d) => d[field]);
+  const vals = raw.map((v) => Number(v) || 0);
+  const show = (i) => (raw[i] == null ? tr('Chưa có số') : fmt(vals[i]));
   const t = ticks(Math.max(0, ...vals));
   const top = t[t.length - 1] || 1;
   const iw = w - PAD.left - PAD.right;
@@ -59,7 +66,7 @@ export default function YtChart({ days = [], unit = 'day', field, label, fmt = f
   const bw = Math.max(2, Math.min(24, band - 2));
   const y = (v) => PAD.top + ih - (v / top) * ih;
   // Nhãn ngày thưa: mỗi 7 ngày (đủ chỗ trên màn hẹp).
-  const every = band < 14 ? 7 : band < 22 ? 4 : 2;
+  const every = unit === 'hour' ? (band < 14 ? 12 : 6) : band < 14 ? 7 : band < 22 ? 4 : 2;
   const hv = hover != null ? days[hover] : null;
 
   return (
@@ -92,7 +99,7 @@ export default function YtChart({ days = [], unit = 'day', field, label, fmt = f
                   height={ih}
                   className="ytc-hit"
                   tabIndex={0}
-                  aria-label={`${tipLabel(d, unit)}: ${fmt(v)}`}
+                  aria-label={`${tipLabel(d, unit)}: ${show(i)}`}
                   onPointerEnter={() => setHover(i)}
                   onFocus={() => setHover(i)}
                   onBlur={() => setHover(null)}
@@ -113,7 +120,7 @@ export default function YtChart({ days = [], unit = 'day', field, label, fmt = f
             role="status"
             style={{ left: Math.min(w - 150, Math.max(0, PAD.left + hover * band + band / 2 - 70)), top: 0 }}
           >
-            <b>{fmt(vals[hover])}</b>
+            <b>{show(hover)}</b>
             <span>
               {label} · {tipLabel(hv, unit)}
             </span>

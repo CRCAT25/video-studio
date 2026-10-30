@@ -356,7 +356,8 @@ test('stats: hai lượt cùng lúc chỉ gọi Google một lần', async () =>
   const n = google.calls.length;
   const [a, b] = await Promise.all([yt.stats('kenh-gia', { refresh: true }), yt.stats('kenh-gia', { refresh: true })]);
   assert.deepEqual(a, b);
-  assert.equal(google.calls.filter((c, i) => i >= n && c.path === '/v2/reports').length, 1);
+  // Một lần Analytics cho kênh + một lần cho danh sách video (làm mới kèm video).
+  assert.equal(google.calls.filter((c, i) => i >= n && c.path === '/v2/reports').length, 2);
 });
 
 test('videos: mới nhất trước, gộp số liệu Data + Analytics, thời lượng giây', async () => {
@@ -560,23 +561,58 @@ test('route: thêm kênh → callback công khai (không cần token, chỉ cầ
   }
 });
 
-test('stats.today: chụp mốc sub/view theo ngày, so với mốc đầu hôm nay rồi mốc cuối ngày trước', async () => {
+test('stats.today/yesterday: mốc sub theo kênh, lượt xem cộng từ từng video; hôm qua cần đủ hai ngày', async () => {
   await yt.setup(FAKE_CLIENT_SECRET);
   await connectChannel();
+  await yt.videos('kenh-gia'); // mốc lượt xem đầu tiên
   assert.equal((await yt.stats('kenh-gia')).today, null); // mới một mốc → chưa so được
+  const bump = (n) => (google.state.videos[0].views = String(Number(google.state.videos[0].views) + n));
   google.state.channel = { ...google.state.channel, subscribers: '1240', views: '56800' };
+  bump(11);
   clock += 60_000;
   const a = await yt.stats('kenh-gia', { refresh: true });
   assert.equal(a.today.subs, 6);
   assert.equal(a.today.views, 11);
   assert.match(a.today.since, /T/); // mốc đầu hôm nay (giờ)
+  assert.equal(a.yesterday, null);
   assert.deepEqual((await yt.stats('kenh-gia')).today, a.today); // đọc cache vẫn có
   clock += 24 * 3600_000;
   google.state.channel = { ...google.state.channel, subscribers: '1230', views: '56900' };
+  bump(100);
   const b = await yt.stats('kenh-gia', { refresh: true });
   assert.equal(b.today.subs, -10);
   assert.equal(b.today.views, 100);
   assert.match(b.today.since, /^\d{4}-\d{2}-\d{2}$/); // mốc cuối của ngày trước
+  assert.equal(b.yesterday, null); // thiếu mốc hôm kia
+  clock += 24 * 3600_000;
+  bump(5);
+  const c = await yt.stats('kenh-gia', { refresh: true });
+  assert.equal(c.today.views, 5);
+  assert.equal(c.yesterday.views, 100);
+  assert.equal(c.yesterday.subs, -10);
+  assert.equal(c.yesterday.date, c.today.since); // hôm qua = ngày của mốc so sánh hôm nay
   store.ytDeleteChannel('kenh-gia');
   assert.equal(store.ytDailyPrev('kenh-gia', '2999-01-01'), null);
+  assert.deepEqual(store.ytHourly('kenh-gia', '2000-01-01T00'), []);
+});
+
+test('live: lượt xem theo giờ trong 48 giờ + video tăng nhiều nhất', async () => {
+  await yt.setup(FAKE_CLIENT_SECRET);
+  await connectChannel();
+  const empty = yt.live('kenh-gia');
+  assert.equal(empty.hours.length, 48);
+  assert.ok(empty.hours.every((h) => h.views === null));
+  assert.deepEqual(empty.top, []);
+  await yt.videos('kenh-gia');
+  clock += 3600_000;
+  google.state.videos[1].views = String(Number(google.state.videos[1].views) + 40);
+  google.state.videos[0].views = String(Number(google.state.videos[0].views) + 7);
+  await yt.videos('kenh-gia', { refresh: true });
+  const l = yt.live('kenh-gia');
+  assert.equal(l.hours.at(-1).views, 47);
+  assert.equal(l.hours.at(-2).views, null); // giờ trước đó chỉ có một mốc, không có mốc giờ trước nữa
+  assert.equal(l.total, 47);
+  assert.deepEqual(l.top.map((v) => [v.id, v.views]), [[google.state.videos[1].id, 40], [google.state.videos[0].id, 7]]);
+  assert.ok(l.top[0].title);
+  assert.throws(() => yt.live('khong-co'), (e) => e.status === 404);
 });
