@@ -31,6 +31,10 @@ test('ElevenLabs: lưu, khóa không nằm trong tts.json, synth gọi đúng AP
   assert.equal(p.id, 'eleven');
   assert.ok(!fs.readFileSync(path.join(home, 'tts.json'), 'utf8').includes('SECRET'));
   assert.equal((await tts.list()).providers[0].hasKey, true);
+  assert.equal((await tts.list()).providers[0].keyHint, ''); // khóa ngắn → không lộ ký tự nào
+  await tts.save({ id: 'eleven', name: 'Eleven', kind: 'elevenlabs', voice: 'v123' }, 'sk_fake_test_key_9z8y');
+  assert.equal((await tts.list()).providers[0].keyHint, '9z8y');
+  await tts.save({ id: 'eleven', name: 'Eleven', kind: 'elevenlabs', voice: 'v123' }, 'SECRET');
   const out = path.join(home, 'o.mp3');
   const r = await tts.synth({ text: 'Xin chào', out });
   assert.equal(fs.readFileSync(out, 'utf8'), 'AUDIO');

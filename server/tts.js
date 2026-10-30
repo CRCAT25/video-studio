@@ -132,7 +132,11 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
   async function list() {
     const c = read();
     const providers = [];
-    for (const p of c.providers) providers.push({ ...p, hasKey: !!(await keyOf(p.id)) });
+    for (const p of c.providers) {
+      const k = await keyOf(p.id);
+      // Chỉ lộ 4 ký tự cuối để phân biệt các khóa cùng dịch vụ.
+      providers.push({ ...p, hasKey: !!k, keyHint: k && k.length > 12 ? k.slice(-4) : '' });
+    }
     return { default: c.providers.some((p) => p.id === c.default) ? c.default : providers[0]?.id ?? null, providers, vieneuVoices: VIENEU_VOICES, vieneuWarm: warm() };
   }
 

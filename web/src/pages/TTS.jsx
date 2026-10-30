@@ -344,7 +344,7 @@ export default function TTS() {
                         <div><b>{p.builtin ? t(p.name) : p.name}</b> {data.default === p.id ? <span className="sel-badge ok">{t('Mặc định')}</span> : null}</div>
                         <p className="note">
                           {(KIND_LABEL[p.kind] || KIND_LABEL.command)(t)}
-                          {p.kind === 'elevenlabs' || p.kind === 'http' ? ` · ${p.hasKey ? t('đã có khóa') : t('chưa có khóa')}` : ''}
+                          {p.kind === 'elevenlabs' || p.kind === 'http' ? ` · ${p.hasKey ? (p.keyHint ? t('khóa …{k}', { k: p.keyHint }) : t('đã có khóa')) : t('chưa có khóa')}` : ''}
                         </p>
                       </th>
                       <td>
