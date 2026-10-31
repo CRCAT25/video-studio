@@ -1453,6 +1453,7 @@ export default {
   'Chưa có khóa': 'No key yet',
   'Không áp dụng': 'Not applicable',
   'Credit còn': 'Credits left',
+  'Credit đã dùng': 'Credits used',
   'khóa …{k}': 'key …{k}',
   'Khóa chưa có quyền User (Read) nên không xem được gói và credit — vẫn đọc bình thường.': 'The key lacks User (Read) permission, so plan and credits can’t be shown — reading still works.',
   'Dùng {n}': 'Use {n}',

@@ -235,7 +235,8 @@ function Perms({ i, onRetry }) {
 function Plan({ p, i }) {
   const t = useT();
   const left = i?.credits?.limit ? Math.max(0, i.credits.limit - i.credits.used) : null;
-  const pct = left !== null ? Math.round((left / i.credits.limit) * 100) : 0;
+  const used = left !== null ? i.credits.limit - left : 0;
+  const pct = left !== null ? Math.round((used / i.credits.limit) * 100) : 0; // thanh = phần đã dùng
   const price = p.price?.perChar > 0 ? `${p.price.perChar} ${p.price.label || ''}/${t('ký tự')}` : t('miễn phí');
   return (
     <dl className="tts-kv">
@@ -245,7 +246,7 @@ function Plan({ p, i }) {
           <dt>{t('Credit còn')}</dt>
           <dd>
             {left.toLocaleString()} / {i.credits.limit.toLocaleString()}
-            <div className={`quota-bar q-${pct > 30 ? 'ok' : pct > 10 ? 'wait' : 'err'}`} role="progressbar" aria-label={t('Credit còn')} aria-valuemin={0} aria-valuemax={i.credits.limit} aria-valuenow={left}>
+            <div className={`quota-bar q-${pct < 70 ? 'ok' : pct < 90 ? 'wait' : 'err'}`} role="progressbar" aria-label={t('Credit đã dùng')} aria-valuemin={0} aria-valuemax={i.credits.limit} aria-valuenow={used}>
               <span style={{ width: `${pct}%` }} />
             </div>
           </dd>
