@@ -10,6 +10,7 @@ import { runTool } from '../lib/pageAgent.js';
 import Modal from './Modal.jsx';
 import Progress from './Progress.jsx';
 import Req from './Req.jsx';
+import RowMenu from './RowMenu.jsx';
 import Select from './Select.jsx';
 import { SkLines, SkZone } from './Skeleton.jsx';
 import { McpModal, MemoryModal } from './ClaudeFilesModal.jsx';
@@ -758,14 +759,15 @@ export default function AssistantPanel({ a, loggedIn, onAccount }) {
                 <span className="ai-hist-d">{new Date(c.updatedAt).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' })}</span>
               </button>
               )}
-              <button type="button" className="ai-ic" onClick={() => pinChat(c)} aria-label={c.pinned ? t('Bỏ ghim') : t('Ghim')} title={c.pinned ? t('Bỏ ghim') : t('Ghim')}>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7" /></svg>
-              </button>
-              <button type="button" className="ai-ic" onClick={() => delChat(c.id)} aria-label={t('Xóa')} title={t('Xóa')}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
-                </svg>
-              </button>
+              <RowMenu
+                label={t('Thao tác với cuộc trò chuyện {n}', { n: c.title || t('Cuộc mới') })}
+                items={[
+                  { label: c.pinned ? t('Bỏ ghim') : t('Ghim'), onClick: () => pinChat(c) },
+                  { label: t('Đổi tên'), onClick: () => setRenaming(c) },
+                  { sep: true },
+                  { label: t('Xóa'), onClick: () => delChat(c.id), danger: true },
+                ]}
+              />
             </div>
           ))}
         </div>

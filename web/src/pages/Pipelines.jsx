@@ -4,7 +4,7 @@ import Flow from '../components/Flow.jsx';
 import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatalog, useSuggestion } from '../components/FormatPicker.jsx';
 import PipelineWizard from '../components/PipelineWizard.jsx';
 import Modal from '../components/Modal.jsx';
-import { RowMenu } from './Channels.jsx';
+import RowMenu from '../components/RowMenu.jsx';
 import { PresetErrors } from '../components/NewProjectModal.jsx';
 import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
 import Req from '../components/Req.jsx';
@@ -556,12 +556,12 @@ export default function Pipelines({ data, error, channels = [], onReload, onAskA
                 </div>
                 <p className="pc-steps">{flowSteps(p.steps).map((x) => tr(x.name)).join(' → ')}</p>
                 <div className="pc-acts">
-                  {p.mine ? <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button> : null}
-                  <button type="button" className="btn sm" onClick={() => setView(p)}>{t('Xem chi tiết')}</button>
                   <span className="grow" />
                   <RowMenu
                     label={t('Thao tác với quy trình {n}', { n: p.name })}
                     items={[
+                      { label: t('Xem chi tiết'), onClick: () => setView(p) },
+                      ...(p.mine ? [{ label: t('Sửa'), onClick: () => setEdit(p) }] : []),
                       { label: t('Nhân bản'), onClick: () => dup(p) },
                       { label: t('Xuất YAML'), onClick: () => exp(p) },
                       ...(p.mine ? [...(onAskAI && !aiBusy ? [{ label: t('Nhờ AI sửa'), onClick: () => onAskAI(editPrompt(p)) }] : []), { sep: true }, { label: t('Xóa'), onClick: () => setDel(p), danger: true }] : []),

@@ -556,7 +556,11 @@ async function main() {
       assert((await page.locator('.card.pc', { hasText: 'tiktok-short' }).count()) === 0, 'còn preset dựng sẵn tiktok-short');
       await shot('presets');
       // Sơ đồ bước nằm trong hộp "Xem chi tiết"
-      await page.locator('.card.pc', { hasText: 'e2e-manual' }).getByRole('button', { name: 'Xem chi tiết' }).click();
+      const mcard = page.locator('.card.pc', { hasText: 'e2e-manual' });
+      await mcard.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(500);
+      await mcard.getByRole('button', { name: /^Thao tác với quy trình/ }).click();
+      await page.getByRole('menuitem', { name: 'Xem chi tiết' }).click();
       const dlg = page.locator('.modal[role="dialog"]');
       await dlg.locator('.flow.static .box .st').first().waitFor();
       const clipped = await dlg.evaluate((d) =>
@@ -638,7 +642,11 @@ async function main() {
       await dlg.getByRole('button', { name: 'Xóa' }).click();
       await card.waitFor({ state: 'detached' });
       assert(!fs.existsSync(path.join(home, 'presets', 'kenh-e2e-dai.yaml')), 'file YAML còn sau khi xóa');
-      assert((await page.locator('.card.pc', { hasText: 'e2e-short' }).getByRole('button', { name: 'Sửa' }).count()) === 1, 'thiếu nút Sửa cho quy trình của tôi');
+      await page.waitForTimeout(500);
+      await page.locator('.card.pc', { hasText: 'e2e-short' }).getByRole('button', { name: /^Thao tác với quy trình/ }).click();
+      await page.getByRole('menuitem', { name: 'Sửa', exact: true }).waitFor({ timeout: 3000 }).catch(() => {});
+      assert((await page.getByRole('menuitem', { name: 'Sửa', exact: true }).count()) === 1, 'thiếu mục Sửa cho quy trình của tôi');
+      await page.keyboard.press('Escape');
       return id;
     });
 
@@ -1292,7 +1300,7 @@ async function main() {
       await aiSay('xóa dự án đầu tiên');
       const card = ai().locator('.ai-ask');
       await card.waitFor();
-      assert((await card.innerText()).includes('Bấm "Xóa '), await card.innerText());
+      assert((await card.innerText()).includes('Bấm "Xóa'), await card.innerText());
       await shot('ai-ask');
       await card.getByRole('button', { name: 'Không' }).click();
       await ai().locator('.ai-bot', { hasText: 'Không xóa' }).waitFor();
@@ -1463,14 +1471,16 @@ async function main() {
       await page.getByRole('button', { name: 'Thư viện', exact: true }).click();
       assert((await page.locator('.sk-tbl .sk-pct').count()) === 0, 'tab Thư viện không hiện %');
       const row2 = page.locator('.sk-tbl tbody tr', { hasText: 'skill-e2e' });
-      await row2.getByRole('button', { name: 'Xem / sửa' }).click();
+      await row2.getByRole('button', { name: /^Thao tác với skill/ }).click();
+      await page.getByRole('menuitem', { name: 'Xem / sửa' }).click();
       const ta = page.locator('.modal textarea.mono-in');
       await ta.fill('---\nname: skill-e2e\ndescription: đã sửa\n---\n# Đã sửa\n');
       await page.locator('.modal').getByRole('button', { name: 'Lưu' }).click();
       await page.locator('.toast', { hasText: 'Đã lưu skill "skill-e2e"' }).waitFor();
       await page.locator('.modal-acts').getByRole('button', { name: 'Đóng', exact: true }).click();
       await page.locator('.sk-tbl tbody tr', { hasText: 'đã sửa' }).waitFor();
-      await row2.getByRole('button', { name: 'Xóa' }).click();
+      await row2.getByRole('button', { name: /^Thao tác với skill/ }).click();
+      await page.getByRole('menuitem', { name: 'Xóa' }).click();
       await page.locator('.modal').getByRole('button', { name: 'Xóa', exact: true }).click();
       await page.locator('.toast', { hasText: 'Đã xóa skill "skill-e2e"' }).waitFor();
       return `${note} → tìm AI → sửa → xóa`;

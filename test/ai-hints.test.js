@@ -48,5 +48,5 @@ test('chỉ dẫn nào cũng được gắn lên màn hình', () => {
 test('nút Đọc thử trả phí ở trang Giọng đọc gắn data-ai="confirm"', () => {
   const src = fs.readFileSync(path.join(SRC, 'pages/TTS.jsx'), 'utf8');
   assert.match(src, /onClick=\{readSample\} data-ai="confirm"/);
-  assert.match(src, /onClick=\{\(\) => test\(p\.id\)\} data-ai=\{p\.kind === 'elevenlabs' \|\| p\.price\?\.perChar > 0 \? 'confirm' : undefined\}/);
+  assert.match(src, /onClick: \(\) => test\(p\.id\), disabled: testing === p\.id, ai: p\.kind === 'elevenlabs' \|\| p\.price\?\.perChar > 0 \? 'confirm' : undefined/);
 });

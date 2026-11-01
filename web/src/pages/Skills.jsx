@@ -4,6 +4,7 @@ import Modal from '../components/Modal.jsx';
 import { Sk, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { api } from '../api.js';
+import RowMenu from '../components/RowMenu.jsx';
 import Select from '../components/Select.jsx';
 import Req from '../components/Req.jsx';
 import { useT } from '../lib/i18n.jsx';
@@ -330,10 +331,14 @@ function SkTable({ rows, channels, reasons, scores, onAll, onChannel, onEdit, on
                 );
               })}
               <td className="sk-act">
-                <span className="sk-acts">
-                  <button type="button" className="btn sm" onClick={() => onEdit(s.name)}>{t('Xem / sửa')}</button>
-                  <button type="button" className="btn sm ghost" onClick={() => onDelete(s)}>{t('Xóa')}</button>
-                </span>
+                <RowMenu
+                  label={t('Thao tác với skill {n}', { n: s.name })}
+                  items={[
+                    { label: t('Xem / sửa'), onClick: () => onEdit(s.name) },
+                    { sep: true },
+                    { label: t('Xóa'), onClick: () => onDelete(s), danger: true },
+                  ]}
+                />
               </td>
             </tr>
           ))}

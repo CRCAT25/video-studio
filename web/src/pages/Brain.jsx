@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Modal from '../components/Modal.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import RowMenu from '../components/RowMenu.jsx';
 import Select from '../components/Select.jsx';
 import Progress from '../components/Progress.jsx';
 import Req from '../components/Req.jsx';
@@ -202,10 +203,14 @@ function Item({ it, onEdit, onDelete }) {
       <div className="br-text">{it.text}</div>
       <div className="br-meta">
         <span className="muted">{srcLabel(it.src, t)}{it.at ? ` · ${it.at}` : ''}{it.from ? ` · ${it.from}` : ''}</span>
-        <span className="br-acts">
-          <button type="button" className="btn sm ghost" onClick={() => onEdit(it)}>{t('Sửa')}</button>
-          <button type="button" className="btn sm ghost" onClick={() => onDelete(it)}>{t('Xóa')}</button>
-        </span>
+        <RowMenu
+          label={t('Thao tác với mục ghi nhớ')}
+          items={[
+            { label: t('Sửa'), onClick: () => onEdit(it) },
+            { sep: true },
+            { label: t('Xóa'), onClick: () => onDelete(it), danger: true },
+          ]}
+        />
       </div>
     </li>
   );

@@ -1660,4 +1660,12 @@ export default {
   '{n} lượt xem từ {d}': '{n} views since {d}',
   'Video tăng nhiều nhất': 'Top gaining videos',
   'Chỉ ghi được khi app đang mở và tự làm mới (5 phút/lần); giờ trống là lúc app tắt.': 'Recorded only while the app is open and auto-refreshing (every 5 min); empty hours are when the app was off.',
+  'Ghim': 'Pin',
+  'Đổi tên': 'Rename',
+  'Thao tác với dự án {n}': 'Actions for project {n}',
+  'Thao tác với skill {n}': 'Actions for skill {n}',
+  'Thao tác với giọng đọc {n}': 'Actions for voice {n}',
+  'Thao tác với mục ghi nhớ': 'Actions for memory item',
+  'Thao tác với cuộc trò chuyện {n}': 'Actions for chat {n}',
+  'Thao tác với MCP {n}': 'Actions for MCP {n}',
 };

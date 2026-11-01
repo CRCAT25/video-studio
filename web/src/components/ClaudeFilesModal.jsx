@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api.js';
 import ConfirmModal from './ConfirmModal.jsx';
 import Modal from './Modal.jsx';
+import RowMenu from './RowMenu.jsx';
 import Select from './Select.jsx';
 import { useT } from '../lib/i18n.jsx';
 
@@ -103,7 +104,7 @@ export function McpModal({ onClose }) {
                 <span className="ai-hist-t"><b>{r.name}</b> · {r.type} · {r.scope}</span>
                 <span className="ai-hist-d mono">{r.target}{r.env ? ` · env ${r.env}` : ''}{r.headers ? ` · header ${r.headers}` : ''}</span>
               </div>
-              <button type="button" className="btn sm" disabled={busy} onClick={() => setRemoving(r)}>{t('Xóa')}</button>
+              <RowMenu label={t('Thao tác với MCP {n}', { n: r.name })} items={[{ label: t('Xóa'), onClick: () => setRemoving(r), danger: true, disabled: busy }]} />
             </div>
           ))}
         </div>

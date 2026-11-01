@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import DeleteProjectModal from '../components/DeleteProjectModal.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import RowMenu from '../components/RowMenu.jsx';
 import Select from '../components/Select.jsx';
 import { Sk, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
@@ -160,14 +161,14 @@ function ProjectRow({ p, now, onDelete }) {
       </td>
       <td className="pl-s nowrap muted">{upd}</td>
       <td className="pl-act">
-        <div className="acts">
-          <button type="button" className="btn sm danger" onClick={() => onDelete(p)} disabled={p.status === 'running'} title={p.status === 'running' ? t('Dự án đang chạy — dừng lượt đó trước khi xóa.') : undefined} aria-label={t('Xóa {n}', { n: p.title })}>
-            {t('Xóa')}
-          </button>
-          <a className="btn sm" href={href} aria-label={t('Mở {n}', { n: p.title })}>
-            {t('Mở')}
-          </a>
-        </div>
+        <RowMenu
+          label={t('Thao tác với dự án {n}', { n: p.title })}
+          items={[
+            { label: t('Mở'), onClick: () => navigate(href) },
+            { sep: true },
+            { label: t('Xóa'), onClick: () => onDelete(p), danger: true, disabled: p.status === 'running', title: p.status === 'running' ? t('Dự án đang chạy — dừng lượt đó trước khi xóa.') : undefined },
+          ]}
+        />
       </td>
     </tr>
   );

@@ -2,6 +2,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import Modal from '../components/Modal.jsx';
+import RowMenu from '../components/RowMenu.jsx';
 import Select from '../components/Select.jsx';
 import { langOf } from '../lib/langs.js';
 import Req from '../components/Req.jsx';
@@ -354,12 +355,15 @@ export default function TTS() {
                       </td>
                       <td><Plan p={p} i={info[p.id]} /></td>
                       <td className="tts-c-act">
-                        <div className="sk-acts tts-acts">
-                          <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)} data-ai={p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined}>{testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : t('Đang đọc…')}</button>
-                          {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
-                          <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
-                          {p.builtin ? null : <button type="button" className="btn sm" onClick={() => setRemoving(p)}>{t('Xóa')}</button>}
-                        </div>
+                        <RowMenu
+                          label={t('Thao tác với giọng đọc {n}', { n: p.name })}
+                          items={[
+                            { label: testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : t('Đang đọc…'), onClick: () => test(p.id), disabled: testing === p.id, ai: p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined },
+                            ...(data.default !== p.id ? [{ label: t('Đặt mặc định'), onClick: () => act(() => api.ttsDefault(p.id)) }] : []),
+                            { label: t('Sửa'), onClick: () => setEdit(p) },
+                            ...(p.builtin ? [] : [{ sep: true }, { label: t('Xóa'), onClick: () => setRemoving(p), danger: true }]),
+                          ]}
+                        />
                       </td>
                     </tr>
                     {audio?.id === p.id ? (

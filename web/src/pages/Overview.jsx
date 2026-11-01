@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import DeleteProjectModal from '../components/DeleteProjectModal.jsx';
 import Flow from '../components/Flow.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import RowMenu from '../components/RowMenu.jsx';
 import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useNow } from '../hooks/useNow.js';
@@ -72,14 +73,14 @@ function ProjectLine({ p, now, onDelete }) {
             {L.label}
           </span>
         </div>
-        <div className="acts">
-          <button type="button" className="btn sm danger" onClick={() => onDelete(p)} disabled={p.status === 'running'} title={p.status === 'running' ? t('Dự án đang chạy — dừng lượt đó trước khi xóa.') : undefined} aria-label={t('Xóa {n}', { n: p.title })}>
-            {t('Xóa')}
-          </button>
-          <a className="btn sm" href={href} aria-label={t('Mở {n}', { n: p.title })}>
-            {t('Mở')}
-          </a>
-        </div>
+        <RowMenu
+          label={t('Thao tác với dự án {n}', { n: p.title })}
+          items={[
+            { label: t('Mở'), onClick: () => navigate(href) },
+            { sep: true },
+            { label: t('Xóa'), onClick: () => onDelete(p), danger: true, disabled: p.status === 'running', title: p.status === 'running' ? t('Dự án đang chạy — dừng lượt đó trước khi xóa.') : undefined },
+          ]}
+        />
       </div>
       <div className="proj-meta">
         <span>{p.channel?.name || p.channel?.id || t('Không kênh')} · {p.preset?.name || p.preset?.id}</span>

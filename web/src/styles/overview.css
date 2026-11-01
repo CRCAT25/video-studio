@@ -52,7 +52,7 @@
 .pl-sub{display:none}
 .pl-prog{display:flex;flex-direction:column;gap:4px;white-space:nowrap}
 .pl-prog .quota-bar{width:96px;margin-top:0}
-.pl-act{width:1%;white-space:nowrap}
+.pl-act{width:1%;white-space:nowrap;text-align:right}
 .pl-act .acts{flex-wrap:nowrap;justify-content:flex-end}
 @media (max-width:880px){
   .pl-tbl .pl-m{display:none}

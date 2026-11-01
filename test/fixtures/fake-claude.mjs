@@ -376,8 +376,17 @@ async function assistantMode() {
     const r = await mcp.call('fill', { ref: dur, value: '60' });
     reply = r.isError ? `Không đặt được: ${r.text.split('\n')[0]}` : 'Đã đặt thời lượng 60 giây.';
   } else if (/xóa/i.test(prompt)) {
-    const page = (await mcp.call('read_page')).text;
-    const del = refOf(page, /^Xóa/);
+    let page = (await mcp.call('read_page')).text;
+    let del = refOf(page, /^Xóa/);
+    if (!del) {
+      // Xóa nằm trong menu "…" của dòng: mở menu đầu tiên rồi đọc lại trang.
+      const more = refOf(page, /^Thao tác với/);
+      if (more) {
+        await mcp.call('click', { ref: more });
+        page = (await mcp.call('read_page')).text;
+        del = refOf(page, /^Xóa/);
+      }
+    }
     if (!del) reply = 'Không thấy nút Xóa.';
     else {
       const r = await mcp.call('click', { ref: del });
