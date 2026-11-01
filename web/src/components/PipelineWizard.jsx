@@ -79,8 +79,9 @@ export default function PipelineWizard({ onSaved }) {
   if (catErr) return <div className="err-note" role="alert">{catErr.message}</div>;
   if (!catalog) return <SkZone className="card wz" label={t('Đang tải gợi ý')}><div style={{ height: 160 }} /></SkZone>;
 
-  const radio = (name2, on, onChange, title, sub) => (
-    <label className={`wz-opt${on ? ' on' : ''}`}>
+  // key: cần khi gọi trong .map
+  const radio = (name2, on, onChange, title, sub, key) => (
+    <label key={key} className={`wz-opt${on ? ' on' : ''}`}>
       <input type="radio" name={name2} checked={on} onChange={onChange} disabled={busy} />
       <span><b>{title}</b>{sub ? <small>{sub}</small> : null}</span>
     </label>
@@ -100,7 +101,7 @@ export default function PipelineWizard({ onSaved }) {
         <fieldset className="wz-q">
           <legend>{t('Bạn muốn làm video nào?')}</legend>
           <div className="wz-grid">
-            {KINDS.map((k) => radio('wz-kind', kind === k.id, () => choose(k), tr(k.title), tr(k.sub)))}
+            {KINDS.map((k) => radio('wz-kind', kind === k.id, () => choose(k), tr(k.title), tr(k.sub), k.id))}
           </div>
           {kind === 'custom' ? <FormatPicker catalog={catalog} value={format} onChange={setFormat} onValidity={setFormatOk} disabled={busy} /> : null}
         </fieldset>
