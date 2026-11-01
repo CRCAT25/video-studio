@@ -31,6 +31,8 @@ const TOKEN = 'e2e-fixed-token-0123456789abcdef';
 const TITLE = 'Vàng nhẫn hay gửi tiết kiệm';
 const SLUG = 'vang-nhan-hay-gui-tiet-kiem';
 const WAIT = 15_000;
+// Cột của biểu đồ chính ở trang kênh (bỏ biểu đồ "Thời gian thực" 48 giờ).
+const MAIN_HIT = '.ytc-hit:not(.yt-live .ytc-hit)';
 
 const results = [];
 let shotN = 0;
@@ -259,7 +261,13 @@ async function main() {
     const waitState = async (st, timeout = WAIT) => {
       await page.locator(`.step-head h1 .state-tag.s-${st}`).waitFor({ timeout });
     };
-    const mainBtn = () => page.locator('.step-head .acts button').first();
+    // > button: bỏ qua nút của ô chọn Model (Select) đứng trước
+    const mainBtn = () => page.locator('.step-head .acts > button').first();
+    // bước đã chạy: "Chạy lại" mở hộp xác nhận trước
+    const rerun = async () => {
+      await page.locator('.step-head .acts > button', { hasText: /^Chạy lại$/ }).click();
+      await page.locator('.modal', { hasText: 'Chạy lại "' }).getByRole('button', { name: 'Chạy lại', exact: true }).click();
+    };
     // Chờ bước có thêm lượt mới (so với `before`) và lượt đó đã kết thúc, rồi chờ UI hiện trạng thái `st`.
     const waitNewRun = async (key, before, st) => {
       const t0 = Date.now();
@@ -469,7 +477,7 @@ async function main() {
       setScenario('needs_input');
       await mainBtn().click();
       await waitNewRun('deliver', 0, 'needs_input');
-      await page.locator('.decide.ask', { hasText: 'Claude cần bạn trả lời' }).locator('li', { hasText: 'Bạn muốn giọng nam hay nữ?' }).waitFor();
+      await page.locator('.decide.ask', { hasText: 'Trợ lý cần bạn trả lời' }).locator('li', { hasText: 'Bạn muốn giọng nam hay nữ?' }).waitFor();
       await shot('deliver-needs-input');
       return 'Bạn muốn giọng nam hay nữ?';
     });
@@ -508,7 +516,7 @@ async function main() {
       if (!/\/hook$/.test(page.url())) await gotoStep('hook', 'Lời hứa & hook');
       await waitState('done');
       const before = (await stepApi('hook')).runs.length;
-      await mainBtn().click();
+      await rerun();
       await waitNewRun('hook', before, 'done');
       const v = await apiGet(`/api/projects/${SLUG}`);
       const states = Object.fromEntries((v.project?.steps || v.steps || []).map((s) => [s.key, s.state]));
@@ -541,16 +549,24 @@ async function main() {
     await check('Màn Quy trình: quy trình của tôi e2e-short/e2e-manual; nhãn cổng trong ô không bị cắt', async () => {
       await page.locator('header.top a', { hasText: 'Quy trình' }).click();
       await page.locator('.page-h h1', { hasText: 'Quy trình' }).waitFor();
-      await page.locator('section.bp', { hasText: 'e2e-short' }).waitFor();
-      await page.locator('section.bp', { hasText: 'e2e-manual' }).waitFor();
-      assert((await page.locator('section.bp', { hasText: 'tiktok-short' }).count()) === 0, 'còn preset dựng sẵn tiktok-short');
-      const clipped = await page.evaluate(() =>
-        [...document.querySelectorAll('.flow.static .box .st')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
+      // Nâng cao: hiện id quy trình + form Gợi ý (các mục sau dùng)
+      await page.locator('.mode-sw input').check();
+      await page.locator('.card.pc', { hasText: 'e2e-short' }).waitFor();
+      await page.locator('.card.pc', { hasText: 'e2e-manual' }).waitFor();
+      assert((await page.locator('.card.pc', { hasText: 'tiktok-short' }).count()) === 0, 'còn preset dựng sẵn tiktok-short');
+      await shot('presets');
+      // Sơ đồ bước nằm trong hộp "Xem chi tiết"
+      await page.locator('.card.pc', { hasText: 'e2e-manual' }).getByRole('button', { name: 'Xem chi tiết' }).click();
+      const dlg = page.locator('.modal[role="dialog"]');
+      await dlg.locator('.flow.static .box .st').first().waitFor();
+      const clipped = await dlg.evaluate((d) =>
+        [...d.querySelectorAll('.flow.static .box .st')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
       );
       assert(!clipped.length, `nhãn bị cắt: ${clipped.join(', ')}`);
-      const autoLab = await page.locator('section.bp', { hasText: 'e2e-manual' }).locator('.box .st', { hasText: 'Tự · 30 phút' }).first().innerText();
-      await shot('presets');
-      return `${await page.locator('section.bp').count()} quy trình · ${autoLab}`;
+      const autoLab = await dlg.locator('.box .st', { hasText: 'Tự · 30 phút' }).first().innerText();
+      await page.keyboard.press('Escape');
+      await dlg.waitFor({ state: 'detached' });
+      return `${await page.locator('.card.pc').count()} quy trình · ${autoLab}`;
     });
 
     await check('Gợi ý: ngắn → dài → ngắn chỉ gọi API 2 lần (cache + tải sẵn), quay lại hiện ngay', async () => {
@@ -610,18 +626,19 @@ async function main() {
       const name = 'Kênh E2E dài';
       await sg.getByLabel('Tên quy trình').fill(name);
       await sg.getByRole('button', { name: /Lưu làm quy trình của tôi/ }).click();
-      const card = page.locator('section.bp', { hasText: name });
+      const card = page.locator('.card.pc', { hasText: name });
       await card.waitFor();
-      const id = await card.locator('.bp-h .mono').innerText();
+      const id = await card.locator('.pc-id').innerText();
       assert(id === 'kenh-e2e-dai', `id = ${id}`);
       assert(fs.existsSync(path.join(home, 'presets', 'kenh-e2e-dai.yaml')), 'không thấy file YAML');
       await shot('pipeline-saved');
-      await card.getByRole('button', { name: 'Xóa' }).click();
+      await card.getByRole('button', { name: `Thao tác với quy trình ${name}` }).click();
+      await page.getByRole('menuitem', { name: 'Xóa' }).click();
       const dlg = page.locator('.modal', { hasText: 'Xóa quy trình?' });
       await dlg.getByRole('button', { name: 'Xóa' }).click();
       await card.waitFor({ state: 'detached' });
       assert(!fs.existsSync(path.join(home, 'presets', 'kenh-e2e-dai.yaml')), 'file YAML còn sau khi xóa');
-      assert((await page.locator('section.bp', { hasText: 'e2e-short' }).locator('.bp-del').count()) === 1, 'thiếu nút Xóa cho quy trình của tôi');
+      assert((await page.locator('.card.pc', { hasText: 'e2e-short' }).getByRole('button', { name: 'Sửa' }).count()) === 1, 'thiếu nút Sửa cho quy trình của tôi');
       return id;
     });
 
@@ -691,7 +708,7 @@ async function main() {
       const screens = [
         ['overview', '#/', '.page-h h1'],
         ['step', `#/p/${SLUG}/deliver`, '.step-head h1'],
-        ['presets', '#/quy-trinh', 'section.bp'],
+        ['presets', '#/quy-trinh', '.card.pc'],
       ];
       for (const [name, hash, sel] of screens) {
         await m.goto(`${base}/${hash}`);
@@ -722,7 +739,7 @@ async function main() {
       const screens = [
         ['overview', '#/', '.proj'],
         ['step', `#/p/${SLUG}/deliver`, '.step-head h1 .state-tag'],
-        ['presets', '#/quy-trinh', 'section.bp'],
+        ['presets', '#/quy-trinh', '.card.pc'],
       ];
       const seen = [];
       for (const pass of [0, 1]) {
@@ -858,7 +875,7 @@ async function main() {
         return b && !b.disabled;
       }, null, { timeout: 15_000 });
       await box.getByRole('button', { name: /Kiểm tra ngay/ }).click();
-      await page.locator('.toast', { hasText: 'đã hỏi Claude thay' }).waitFor();
+      await page.locator('.toast', { hasText: 'đã hỏi trợ lý thay' }).waitFor();
       await box.locator('.use-tbl tr', { hasText: 'Kiểm tra' }).locator('td', { hasText: '33' }).first().waitFor();
       await box.locator('[role=progressbar][aria-label="Phiên 5 giờ"][aria-valuenow="42"]').waitFor();
       claudeApi.set({ status: 200 });
@@ -983,9 +1000,9 @@ async function main() {
       await card.locator('.yt-tiles .yt-tile').first().waitFor();
       const subs = await card.locator('.yt-tile', { hasText: 'Người đăng ký' }).locator('.yt-tile-v').innerText();
       assert(/1[.,]?234/.test(subs), `số người đăng ký: ${subs}`);
-      const bars = await card.locator('.ytc-hit').count();
+      const bars = await card.locator(MAIN_HIT).count();
       assert(bars >= 27, `chỉ có ${bars} ngày`);
-      await card.locator('.ytc-hit').nth(5).hover();
+      await card.locator(MAIN_HIT).nth(5).hover();
       await card.locator('.ytc-tip').waitFor({ timeout: 3000 }).catch(() => {
         throw new Error('hover cột không hiện tooltip');
       });
@@ -1074,14 +1091,14 @@ async function main() {
       const lastReport = (dims) => google.calls.filter((c) => c.path.includes('/reports') && c.query.dimensions === dims).at(-1)?.query;
       await choose(bar, '7');
       await card.locator('.yt-tile', { hasText: 'Lượt xem · 7 ngày' }).waitFor();
-      const bars7 = await card.locator('.ytc-hit').count();
+      const bars7 = await card.locator(MAIN_HIT).count();
       assert(bars7 === 7, `7 ngày nhưng có ${bars7} cột`);
       const d = lastReport('day');
       assert(Math.round((Date.parse(d.endDate) - Date.parse(d.startDate)) / 864e5) === 6, `kỳ gửi Google sai: ${d.startDate}–${d.endDate}`);
       assert(lastReport('video').startDate === d.startDate, 'bảng video không theo khoảng');
       await choose(bar, '365');
       await card.locator('.yt-chart-h', { hasText: 'theo tuần' }).waitFor();
-      const weeks = await card.locator('.ytc-hit').count();
+      const weeks = await card.locator(MAIN_HIT).count();
       assert(weeks === 53, `365 ngày gộp tuần ra ${weeks} cột`);
       await shot('yt-range-365');
       const ymd = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
@@ -1091,7 +1108,7 @@ async function main() {
       await bar.getByRole('button', { name: 'Áp dụng' }).click();
       const lbl = `${ymd(40).slice(8, 10)}/${ymd(40).slice(5, 7)}/${ymd(40).slice(2, 4)}`;
       await card.locator('.yt-tile', { hasText: lbl }).first().waitFor();
-      const bars = await card.locator('.ytc-hit').count();
+      const bars = await card.locator(MAIN_HIT).count();
       assert(bars === 30, `tùy chọn 30 ngày nhưng có ${bars} cột`);
       await page.reload();
       await card.locator('.yt-tile', { hasText: lbl }).first().waitFor();
@@ -1123,6 +1140,8 @@ async function main() {
           if (w.sw > w.cw) bad.push(`${name} ${scheme}: ${w.sw} > ${w.cw}`);
           const tabOut = await m.evaluate(() => {
             const nav = document.querySelector('nav.tabs');
+            // menu cuộn ngang riêng trên màn hẹp → tab khuất vẫn tới được
+            if (/auto|scroll/.test(getComputedStyle(nav).overflowX)) return [];
             const r = nav.getBoundingClientRect().right;
             return [...nav.querySelectorAll('a')].filter((x) => x.getBoundingClientRect().right > r + 1).map((x) => x.textContent);
           });
@@ -1266,21 +1285,22 @@ async function main() {
     });
 
     await check('Trợ lý AI: nút nhạy cảm (Xóa) → thẻ xin phép; Không → không xóa', async () => {
-      await page.goto(`${base}/#/quy-trinh`);
-      await page.locator('section.bp').first().waitFor();
-      const before = await page.locator('section.bp').count();
-      await aiSay('xóa quy trình đầu tiên');
+      // trang Dự án: nút Xóa hiện trên từng dòng (màn Quy trình giấu Xóa trong menu ⋯)
+      await page.goto(`${base}/#/du-an`);
+      await page.locator('.pl-tbl tbody tr').first().waitFor();
+      const before = await page.locator('.pl-tbl tbody tr').count();
+      await aiSay('xóa dự án đầu tiên');
       const card = ai().locator('.ai-ask');
       await card.waitFor();
-      assert((await card.innerText()).includes('Bấm "Xóa"'), await card.innerText());
+      assert((await card.innerText()).includes('Bấm "Xóa '), await card.innerText());
       await shot('ai-ask');
       await card.getByRole('button', { name: 'Không' }).click();
       await ai().locator('.ai-bot', { hasText: 'Không xóa' }).waitFor();
       await ai().locator('.ai-act.bad', { hasText: 'Không cho phép' }).waitFor();
-      assert(!(await page.locator('.modal', { hasText: 'Xóa quy trình?' }).count()), 'đã mở hộp xóa');
-      assert((await page.locator('section.bp').count()) === before, 'số quy trình đổi');
+      assert(!(await page.locator('.modal', { hasText: 'Xóa dự án' }).count()), 'đã mở hộp xóa');
+      assert((await page.locator('.pl-tbl tbody tr').count()) === before, 'số dự án đổi');
       await aiIdle();
-      return `còn ${before} quy trình`;
+      return `còn ${before} dự án`;
     });
 
     await check('Trợ lý AI: đang chạy → Dừng; Cuộc mới xóa lịch sử; nhớ trạng thái mở sau tải lại', async () => {
@@ -1306,16 +1326,20 @@ async function main() {
       await ai().locator('.ai-user', { hasText: 'làm chậm thôi' }).waitFor();
       await ai().getByRole('button', { name: 'Cuộc mới' }).click();
       await ai().locator('.ai-ex .chip').first().waitFor();
-      const opts = ai().locator('.ai-opts button');
-      await opts.nth(0).click();
-      await page.getByRole('option', { name: 'Haiku' }).click();
-      await opts.nth(1).click();
-      await page.getByRole('option', { name: 'low' }).click();
+      // một ô chọn chung cho Model + Effort (nhóm)
+      const opt = ai().getByRole('combobox', { name: 'Model và effort' });
+      await opt.click();
+      await page.getByRole('option', { name: 'Haiku', exact: true }).click();
+      await opt.click();
+      await page.getByRole('option', { name: 'low', exact: true }).click();
       await page.waitForTimeout(300);
-      assert((await opts.nth(0).innerText()).includes('Haiku'), await opts.nth(0).innerText());
-      assert((await opts.nth(1).innerText()).includes('low'), await opts.nth(1).innerText());
+      // panel hẹp chỉ ghi "Model" → đọc lựa chọn trong danh sách
+      await opt.click();
+      const sel = await page.locator('.sel-list [role=option][aria-selected=true]').allInnerTexts();
+      assert(sel.includes('Haiku') && sel.includes('low'), sel.join(' | '));
+      await opt.press('Escape');
       await ai().getByRole('button', { name: 'Thêm' }).click();
-      assert(await ai().getByRole('menuitem').isDisabled(), 'Compact phải tắt khi chưa có phiên');
+      assert(await ai().getByRole('menuitem', { name: /compact/ }).isDisabled(), 'Compact phải tắt khi chưa có phiên');
       await ai().getByLabel('Tin nhắn cho trợ lý').press('Escape');
       await shot('ai-hist');
       return 'lịch sử mở lại OK; Haiku + low; Compact tắt';
@@ -1460,7 +1484,7 @@ async function main() {
       await page.goto(`${base}/#/p/${SLUG}/hook`);
       await waitState('done');
       setScenario('slow');
-      await mainBtn().click();
+      await rerun();
       await waitState('running');
       await page.locator('.term .log .ev', { hasText: 'Đang làm… 6' }).waitFor();
       const calls = fs.readFileSync(path.join(projDir, '.fake-calls.jsonl'), 'utf8').trim().split('\n');

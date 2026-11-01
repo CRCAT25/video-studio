@@ -719,6 +719,8 @@ export default {
   'Giọng đọc': 'Voice-over',
   'Phụ đề': 'Subtitles',
   'Dựng & nhạc': 'Edit & music',
+  'Ghép giọng & nhạc': 'Voice & music mix',
+  'Dựng phim câm': 'Silent cut',
   'Xem lại toàn bộ': 'Full review',
   'Cắt Shorts': 'Cut Shorts',
   'Gói đăng': 'Publish pack',
