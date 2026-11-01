@@ -1,4 +1,4 @@
-// Khung app: header + băng doctor + sidebar Trợ lý AI + định tuyến hash (Tổng quan / Chi tiết bước / Preset / Kênh), tải lại theo SSE 'change' / 'youtube'.
+// Khung app: header + băng doctor + sidebar Trợ lý AI + định tuyến hash (Tổng quan / Dự án / Chi tiết bước / Preset / Kênh), tải lại theo SSE 'change' / 'youtube'.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import DoctorBanner from './components/DoctorBanner.jsx';
@@ -9,6 +9,7 @@ import { useUsage } from './components/Usage.jsx';
 import { ToastProvider, useToast } from './components/Toast.jsx';
 import AssistantPanel, { useAssistant } from './components/AssistantPanel.jsx';
 import Overview from './pages/Overview.jsx';
+import Projects from './pages/Projects.jsx';
 import Step from './pages/Step.jsx';
 import Pipelines from './pages/Pipelines.jsx';
 import Channels, { ChannelDetail } from './pages/Channels.jsx';
@@ -227,7 +228,7 @@ function Shell() {
   }, [running]);
 
   useEffect(() => {
-    const TITLES = { presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio', brain: t('Bộ não · Video Studio'), tts: t('Giọng đọc · Video Studio') };
+    const TITLES = { projects: t('Dự án · Video Studio'), presets: t('Quy trình · Video Studio'), channels: t('Kênh · Video Studio'), channelsSetup: t('Thiết lập Google · Video Studio'), skills: 'Skills · Video Studio', brain: t('Bộ não · Video Studio'), tts: t('Giọng đọc · Video Studio') };
     if (route.name !== 'step' && route.name !== 'channel') document.title = TITLES[route.name] || 'Video Studio';
   }, [route.name, t]);
 
@@ -272,6 +273,18 @@ function Shell() {
     page = <ChannelDetail key={route.params.id} id={route.params.id} yt={yt} error={ytErr} onReload={loadYoutube} />;
   } else if (route.name === 'channelsSetup') {
     page = <YouTubeSetup yt={yt} onReload={loadYoutube} />;
+  } else if (route.name === 'projects') {
+    page = (
+      <Projects
+        data={overview}
+        error={overviewErr}
+        doctor={doctor}
+        presetsData={presetsData}
+        channels={channels}
+        onReloadPresets={loadPresets}
+        onReload={loadOverview}
+      />
+    );
   } else if (route.name === 'overview') {
     page = (
       <Overview

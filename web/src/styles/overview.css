@@ -40,6 +40,31 @@
   .wait-item .kind,.wait-item .age{grid-column:2}
 }
 .L-idle .lst,.wait-item.L-idle .kind{color:var(--muted)}
+/* Danh sách dự án: thanh lọc (cao 34px như các thanh công cụ khác) + bảng gọn; màn hẹp gộp cột vào dòng phụ */
+.pl-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.pl-q{flex:1 1 240px;min-width:0;height:34px;padding:0 10px}
+.pl-sel{width:200px}
+.pl-bar .sel-btn{height:34px}
+.pl-wrap{margin-top:0}
+.yt-tbl.pl-tbl td{vertical-align:middle}
+.pl-name{color:var(--text);font-weight:500;text-decoration:none;overflow-wrap:anywhere}
+.pl-name:hover{text-decoration:underline}
+.pl-sub{display:none}
+.pl-prog{display:flex;flex-direction:column;gap:4px;white-space:nowrap}
+.pl-prog .quota-bar{width:96px;margin-top:0}
+.pl-act{width:1%;white-space:nowrap}
+.pl-act .acts{flex-wrap:nowrap;justify-content:flex-end}
+@media (max-width:880px){
+  .pl-tbl .pl-m{display:none}
+  .pl-sub{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;margin-top:2px;font-size:var(--fs-xs);color:var(--muted)}
+  .pl-s-only{display:none}
+}
+@media (max-width:560px){
+  .pl-tbl .pl-s{display:none}
+  .pl-sub .pl-s-only{display:inline-flex}
+  .pl-q{flex-basis:100%}
+  .pl-sel{flex:1 1 0;width:auto}
+}
 .qa{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .qa h3{margin:0 0 6px}
 .qa-q{margin:0 0 10px;font-weight:600}

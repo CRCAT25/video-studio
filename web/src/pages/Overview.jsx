@@ -1,11 +1,10 @@
 // Tổng quan: số liệu nhanh, việc đang chờ bạn (nếu có) và danh sách dự án kèm sơ đồ bước.
 import { useMemo, useState } from 'react';
-import ConfirmModal from '../components/ConfirmModal.jsx';
+import DeleteProjectModal from '../components/DeleteProjectModal.jsx';
 import Flow from '../components/Flow.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
 import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
-import { api } from '../api.js';
 import { useNow } from '../hooks/useNow.js';
 import { LINE_CLASS, STATE_LABEL, fmtDateTime, fmtNum, fmtRelative, fmtTokens, fmtUsd, usageTokens } from '../lib/format.js';
 import { navigate, stepHref } from '../lib/router.js';
@@ -45,37 +44,12 @@ function nowText(p) {
   }
 }
 
-function lineState(p) {
+export function lineState(p) {
   if (p.status === 'done') return { cls: 'L-ok', label: tr('Hoàn tất') };
   const st = p.current?.state;
   // đã xong vài bước, bước kế đang chờ chạy → dự án đang trong quá trình làm
   if ((st === 'ready' || st === 'pending') && (p.progress?.done || 0) > 0) return { cls: 'L-run', label: tr('Đang thực hiện') };
   return { cls: LINE_CLASS[st] || 'L-idle', label: STATE_LABEL[st] || tr('Chưa rõ') };
-}
-
-// Hộp xác nhận xóa dự án; ô tick (mặc định bật) chuyển thư mục file vào Thùng rác.
-function DeleteProjectModal({ p, onDone, onClose }) {
-  const t = useT();
-  const [trash, setTrash] = useState(true);
-  return (
-    <ConfirmModal
-      title={t('Xóa dự án "{n}"?', { n: p.title })}
-      body={t('Dự án, các lượt chạy và nhật ký sẽ bị xóa khỏi app. Không hoàn tác được.')}
-      okLabel={t('Xóa dự án')}
-      danger
-      onOk={async () => {
-        const r = await api.deleteProject(p.id, trash);
-        onDone(r);
-      }}
-      onClose={onClose}
-    >
-      <label className="chk">
-        <input type="checkbox" checked={trash} onChange={(e) => setTrash(e.target.checked)} />
-        <span>{t('Chuyển thư mục file của dự án vào Thùng rác')}</span>
-      </label>
-      <p className="hint mono">{p.dir}</p>
-    </ConfirmModal>
-  );
 }
 
 // Thẻ một dự án: tên, kênh/preset, trạng thái, tiến độ, sơ đồ bước, việc đang làm.

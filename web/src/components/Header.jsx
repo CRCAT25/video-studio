@@ -35,6 +35,9 @@ export default function Header({ route, doctor, doctorError, stats, brainPending
               </span>
             ) : null}
           </a>
+          <a href="#/du-an" className={route.name === 'projects' ? 'on' : ''} aria-current={route.name === 'projects' ? 'page' : undefined}>
+            {t('Dự án')}
+          </a>
           <a href="#/quy-trinh" className={route.name === 'presets' ? 'on' : ''} aria-current={route.name === 'presets' ? 'page' : undefined}>
             {t('Quy trình')}
           </a>
