@@ -84,6 +84,8 @@ test('MCP: initialize giữ protocolVersion, tools/list, ping, method lạ, noti
   assert.equal((await handle({ id: 2, method: 'initialize' })).result.protocolVersion, '2024-11-05');
   const list = await handle({ id: 3, method: 'tools/list' });
   assert.deepEqual(list.result.tools.map((t) => t.name), ['read_page', 'click', 'fill', 'navigate', 'wait', 'project_images', 'view_images', 'make_short', 'brain_propose', 'approve']);
+  // navigate biết mọi màn chính, kể cả Dự án
+  assert.deepEqual(list.result.tools.find((t) => t.name === 'navigate').inputSchema.properties.page.enum, ['overview', 'projects', 'pipelines', 'channels']);
   assert.deepEqual((await handle({ id: 4, method: 'ping' })).result, {});
   assert.equal((await handle({ id: 5, method: 'bogus' })).error.code, -32601);
   assert.equal(await handle({ method: 'notifications/initialized' }), null);

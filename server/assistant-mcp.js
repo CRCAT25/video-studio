@@ -34,7 +34,7 @@ export const TOOLS = [
     description: 'Chuyển tới một màn chính của app. Trả về trang mới.',
     inputSchema: {
       type: 'object',
-      properties: { page: { type: 'string', enum: ['overview', 'pipelines', 'channels'], description: 'overview = Tổng quan, pipelines = Quy trình, channels = Kênh.' } },
+      properties: { page: { type: 'string', enum: ['overview', 'projects', 'pipelines', 'channels'], description: 'overview = Tổng quan, projects = Dự án (danh sách mọi dự án: tìm, lọc, sắp xếp), pipelines = Quy trình, channels = Kênh.' } },
       required: ['page'],
       additionalProperties: false,
     },

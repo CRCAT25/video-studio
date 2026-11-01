@@ -23,7 +23,7 @@ const INTERACTIVE = [
 const CONFIRM_RE = /(^|[\s"'(])(xóa|xoá|đăng xuất|cập nhật|khởi động lại|dừng|ngắt kết nối|thu hồi|chạy|hủy kết nối|delete|remove|sign out|log out|update|restart|stop|disconnect|revoke|run)/i;
 const TEXT_MAX = 3000;
 const NAME_MAX = 80;
-export const PAGES = { overview: '#/', pipelines: '#/quy-trinh', channels: '#/channels' };
+export const PAGES = { overview: '#/', projects: '#/du-an', pipelines: '#/quy-trinh', channels: '#/channels' };
 
 let refs = new Map(); // ref → phần tử của lần đọc gần nhất
 
@@ -201,10 +201,10 @@ export async function runTool({ tool, args = {} }, { confirm }) {
   if (tool === 'read_page') return { text: snapshot(), isError: false, label: null };
   if (tool === 'navigate') {
     const hash = PAGES[args.page];
-    if (!hash) return fail('Trang không hợp lệ (overview, pipelines, channels).');
+    if (!hash) return fail('Trang không hợp lệ (overview, projects, pipelines, channels).');
     if (document.querySelector('[role=dialog][aria-modal=true]')) return fail('Đang có hộp thoại mở — đóng hộp thoại trước (nút Đóng/Hủy).');
     location.hash = hash;
-    const label = { overview: tr('Tổng quan'), pipelines: tr('Quy trình'), channels: tr('Kênh') }[args.page];
+    const label = { overview: tr('Tổng quan'), projects: tr('Dự án'), pipelines: tr('Quy trình'), channels: tr('Kênh') }[args.page];
     return { text: await settle(`Đã chuyển tới ${label}.`), isError: false, label: tr('Mở trang {p}', { p: label }) };
   }
   if (tool !== 'click' && tool !== 'fill') return fail(`Không có tool ${tool}.`);
