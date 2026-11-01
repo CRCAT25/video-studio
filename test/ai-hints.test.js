@@ -43,3 +43,10 @@ test('chỉ dẫn nào cũng được gắn lên màn hình', () => {
   const used = tagged();
   assert.deepEqual(Object.keys(HINTS).filter((id) => !used.has(id)), []);
 });
+
+// Nút Đọc thử của giọng trả phí trừ credit thật → trợ lý phải hỏi trước khi bấm.
+test('nút Đọc thử trả phí ở trang Giọng đọc gắn data-ai="confirm"', () => {
+  const src = fs.readFileSync(path.join(SRC, 'pages/TTS.jsx'), 'utf8');
+  assert.match(src, /onClick=\{readSample\} data-ai="confirm"/);
+  assert.match(src, /onClick=\{\(\) => test\(p\.id\)\} data-ai=\{p\.kind === 'elevenlabs' \|\| p\.price\?\.perChar > 0 \? 'confirm' : undefined\}/);
+});

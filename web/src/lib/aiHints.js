@@ -16,7 +16,7 @@ export const HINTS = {
   },
   'voice-pick': {
     title: 'Chọn giọng đọc',
-    text: '2 thẻ radio: "Miễn phí" (VieNeu, chạy trên máy) và thẻ trả phí (vd ElevenLabs). Muốn đổi giọng: click thẻ đó, rồi bấm nút chạy (nút tự ghi chi phí) và nhờ người dùng tự đồng ý chi phí. App tự báo giọng đã chọn cho bước khi chạy — KHÔNG sửa lời dặn/quy trình. Thẻ trả phí bấm được, có "Nghe thử" nghĩa là khóa API đã có, tên giọng ghi sẵn trên thẻ — không hỏi lại. Muốn giọng khác: link "Đổi giọng". "▶ Nghe thử" không tốn tiền.',
+    text: '2 thẻ radio: "Miễn phí" (VieNeu, chạy trên máy) và thẻ trả phí (vd ElevenLabs). Muốn đổi giọng: chỉ click thẻ đó là xong — KHÔNG bấm nút chạy trừ khi người dùng bảo đọc/chạy luôn; khi đó bấm nút chạy (nút tự ghi chi phí) và nhờ người dùng tự đồng ý chi phí. App tự báo giọng đã chọn cho bước khi chạy — KHÔNG sửa lời dặn/quy trình. Thẻ trả phí bấm được, có "Nghe thử" nghĩa là khóa API đã có, tên giọng ghi sẵn trên thẻ — không hỏi lại. Muốn giọng khác: link "Đổi giọng". "▶ Nghe thử" không tốn tiền.',
   },
   'own-pick': {
     title: 'Tôi có sẵn / Để trợ lý giúp bạn',

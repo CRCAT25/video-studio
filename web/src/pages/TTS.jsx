@@ -160,7 +160,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
             {picked?.preview ? <audio className="tts-audio" controls src={picked.preview} /> : null}
             {p.voice && (key || init.hasKey) ? (
               <div className="tts-more">
-                <button type="button" className="btn sm" onClick={readSample} disabled={busy || sampling}>{sampling ? t('Đang đọc…') : t('Đọc thử một câu ngắn')}</button>
+                <button type="button" className="btn sm" onClick={readSample} data-ai="confirm" disabled={busy || sampling}>{sampling ? t('Đang đọc…') : t('Đọc thử một câu ngắn')}</button>
                 <span className="hint">{t('Đọc câu "Xin chào, đây là giọng đọc thử." bằng giọng đã chọn — tốn khoảng 31 credit.')}</span>
                 {sample ? <audio className="tts-audio" controls autoPlay src={sample.audio} /> : null}
               </div>
@@ -355,7 +355,7 @@ export default function TTS() {
                       <td><Plan p={p} i={info[p.id]} /></td>
                       <td className="tts-c-act">
                         <div className="sk-acts tts-acts">
-                          <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)}>{testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : t('Đang đọc…')}</button>
+                          <button type="button" className="btn sm" disabled={testing === p.id} onClick={() => test(p.id)} data-ai={p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined}>{testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : t('Đang đọc…')}</button>
                           {data.default !== p.id ? <button type="button" className="btn sm" onClick={() => act(() => api.ttsDefault(p.id))}>{t('Đặt mặc định')}</button> : null}
                           <button type="button" className="btn sm" onClick={() => setEdit(p)}>{t('Sửa')}</button>
                           {p.builtin ? null : <button type="button" className="btn sm" onClick={() => setRemoving(p)}>{t('Xóa')}</button>}
