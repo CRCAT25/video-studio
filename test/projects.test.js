@@ -49,6 +49,7 @@ beforeEach(() => {
     presets: () => loadPresets([FIXTURE_PRESETS, extraDir]),
     channels: () => loadChannels([FIXTURE_PRESETS]),
     home,
+    trashDir: path.join(tmp, 'Trash'),
   });
 });
 
@@ -748,4 +749,37 @@ test('updatePipeline: đổi chỗ bước chưa chạy, bước đã chạy b�
   // sau hook, bước kế tiếp thành ready khi tất cả bước khóa đã xong
   projects.updatePipeline(id, { ...pipeline, steps });
   assert.equal(states(id)[steps[1].id ?? steps[1].key], 'ready');
+});
+
+test('remove: gỡ khỏi app giữ thư mục; trash → chuyển vào Thùng rác (trùng tên → " 2")', () => {
+  const a = mk({ title: 'Một' });
+  projects.remove(a.id);
+  assert.equal(store.getProject(a.id), null);
+  assert.equal(store.listSteps(a.id).length, 0);
+  assert.ok(fs.existsSync(a.dir), 'không tick thì giữ thư mục');
+
+  const trash = path.join(tmp, 'Trash');
+  fs.mkdirSync(path.join(trash, path.basename(a.dir)), { recursive: true });
+  const b = mk({ title: 'Hai' });
+  fs.writeFileSync(path.join(b.dir, 'kich-ban.md'), 'x');
+  const r = projects.remove(b.id, { trash: true });
+  assert.ok(!fs.existsSync(b.dir));
+  assert.equal(path.dirname(r.trashed), trash);
+  assert.equal(fs.readFileSync(path.join(r.trashed, 'kich-ban.md'), 'utf8'), 'x');
+  const c = mk({ title: 'Ba', dir: path.join(tmp, 'x', path.basename(a.dir)) });
+  assert.equal(projects.remove(c.id, { trash: true }).trashed, path.join(trash, `${path.basename(a.dir)} 2`));
+});
+
+test('remove: không có → 404; đang chạy → 409 busy; thư mục không do app tạo → 409 unsafe_dir, không xóa gì', () => {
+  expectHttp(() => projects.remove('khong-co'), 404, 'not_found');
+  const a = mk();
+  const run = projects.beginRun(a.id, store.listSteps(a.id)[0].key, { prompt: 'P', allowPaid: true });
+  expectHttp(() => projects.remove(a.id, { trash: true }), 409, 'busy');
+  projects.finishRun(run.id, { state: 'done', summary: 'ok' });
+  fs.rmSync(path.join(a.dir, '.studio'), { recursive: true });
+  expectHttp(() => projects.remove(a.id, { trash: true }), 409, 'unsafe_dir');
+  assert.ok(store.getProject(a.id));
+  assert.ok(fs.existsSync(a.dir));
+  projects.remove(a.id);
+  assert.equal(store.getProject(a.id), null);
 });

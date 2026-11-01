@@ -107,6 +107,7 @@ beforeEach(() => {
     presets: () => loadPresets([FIXTURE_PRESETS]),
     channels: () => loadChannels([FIXTURE_PRESETS]),
     home,
+    trashDir: path.join(tmp, 'Trash'),
   });
   runner = new FakeRunner(projects);
   sent = [];
@@ -1482,4 +1483,17 @@ test('Tôi có sẵn: tải file/dán chữ đặt đúng chỗ theo đầu ra, 
 
   // bước sau chưa tới lượt → 409
   assert.equal((await req({ method: 'PUT', url: `/api/projects/${p.id}/steps/voice/own?name=a.wav`, headers: { 'content-type': 'application/octet-stream' }, payload: Buffer.from('x') })).statusCode, 409);
+});
+
+test('DELETE /api/projects/:id: cần JSON, trash → thư mục vào Thùng rác, phát change; xóa lại → 404', async () => {
+  await makeApp();
+  const p = await createProject();
+  assert.equal((await req({ method: 'DELETE', url: `/api/projects/${p.id}` })).statusCode, 415);
+  const r = await req({ method: 'DELETE', url: `/api/projects/${p.id}`, payload: { trash: true } });
+  assert.equal(r.statusCode, 200, r.body);
+  assert.equal(r.json().trashed, path.join(tmp, 'Trash', path.basename(p.dir)));
+  assert.ok(!fs.existsSync(p.dir));
+  assert.ok(sent.some(([e, d]) => e === 'change' && d.projectId === p.id));
+  assert.equal((await req({ method: 'GET', url: `/api/projects/${p.id}` })).statusCode, 404);
+  assert.equal((await req({ method: 'DELETE', url: `/api/projects/${p.id}`, payload: {} })).statusCode, 404);
 });

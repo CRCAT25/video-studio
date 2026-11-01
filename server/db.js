@@ -268,6 +268,9 @@ export function openStore(file) {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, project_id, key, name, ord, state, current_run_id, now());
       return store.getStepById(id);
     },
+    deleteProject(id) {
+      st('DELETE FROM projects WHERE id = ?').run(id);
+    },
     deleteStep(id) {
       st('DELETE FROM steps WHERE id = ?').run(id);
     },

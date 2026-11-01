@@ -1112,6 +1112,12 @@ export async function buildApp({
     return v;
   });
 
+  app.delete('/api/projects/:id', async (req) => {
+    const r = projects.remove(req.params.id, { trash: req.body?.trash === true });
+    sse.broadcast('change', { projectId: req.params.id });
+    return r;
+  });
+
   app.get('/api/projects/:id/steps/:key', async (req) => {
     const v = projects.stepView(req.params.id, req.params.key);
     if (!v) throw notFound(`Không tìm thấy bước "${req.params.key}" trong dự án "${req.params.id}".`);

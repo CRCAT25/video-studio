@@ -5,7 +5,7 @@ import Modal from './Modal.jsx';
 import { useT } from '../lib/i18n.jsx';
 
 // onOk có thể async: chờ xong mới đóng, lỗi thì hiện ngay trong hộp.
-export default function ConfirmModal({ title, body, okLabel, danger = false, onOk, onClose }) {
+export default function ConfirmModal({ title, body, children, okLabel, danger = false, onOk, onClose }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -22,6 +22,7 @@ export default function ConfirmModal({ title, body, okLabel, danger = false, onO
   return createPortal(
     <Modal title={title} onClose={onClose} busy={busy}>
       {body ? <p>{body}</p> : null}
+      {children}
       {err ? <div className="err-note" role="alert">{err}</div> : null}
       <div className="modal-acts">
         <button type="button" className="btn" onClick={onClose} disabled={busy}>{t('Hủy')}</button>

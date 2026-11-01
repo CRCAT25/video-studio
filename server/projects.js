@@ -108,7 +108,7 @@ function runDetail(r) {
 }
 
 // Tạo ProjectService từ store (db.js), presets: () => {presets, errors}, channels: () => Channel[], home ($VS_HOME).
-export function createProjects({ store, presets, channels, home } = {}) {
+export function createProjects({ store, presets, channels, home, trashDir = path.join(os.homedir(), '.Trash') } = {}) {
   if (!store) throw new Error('createProjects cần store.');
   const prevStates = new Map(); // run.id → state của bước trước khi chạy (dùng khi 'stopped')
 
@@ -958,8 +958,41 @@ export function createProjects({ store, presets, channels, home } = {}) {
     }
   }
 
+  // Xóa dự án (DB cascade); trash=true → chuyển thư mục vào Thùng rác. Đang chạy → 409.
+  function remove(id, { trash = false } = {}) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    if (store.runningRunOf(id)) throw new HttpError(409, 'busy', 'Dự án đang chạy một bước — dừng lượt đó trước khi xóa.');
+    let trashed = null;
+    if (trash) trashed = moveToTrash(p);
+    store.deleteProject(id);
+    return { id, trashed };
+  }
+
+  // Chỉ chuyển thư mục do app tạo (có .studio/), không phải thư mục nhà/gốc, không dự án khác dùng chung.
+  function moveToTrash(p) {
+    const abs = path.resolve(p.dir);
+    if (!fs.existsSync(abs)) return null;
+    const shared = store.listProjects().some((o) => o.id !== p.id && path.resolve(o.dir) === abs);
+    if (abs === path.parse(abs).root || abs === os.homedir() || shared || !fs.existsSync(path.join(abs, '.studio'))) {
+      throw new HttpError(409, 'unsafe_dir', `Không chuyển được thư mục vào Thùng rác: ${abs}. Bỏ chọn để chỉ gỡ khỏi app.`);
+    }
+    fs.mkdirSync(trashDir, { recursive: true });
+    let dest = path.join(trashDir, path.basename(abs));
+    for (let n = 2; fs.existsSync(dest); n += 1) dest = path.join(trashDir, `${path.basename(abs)} ${n}`);
+    try {
+      fs.renameSync(abs, dest);
+    } catch (e) {
+      if (e.code !== 'EXDEV') throw new HttpError(500, 'trash_failed', `Không chuyển được thư mục vào Thùng rác: ${e.message}`);
+      fs.cpSync(abs, dest, { recursive: true });
+      fs.rmSync(abs, { recursive: true, force: true });
+    }
+    return dest;
+  }
+
   return {
     create,
+    remove,
     list,
     view,
     stepView,

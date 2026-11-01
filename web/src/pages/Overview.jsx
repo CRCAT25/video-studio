@@ -1,9 +1,11 @@
 // Tổng quan: số liệu nhanh, việc đang chờ bạn (nếu có) và danh sách dự án kèm sơ đồ bước.
 import { useMemo, useState } from 'react';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import Flow from '../components/Flow.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
 import { Sk, SkFlow, SkZone } from '../components/Skeleton.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { api } from '../api.js';
 import { useNow } from '../hooks/useNow.js';
 import { LINE_CLASS, STATE_LABEL, fmtDateTime, fmtNum, fmtRelative, fmtTokens, fmtUsd, usageTokens } from '../lib/format.js';
 import { navigate, stepHref } from '../lib/router.js';
@@ -51,8 +53,33 @@ function lineState(p) {
   return { cls: LINE_CLASS[st] || 'L-idle', label: STATE_LABEL[st] || tr('Chưa rõ') };
 }
 
+// Hộp xác nhận xóa dự án; ô tick (mặc định bật) chuyển thư mục file vào Thùng rác.
+function DeleteProjectModal({ p, onDone, onClose }) {
+  const t = useT();
+  const [trash, setTrash] = useState(true);
+  return (
+    <ConfirmModal
+      title={t('Xóa dự án "{n}"?', { n: p.title })}
+      body={t('Dự án, các lượt chạy và nhật ký sẽ bị xóa khỏi app. Không hoàn tác được.')}
+      okLabel={t('Xóa dự án')}
+      danger
+      onOk={async () => {
+        const r = await api.deleteProject(p.id, trash);
+        onDone(r);
+      }}
+      onClose={onClose}
+    >
+      <label className="chk">
+        <input type="checkbox" checked={trash} onChange={(e) => setTrash(e.target.checked)} />
+        <span>{t('Chuyển thư mục file của dự án vào Thùng rác')}</span>
+      </label>
+      <p className="hint mono">{p.dir}</p>
+    </ConfirmModal>
+  );
+}
+
 // Thẻ một dự án: tên, kênh/preset, trạng thái, tiến độ, sơ đồ bước, việc đang làm.
-function ProjectLine({ p, now }) {
+function ProjectLine({ p, now, onDelete }) {
   const t = useT();
   const L = lineState(p);
   const target = p.current?.key || p.steps?.[0]?.key || '';
@@ -71,9 +98,14 @@ function ProjectLine({ p, now }) {
             {L.label}
           </span>
         </div>
-        <a className="btn sm" href={href} aria-label={t('Mở {n}', { n: p.title })}>
-          {t('Mở')}
-        </a>
+        <div className="acts">
+          <button type="button" className="btn sm danger" onClick={() => onDelete(p)} disabled={p.status === 'running'} title={p.status === 'running' ? t('Dự án đang chạy — dừng lượt đó trước khi xóa.') : undefined} aria-label={t('Xóa {n}', { n: p.title })}>
+            {t('Xóa')}
+          </button>
+          <a className="btn sm" href={href} aria-label={t('Mở {n}', { n: p.title })}>
+            {t('Mở')}
+          </a>
+        </div>
       </div>
       <div className="proj-meta">
         <span>{p.channel?.name || p.channel?.id || t('Không kênh')} · {p.preset?.name || p.preset?.id}</span>
@@ -217,6 +249,7 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
   const toast = useToast();
   const [showNew, setShowNew] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [del, setDel] = useState(null);
   const projects = useMemo(() => data?.projects || [], [data]);
   const waits = useMemo(() => waitItems(projects), [projects]);
 
@@ -285,13 +318,24 @@ export default function Overview({ data, error, doctor, presetsData, channels, o
               ) : null}
               <div className="proj-list">
                 {shown.map((p) => (
-                  <ProjectLine key={p.id} p={p} now={now} />
+                  <ProjectLine key={p.id} p={p} now={now} onDelete={setDel} />
                 ))}
               </div>
               {shown.length === 0 ? <div className="empty">{t('Không có dự án nào của kênh này.')}</div> : null}
             </section>
           )}
         </>
+      ) : null}
+
+      {del ? (
+        <DeleteProjectModal
+          p={del}
+          onClose={() => setDel(null)}
+          onDone={(r) => {
+            toast(r.trashed ? t('Đã xóa dự án, thư mục nằm trong Thùng rác.') : t('Đã xóa dự án.'), 'ok');
+            onReload?.();
+          }}
+        />
       ) : null}
 
       {showNew ? (

@@ -176,6 +176,7 @@ export const api = {
   brainCompact: () => request('POST', '/api/brain/compact', {}),
   brainApply: (id) => request('POST', '/api/brain/compact/apply', { id }),
   brainRestore: (name) => request('POST', '/api/brain/restore', { name }),
+  deleteProject: (id, trash) => request('DELETE', `/api/projects/${enc(id)}`, { trash: !!trash }),
   deletePipeline: (id) => request('DELETE', `/api/pipelines/${enc(id)}`, {}), // thân {} để có Content-Type JSON (chặn CSRF)
   projects: (opts) => request('GET', '/api/projects', undefined, opts),
   pickDir: () => request('POST', '/api/pick-dir', {}),
