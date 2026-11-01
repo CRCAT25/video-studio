@@ -5,6 +5,9 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--b
 .brand .logo{width:24px;height:24px;flex:none}
 nav.tabs{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;align-self:stretch}
 nav.tabs::-webkit-scrollbar{display:none}
+/* mờ mép khi còn mục bị khuất, báo là cuộn ngang được (lớp fl/fr do Header gắn) */
+nav.tabs{--fl:#000;--fr:#000;-webkit-mask-image:linear-gradient(90deg,var(--fl),#000 24px,#000 calc(100% - 24px),var(--fr));mask-image:linear-gradient(90deg,var(--fl),#000 24px,#000 calc(100% - 24px),var(--fr))}
+nav.tabs.fl{--fl:transparent} nav.tabs.fr{--fr:transparent}
 nav.tabs a{position:relative;display:flex;align-items:center;padding:0 10px;text-decoration:none;color:var(--muted);white-space:nowrap;font-weight:500}
 nav.tabs a:hover{color:var(--text)}
 nav.tabs a.on{color:var(--text)}
@@ -28,12 +31,16 @@ nav.tabs a.on:after{content:"";position:absolute;left:10px;right:10px;bottom:-1p
   .doctor,.upd{padding:0 16px}
 }
 @media (max-width:520px){
-  .brand span{display:none}
-  .top-in{gap:8px;padding:0 12px}
+  /* điện thoại: menu xuống hàng riêng, rộng hết màn, tự cuộn ngang */
+  .top-in{flex-wrap:wrap;height:auto;gap:0 8px;padding:0 12px}
+  .brand,.top-right{height:48px}
   .top-right{gap:6px}
-  nav.tabs{gap:0}
-  nav.tabs a{padding:0 4px;font-size:var(--fs-sm)}
-  nav.tabs a.on:after{left:4px;right:4px}
+  nav.tabs{order:3;flex:0 0 calc(100% + 24px);height:40px;margin:0 -12px;padding:0 6px;gap:0}
+  nav.tabs a{padding:0 6px;font-size:var(--fs-sm)}
+  nav.tabs a.on:after{left:6px;right:6px}
+}
+@media (max-width:340px){
+  .brand span{display:none}
 }
 .upd{max-width:var(--page-w);margin:16px auto 0;padding:0 24px}
 .upd-in{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 16px;border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--surface))}

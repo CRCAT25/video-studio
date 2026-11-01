@@ -1,4 +1,5 @@
 // Đầu trang: logo, menu, mức dùng gói, nút Trợ lý AI và menu Tài khoản (Claude, ngôn ngữ, sáng/tối, đăng xuất).
+import { useEffect, useRef } from 'react';
 import { Logo } from './icons.jsx';
 import AccountMenu from './AccountMenu.jsx';
 import { UsageMeter } from './Usage.jsx';
@@ -19,6 +20,30 @@ export default function Header({ route, doctor, doctorError, stats, brainPending
   const onOverview = route.name === 'overview' || route.name === 'step';
   const onChannels = route.name === 'channels' || route.name === 'channel' || route.name === 'channelsSetup';
   const st = claudeStatus(doctor, doctorError, t);
+  const nav = useRef(null);
+  // Menu cuộn ngang (màn hẹp): mờ mép còn mục khuất + kéo mục đang mở vào tầm nhìn.
+  useEffect(() => {
+    const el = nav.current;
+    if (!el) return undefined;
+    const edges = () => {
+      el.classList.toggle('fl', el.scrollLeft > 1);
+      el.classList.toggle('fr', el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    edges();
+    el.addEventListener('scroll', edges, { passive: true });
+    window.addEventListener('resize', edges);
+    return () => {
+      el.removeEventListener('scroll', edges);
+      window.removeEventListener('resize', edges);
+    };
+  }, []);
+  useEffect(() => {
+    const el = nav.current;
+    const on = el?.querySelector('a.on');
+    if (!on || el.scrollWidth <= el.clientWidth) return;
+    const left = on.offsetLeft - el.offsetLeft;
+    if (left < el.scrollLeft || left + on.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollLeft = left - (el.clientWidth - on.offsetWidth) / 2;
+  }, [route.name]);
   return (
     <header className="top">
       <div className="top-in">
@@ -26,7 +51,7 @@ export default function Header({ route, doctor, doctorError, stats, brainPending
           <Logo />
           <span>Video Studio</span>
         </a>
-        <nav className="tabs" aria-label={t('Điều hướng chính')}>
+        <nav className="tabs" ref={nav} aria-label={t('Điều hướng chính')}>
           <a href="#/" className={onOverview ? 'on' : ''} aria-current={onOverview ? 'page' : undefined}>
             {t('Tổng quan')}
             {waiting > 0 ? (
