@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api } from '../api.js';
 import { useT } from '../lib/i18n.jsx';
 
-export default function AskStep({ projectId, stepKey, disabled = false }) {
+export default function AskStep({ projectId, stepKey, disabled = false, onRerun = null }) {
   const t = useT();
   const [log, setLog] = useState([]); // [{q, a}]
   const [text, setText] = useState('');
@@ -20,7 +20,7 @@ export default function AskStep({ projectId, stepKey, disabled = false }) {
     setText('');
     try {
       const r = await api.askStep(projectId, stepKey, question, log.slice(-4));
-      setLog((l) => [...l, { q: question, a: r.answer }]);
+      setLog((l) => [...l, { q: question, a: r.answer, rerun: r.rerunFeedback || '' }]);
     } catch (e) {
       setErr(e.message);
       setText(question);
@@ -30,22 +30,27 @@ export default function AskStep({ projectId, stepKey, disabled = false }) {
     }
   }
 
-  const starters = [t('Vì sao kết quả bước này như vậy?'), t('Hình ảnh đã thay đổi gì so với lượt trước?'), t('Nên góp ý gì để lượt sau tốt hơn?')];
+  const starters = [t('Ổn rồi'), t('Chưa ổn, vì sao lại như vậy?'), t('Hình ảnh đã thay đổi gì so với lượt trước?')];
 
   return (
     <div className="idea-chat" data-ai-region="ask-step">
-      {log.length || pending ? (
-        <div className="ic-log" aria-live="polite">
+      <div className="ic-log" aria-live="polite">
+        <div className="ic-msg assistant">{t('Kết quả đầu ra của bước này ổn chứ? Nếu chưa ổn, cứ nói chỗ nào chưa ưng — muốn làm lại thì nói "làm lại", mình sẽ chỉ chạy lại khi bạn yêu cầu.')}</div>
           {log.map((m, i) => (
             <div key={i}>
               <div className="ic-msg user">{m.q}</div>
               <div className="ic-msg assistant">{m.a}</div>
+              {m.rerun && onRerun && i === log.length - 1 ? (
+                <div className="ic-msg assistant">
+                  <button type="button" className="btn primary" disabled={disabled || busy} onClick={() => onRerun(m.rerun)}>{t('Chạy lại với góp ý này')}</button>
+                </div>
+              ) : null}
             </div>
           ))}
           {pending ? <div className="ic-msg user">{pending}</div> : null}
           {busy ? <div className="ic-msg assistant"><span className="spinner" aria-hidden="true" /> {t('Trợ lý đang xem…')}</div> : null}
-        </div>
-      ) : (
+      </div>
+      {log.length || pending ? null : (
         <div className="ic-start">
           {starters.map((s) => (
             <button key={s} type="button" className="chip" disabled={disabled || busy} onClick={() => send(s)}>{s}</button>
@@ -54,10 +59,10 @@ export default function AskStep({ projectId, stepKey, disabled = false }) {
       )}
       {err ? <div className="err-note" role="alert">{err}</div> : null}
       <div className="ic-form">
-        <input type="text" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } }} placeholder={t('Hỏi về bước này…')} aria-label={t('Hỏi về bước này…')} disabled={disabled || busy} />
-        <button type="button" className="btn primary" disabled={disabled || busy || !text.trim()} onClick={() => send()}>{t('Hỏi')}</button>
+        <input type="text" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } }} placeholder={t('Trả lời trợ lý…')} aria-label={t('Trả lời trợ lý…')} disabled={disabled || busy} />
+        <button type="button" className="btn primary" disabled={disabled || busy || !text.trim()} onClick={() => send()}>{t('Gửi')}</button>
       </div>
-      <span className="hint">{t('Chỉ đọc kết quả đã có, không chạy lại bước và không sửa file — tốn rất ít token so với một lượt chạy.')}</span>
+      <span className="hint">{t('Trò chuyện chỉ đọc kết quả, rất ít token. Bước chỉ chạy lại khi bạn yêu cầu và bấm xác nhận.')}</span>
     </div>
   );
 }

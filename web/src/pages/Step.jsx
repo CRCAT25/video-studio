@@ -996,13 +996,6 @@ function StepPage({ projectId, stepKey }) {
         {nextBtn}
       </div>
 
-      {st !== 'running' && !step.manual && selRun ? (
-        <div className="card pad" style={{ marginBottom: 16 }}>
-          <h2>{t('Hỏi trợ lý (không chạy lại)')}</h2>
-          <AskStep projectId={projectId} stepKey={stepKey} />
-        </div>
-      ) : null}
-
       {decide ? (
         <div className="card pad decide ask side" style={{ marginBottom: 16 }} data-ai-help="step-reply">
           <h2>{t('Trợ lý cần bạn trả lời')}</h2>
@@ -1013,10 +1006,10 @@ function StepPage({ projectId, stepKey }) {
             feedbackBox
           )}
         </div>
-      ) : st === 'done' && canRun.ok && !step.manual ? (
+      ) : st === 'done' && !step.manual && selRun ? (
         <div className="card pad" style={{ marginBottom: 16 }}>
-          <h2>{t('Chưa ưng? Góp ý để chạy lại')}</h2>
-          {feedbackBox}
+          <h2>{t('Trò chuyện về kết quả')}</h2>
+          <AskStep projectId={projectId} stepKey={stepKey} disabled={st === 'running'} onRerun={canRun.ok ? (fb) => requestRun(fb) : null} />
         </div>
       ) : live || selRun?.error || selRun?.denials?.length ? (
         <div className="side" style={{ marginBottom: 16 }}>

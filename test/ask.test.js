@@ -19,8 +19,8 @@ test('ask: chạy claude giả trong thư mục dự án, câu hỏi rỗng → 
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-ask-'));
   t.after(() => fs.rmSync(d, { recursive: true, force: true }));
   const claude = path.join(d, 'claude.mjs');
-  fs.writeFileSync(claude, "#!/usr/bin/env node\nconsole.log(JSON.stringify({type:'result',is_error:false,structured_output:{answer:'Vì code vẽ lại giống nhau'}}));\n");
+  fs.writeFileSync(claude, "#!/usr/bin/env node\nconsole.log(JSON.stringify({type:'result',is_error:false,structured_output:{answer:'Vì code vẽ lại giống nhau',rerun_feedback:'Vẽ lại sáng hơn'}}));\n");
   const a = createAsk({ claudeBin: claude });
-  assert.deepEqual(await a.ask({ ...src, dir: d }, 'Vì sao?'), { answer: 'Vì code vẽ lại giống nhau' });
+  assert.deepEqual(await a.ask({ ...src, dir: d }, 'Vì sao?'), { answer: 'Vì code vẽ lại giống nhau', rerunFeedback: 'Vẽ lại sáng hơn' });
   await assert.rejects(() => a.ask({ ...src, dir: d }, '  '), { code: 'bad_message' });
 });
