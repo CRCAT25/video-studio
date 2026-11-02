@@ -8,6 +8,7 @@ import CostModal from '../components/CostModal.jsx';
 import VoicePicker, { paidEstimate } from '../components/VoicePicker.jsx';
 import OwnInput from '../components/OwnInput.jsx';
 import Modal from '../components/Modal.jsx';
+import SkillPicker from '../components/SkillPicker.jsx';
 import DistillModal from '../components/DistillModal.jsx';
 import ProjectPipelineModal from '../components/ProjectPipelineModal.jsx';
 import LogTerminal from '../components/LogTerminal.jsx';
@@ -387,6 +388,7 @@ function StepPage({ projectId, stepKey }) {
   useEffect(() => {
     api.defaultModel().then(setDefModel).catch(() => {});
   }, []);
+  const [skillOpen, setSkillOpen] = useState(false); // hộp chọn skill riêng cho bước này
   const [pipeEdit, setPipeEdit] = useState(false); // hộp Sửa quy trình của dự án
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(null);
@@ -772,6 +774,9 @@ function StepPage({ projectId, stepKey }) {
     </button>,
   );
 
+  const toolBtns = buttons.filter((x) => x.key === 'distill' || x.key === 'term');
+  const runBtns = buttons.filter((x) => !toolBtns.includes(x));
+
   const tokens = runTokens(selRun, isLatest ? latest?.costs : null);
   const byStep = (view.usage_by_step || []).map((x) => ({ ...x, total: usageTokens(x) }));
   const stepTotal = byStep.find((x) => x.key === step.key)?.total || 0;
@@ -867,26 +872,34 @@ function StepPage({ projectId, stepKey }) {
           </h1>
         </div>
         <div className="acts">
-          {!step.manual && st !== 'running' ? (
-            <Select
-              size="sm"
-              value={step.model || ''}
-              options={[...MODELS, ...(!step.model || MODELS.some(([v]) => v === step.model) ? [] : [[step.model, step.model]])].map(([value, label]) => ({ value, label: value === '' ? defaultModelLabel(t, defModel) : t(label) }))}
-              onChange={async (m) => {
-                try {
-                  await api.setStepModel(projectId, stepKey, m);
-                  load();
-                } catch (e) {
-                  setActionErr(e.message);
-                }
-              }}
-              label={t('Model của bước này')}
-            />
-          ) : null}
-          {buttons}
-          <button type="button" className="btn" onClick={() => setPipeEdit(true)} disabled={st === 'running'} title={st === 'running' ? t('Đang chạy — chờ xong hoặc dừng rồi mới sửa quy trình') : t('Đổi chỗ, thêm, bớt các bước chưa chạy của dự án này')}>
-            {t('Sửa quy trình')}
-          </button>
+          {runBtns.length ? <div className="act-grp act-run" role="group" aria-label={t('Chạy bước')}>{runBtns}</div> : null}
+          <div className="act-grp" role="group" aria-label={t('Thiết lập bước')}>
+            {!step.manual && st !== 'running' ? (
+              <Select
+                size="sm"
+                value={step.model || ''}
+                options={[...MODELS, ...(!step.model || MODELS.some(([v]) => v === step.model) ? [] : [[step.model, step.model]])].map(([value, label]) => ({ value, label: value === '' ? defaultModelLabel(t, defModel) : t(label) }))}
+                onChange={async (m) => {
+                  try {
+                    await api.setStepModel(projectId, stepKey, m);
+                    load();
+                  } catch (e) {
+                    setActionErr(e.message);
+                  }
+                }}
+                label={t('Model của bước này')}
+              />
+            ) : null}
+            {!step.manual ? (
+              <button type="button" className="btn" onClick={() => setSkillOpen(true)} disabled={st === 'running'} title={t('Gắn skill chỉ dùng cho bước này')}>
+                {t('Skill')}{step.skills?.length ? ` (${step.skills.length})` : ''}
+              </button>
+            ) : null}
+            <button type="button" className="btn" onClick={() => setPipeEdit(true)} disabled={st === 'running'} title={st === 'running' ? t('Đang chạy — chờ xong hoặc dừng rồi mới sửa quy trình') : t('Đổi chỗ, thêm, bớt các bước chưa chạy của dự án này')}>
+              {t('Sửa quy trình')}
+            </button>
+          </div>
+          <div className="act-grp" role="group" aria-label={t('Công cụ')}>{toolBtns}</div>
         </div>
         <div className="meta">
           <span className="ro" title={t('Quy trình của dự án này')}>
@@ -992,6 +1005,11 @@ function StepPage({ projectId, stepKey }) {
             feedbackBox
           )}
         </div>
+      ) : st === 'done' && canRun.ok && !step.manual ? (
+        <div className="card pad" style={{ marginBottom: 16 }}>
+          <h2>{t('Chưa ưng? Góp ý để chạy lại')}</h2>
+          {feedbackBox}
+        </div>
       ) : live || selRun?.error || selRun?.denials?.length ? (
         <div className="side" style={{ marginBottom: 16 }}>
           <ResultCard run={selRun} live={live} grant={grant} />
@@ -1085,6 +1103,25 @@ function StepPage({ projectId, stepKey }) {
       </div>
 
       {distillOpen ? <DistillModal projectId={projectId} stepKey={stepKey} stepName={step.name} stepDone={st === 'done'} doneCount={doneUpto} onClose={() => setDistillOpen(false)} /> : null}
+      {skillOpen ? (
+        <Modal title={t('Skill cho bước này')} lead={t('Claude đọc các skill này trước khi làm bước này, cộng với skill của cả quy trình.')} onClose={() => setSkillOpen(false)}>
+          <SkillPicker
+            value={step.skills || []}
+            channelId={project.channel?.id ?? null}
+            onChange={async (list) => {
+              try {
+                await api.setStepSkills(projectId, stepKey, list);
+                load();
+              } catch (e) {
+                setActionErr(e.message);
+              }
+            }}
+          />
+          <div className="modal-acts">
+            <button type="button" className="btn primary" onClick={() => setSkillOpen(false)}>{t('Xong')}</button>
+          </div>
+        </Modal>
+      ) : null}
       {rerunAsk ? (
         <Modal title={t('Chạy lại "{n}"?', { n: step.name })} lead={t('Lượt mới có thể ghi đè các đầu ra hiện có của bước này.')} onClose={() => setRerunAsk(false)}>
           <p className="note">{t('Lịch sử các lượt cũ vẫn được giữ. Muốn sửa theo góp ý thì dùng "Chạy lại kèm góp ý".')}</p>

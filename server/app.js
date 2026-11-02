@@ -111,7 +111,7 @@ function guidePage(distDir) {
 }
 
 // Tạo Fastify app với mọi endpoint §9.2. deps: {store, projects, runner, presets, channels, token, webDist, doctor,
-// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), assistant? (createAssistant — Trợ lý AI), skillSearch? (hàm (lib, channelsFn) → createSkillSearch — tìm skill bằng AI), usage? (createUsage — mức dùng gói Claude), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
+// account? (createClaudeAccount — thiếu thì các route /api/claude/* trả 503), youtube? (createYouTube — thiếu thì /api/youtube/* trả 503), googleWizard? (createGoogleWizard), login? (createLogin — đăng nhập Google), updater? (createUpdater — báo bản mới), assistant? (createAssistant — Trợ lý AI), skillSearch? (hàm (lib, channelsFn) → createSkillSearch — tìm skill bằng AI), ideas? (hàm ({channels, videos, steps}) → createIdeas — gợi ý ý tưởng cho dự án mới), usage? (createUsage — mức dùng gói Claude), home?, hub?, logger?, logError?, doctorTtlMs?}. Không listen — cli.js/test tự listen hoặc dùng app.inject.
 export async function buildApp({
   store,
   projects,
@@ -132,6 +132,7 @@ export async function buildApp({
   home = null,
   skills = null,
   skillSearch = null,
+  ideas = null,
   skillRepo = null,
   tts = null,
   distill = null,
@@ -734,6 +735,18 @@ export async function buildApp({
       return searcher.search({ query: b.query, web: b.web === true });
     });
   });
+  // Gợi ý ý tưởng video cùng trợ lý (tốn token): body {channelId?, messages:[{role,text}], web?}. Chỉ đọc; không tạo gì.
+  app.post('/api/ideas/chat', async (req) => {
+    const b = req.body;
+    if (!isObject(b)) throw badBody('Cần gửi JSON.');
+    if (typeof ideas !== 'function') throw new HttpError(503, 'ideas_unavailable', 'Gợi ý ý tưởng bằng AI chưa bật trên server này.');
+    const svc = ideas({
+      channels: () => callList(channels) ?? [],
+      videos: (id) => needYoutube().videos(id),
+      steps: () => formatCatalog().steps.map((s) => ({ id: s.id, name: s.name })),
+    });
+    return svc.chat({ channelId: typeof b.channelId === 'string' ? b.channelId : '', messages: b.messages, web: b.web === true });
+  });
   app.post('/api/skills/search/clarify', async (req) => {
     const b = skillBody(req);
     return skillCall(() => {
@@ -811,7 +824,7 @@ export async function buildApp({
   // Đọc thử câu ngắn bằng giọng đang chọn trong hộp thoại (chưa cần lưu).
   app.post('/api/tts/sample', async (req) =>
     ttsCall(async (t) => {
-      const r = await t.sample({ id: req.body?.id || null, key: req.body?.key || '', voice: String(req.body?.voice || ''), text: String(req.body?.text || '') });
+      const r = await t.sample({ id: req.body?.id || null, key: req.body?.key || '', voice: String(req.body?.voice || ''), text: String(req.body?.text || ''), kind: String(req.body?.kind || ''), fx: req.body?.fx });
       return { audio: `data:audio/mpeg;base64,${r.audio.toString('base64')}`, chars: r.chars, cost: r.cost, label: r.label };
     }));
   app.get('/api/skill-repo', async () => repoCall((r) => r.status()));
@@ -1245,6 +1258,15 @@ export async function buildApp({
     const b = req.body;
     if (!isObject(b) || typeof b.model !== 'string') throw badBody('Cần gửi JSON {model}.');
     const r = pipelineCall(() => projects.setStepModel(req.params.id, req.params.key, b.model));
+    presets.invalidate?.();
+    sse.broadcast('change', { projectId: req.params.id });
+    return r;
+  });
+
+  app.put('/api/projects/:id/steps/:key/skills', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || !Array.isArray(b.skills)) throw badBody('Cần gửi JSON {skills: [đường dẫn]}.');
+    const r = pipelineCall(() => projects.setStepSkills(req.params.id, req.params.key, b.skills));
     presets.invalidate?.();
     sse.broadcast('change', { projectId: req.params.id });
     return r;

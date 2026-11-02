@@ -139,6 +139,61 @@ export function sanitize(raw, library, local, channels = []) {
   return { matches, suggestions, alternatives, tip: str(raw?.tip, 300) };
 }
 
+// Một lượt `claude -p` chỉ đọc, trả structured_output theo schema; web:true mới mở WebSearch/WebFetch. Dùng chung cho tìm skill và gợi ý ý tưởng.
+export function runClaudeJson({ dir, claudeBin = 'claude', env = {}, prompt, schema, web = false, timeoutMs = SEARCH_TIMEOUT_MS, failMessage = 'Trợ lý không trả kết quả tìm kiếm — thử lại.' }) {
+  return new Promise((resolve, reject) => {
+    fs.mkdirSync(dir, { recursive: true });
+    const isScript = /\.(mjs|cjs|js)$/i.test(claudeBin);
+    const argv = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', web ? 'WebSearch,WebFetch' : '', '--json-schema', JSON.stringify(schema), '--no-session-persistence', '--strict-mcp-config'];
+    let result = null;
+    let stderr = '';
+    let done = false;
+    let child;
+    const end = (err, v) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(v);
+    };
+    try {
+      child = spawn(isScript ? process.execPath : claudeBin, isScript ? [claudeBin, ...argv] : argv, { cwd: dir, env: childEnv(env), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
+    } catch (e) {
+      return end(new HttpError(503, 'claude_unavailable', `Không chạy được claude: ${e.message}`));
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* đã thoát */
+      }
+      end(new HttpError(504, 'search_timeout', 'Trợ lý không trả lời kịp — thử lại sau.'));
+    }, timeoutMs);
+    const out = createLineSplitter((line) => {
+      try {
+        const o = JSON.parse(line);
+        if (o?.type === 'result') result = o;
+      } catch {
+        /* dòng không phải JSON */
+      }
+    });
+    child.stdout.on('data', (b) => out.push(b));
+    child.stderr.on('data', (b) => {
+      stderr = (stderr + b.toString('utf8')).slice(-1000);
+    });
+    child.stdin.on('error', () => {});
+    child.on('error', (e) => end(new HttpError(503, 'claude_unavailable', e.code === 'ENOENT' ? 'Không tìm thấy lệnh claude — cài Claude Code trước.' : `Không chạy được claude: ${e.message}`)));
+    child.on('close', () => {
+      out.end();
+      const so = result?.structured_output;
+      if (so && typeof so === 'object' && !result.is_error) return end(null, so);
+      const loggedOut = /not logged in|login/i.test(stderr);
+      end(new HttpError(502, 'search_failed', loggedOut ? 'Claude chưa đăng nhập.' : failMessage));
+    });
+    child.stdin.end(prompt);
+  });
+}
+
 // createSkillSearch({home, claudeBin, env, lib, channels}) → {search({query, web})}. lib = createSkills(...).
 export function createSkillSearch({ home, claudeBin = 'claude', env = {}, lib, channels = () => [], timeoutMs = SEARCH_TIMEOUT_MS, webTimeoutMs = WEB_TIMEOUT_MS }) {
   async function search({ query, web = false } = {}) {
@@ -163,60 +218,7 @@ export function createSkillSearch({ home, claudeBin = 'claude', env = {}, lib, c
     return sanitizeClarify(raw, q, list);
   }
 
-  function ask(prompt, web, schema = SCHEMA) {
-    return new Promise((resolve, reject) => {
-      const dir = path.join(home, 'skill-search');
-      fs.mkdirSync(dir, { recursive: true });
-      const isScript = /\.(mjs|cjs|js)$/i.test(claudeBin);
-      const argv = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', web ? 'WebSearch,WebFetch' : '', '--json-schema', JSON.stringify(schema), '--no-session-persistence', '--strict-mcp-config'];
-      let result = null;
-      let stderr = '';
-      let done = false;
-      let child;
-      const end = (err, v) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        if (err) reject(err);
-        else resolve(v);
-      };
-      try {
-        child = spawn(isScript ? process.execPath : claudeBin, isScript ? [claudeBin, ...argv] : argv, { cwd: dir, env: childEnv(env), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
-      } catch (e) {
-        return end(new HttpError(503, 'claude_unavailable', `Không chạy được claude: ${e.message}`));
-      }
-      const timer = setTimeout(() => {
-        try {
-          child.kill('SIGKILL');
-        } catch {
-          /* đã thoát */
-        }
-        end(new HttpError(504, 'search_timeout', 'Trợ lý không trả lời kịp — thử lại sau.'));
-      }, web ? webTimeoutMs : timeoutMs);
-      const out = createLineSplitter((line) => {
-        try {
-          const o = JSON.parse(line);
-          if (o?.type === 'result') result = o;
-        } catch {
-          /* dòng không phải JSON */
-        }
-      });
-      child.stdout.on('data', (b) => out.push(b));
-      child.stderr.on('data', (b) => {
-        stderr = (stderr + b.toString('utf8')).slice(-1000);
-      });
-      child.stdin.on('error', () => {});
-      child.on('error', (e) => end(new HttpError(503, 'claude_unavailable', e.code === 'ENOENT' ? 'Không tìm thấy lệnh claude — cài Claude Code trước.' : `Không chạy được claude: ${e.message}`)));
-      child.on('close', () => {
-        out.end();
-        const so = result?.structured_output;
-        if (so && typeof so === 'object' && !result.is_error) return end(null, so);
-        const loggedOut = /not logged in|login/i.test(stderr);
-        end(new HttpError(502, 'search_failed', loggedOut ? 'Claude chưa đăng nhập.' : 'Trợ lý không trả kết quả tìm kiếm — thử lại.'));
-      });
-      child.stdin.end(prompt);
-    });
-  }
+  const ask = (prompt, web, schema = SCHEMA) => runClaudeJson({ dir: path.join(home, 'skill-search'), claudeBin, env, prompt, schema, web, timeoutMs: web ? webTimeoutMs : timeoutMs });
 
   return { search, clarify };
 }

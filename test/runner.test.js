@@ -243,6 +243,19 @@ test('buildArgs/buildPrompt: --add-dir và dòng Skill chỉ cho skill có thậ
   assert.ok(!prompt.includes(`Skill: đọc ${missingSkill}`));
 });
 
+test('buildArgs/buildPrompt: skill riêng của bước cộng với skill quy trình, không trùng', () => {
+  const extra = path.join(tmp, 'skills/rieng-buoc');
+  fs.mkdirSync(extra, { recursive: true });
+  const preset = { id: 'p', name: 'P', skills: [skillDir], permissions: {}, steps: [{ key: 'one' }] };
+  const step = { key: 'one', name: 'Một', ord: 0, prompt: 'x', outputs: ['a.md'], skills: [extra, skillDir] };
+  const a = buildArgs({ project: { claude_session_id: 's', session_started: 0 }, preset, step });
+  assert.deepEqual(flagValues(a, '--add-dir'), [skillDir, extra]);
+  const prompt = buildPrompt({ project: { id: 'x', title: 'T', dir: '/d' }, preset, step });
+  assert.ok(prompt.includes(`Skill: đọc ${extra}/SKILL.md`));
+  const other = buildArgs({ project: { claude_session_id: 's', session_started: 0 }, preset, step: { key: 'one', name: 'M', ord: 0, prompt: 'x', outputs: [] } });
+  assert.deepEqual(flagValues(other, '--add-dir'), [skillDir]);
+});
+
 test('buildArgs/buildPrompt: skill của kênh khác bị loại, skill chung và của kênh mình được nạp', () => {
   const chA = path.join(tmp, 'skills/kenh-a');
   const chB = path.join(tmp, 'skills/kenh-b');

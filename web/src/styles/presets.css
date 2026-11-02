@@ -224,3 +224,19 @@ details.yaml pre{margin-top:8px}
 .sk-steps li input[type=text]{width:100%;margin-top:6px}
 .sk-steps li .btn{margin:4px 8px 0 0}
 .sk-find{margin:8px 0;padding-left:18px;font-size:var(--fs-sm);max-height:160px;overflow:auto}
+.sk-pick-add{margin-top:8px}
+
+/* Chat ý tưởng trong "Dự án mới" */
+.idea-chat{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface-3);min-width:0}
+.ic-log{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto}
+.ic-msg{font-size:var(--fs-sm);min-width:0}
+.ic-msg p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.ic-msg.user{align-self:flex-end;max-width:85%;background:var(--accent-soft);border-radius:8px;padding:6px 10px}
+.ic-ideas{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ic-idea{display:flex;flex-direction:column;align-items:flex-start;gap:4px;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;background:var(--surface)}
+.ic-ideas .ic-idea{margin-top:0}
+.ic-idea .hint{margin:0}
+.ic-start{display:flex;gap:8px;flex-wrap:wrap}
+.ic-form{display:flex;gap:8px;align-items:center}
+.ic-form input{flex:1;min-width:0;height:34px}
+.ic-form .btn{flex:none}

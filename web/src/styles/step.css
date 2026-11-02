@@ -9,6 +9,14 @@
 .step-head .acts{justify-content:flex-end}
 .step-head .acts .sel.sm .sel-btn,.step-head .acts .sel .sel-btn{height:34px;padding:0 10px 0 14px;font-size:var(--fs-md);background:var(--surface);box-shadow:var(--shadow);font-weight:500}
 .step-head .acts .sel .sel-btn:hover:not(:disabled){background:var(--surface-2)}
+/* nhóm nút cùng chức năng nằm chung một khung */
+.act-grp{display:inline-flex;flex-wrap:wrap;max-width:100%;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.act-grp .btn,.act-grp .sel .sel-btn,.step-head .acts .act-grp .sel .sel-btn{height:28px;padding:0 12px;border-color:transparent;background:transparent;box-shadow:none}
+.act-grp .sel .sel-btn{padding:0 8px 0 12px}
+.act-grp .btn:hover:not(:disabled),.step-head .acts .act-grp .sel .sel-btn:hover:not(:disabled){background:var(--surface-3)}
+.act-grp .btn.primary,.act-grp .btn.paid{border-color:transparent}
+.act-grp .btn.danger{border-color:transparent}
+.act-grp .btn + .btn,.act-grp .sel + .btn{position:relative}
 .state-tag{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;margin-left:10px;padding:2px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:500;line-height:1.5;white-space:nowrap;
   color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
 .state-tag.s-ready,.state-tag.s-pending,.state-tag.s-stale,.state-tag.s-stopped{color:var(--muted);background:var(--surface-2)}

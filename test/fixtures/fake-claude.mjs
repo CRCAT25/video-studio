@@ -450,6 +450,29 @@ async function skillSearchMode() {
   out({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: so, session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1 } });
 }
 
+// Gợi ý ý tưởng: ghi argv/prompt; mặc định hỏi lại 1 câu, có chữ "ý tưởng" trong tin cuối thì trả 2 thẻ (FAKE_IDEAS = JSON để ép kết quả).
+async function ideasMode() {
+  const prompt = await readStdin();
+  try {
+    fs.appendFileSync(path.join(cwd, '.fake-ideas.jsonl'), JSON.stringify({ argv, prompt }) + '\n');
+  } catch {
+    /* bỏ qua */
+  }
+  if (process.env.FAKE_IDEAS_FAIL) {
+    process.stderr.write('boom\n');
+    process.exitCode = 1;
+    return;
+  }
+  const last = prompt.trim().split('\n').filter((l) => l.startsWith('Người dùng:')).pop() || '';
+  let so = { reply: 'Bạn muốn làm về chủ đề nào?', ideas: [] };
+  if (/ý tưởng|y tuong/i.test(last)) so = { reply: 'Đây là vài ý tưởng.', ideas: [{ title: 'Ý tưởng thử A', why: 'Hợp video đang chạy tốt', viral: 'Gợi tò mò' }, { title: 'Ý tưởng thử B', why: 'Chủ đề gần kênh', viral: 'Có con số' }] };
+  if (/bố cục|bo cuc/i.test(last)) so = { reply: 'Đề xuất bố cục.', ideas: [], steps: ['nghien-cuu', 'khong-co-that', 'kich-ban', 'kich-ban'] };
+  if (process.env.FAKE_IDEAS) so = JSON.parse(process.env.FAKE_IDEAS);
+  const sessionId = uuid();
+  out({ type: 'system', subtype: 'init', session_id: sessionId, model: MODEL, tools: [] });
+  out({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: so, session_id: sessionId, usage: { input_tokens: 2, output_tokens: 1 } });
+}
+
 // Nén bộ não: ghi lại argv/prompt; mặc định giữ mục đầu của mỗi nhánh (FAKE_BRAIN_COMPACT = JSON để ép kết quả).
 async function brainCompactMode() {
   const prompt = await readStdin();
@@ -476,6 +499,7 @@ async function main() {
   if (await doctorCommand()) return;
   if (argv.includes('--mcp-config')) return assistantMode();
   if (argv.includes('--json-schema') && argv.join(' ').includes('"branches"')) return brainCompactMode();
+  if (argv.includes('--json-schema') && argv.join(' ').includes('"ideas"')) return ideasMode();
   if (argv.includes('--json-schema') && argv.includes('--no-session-persistence')) return skillSearchMode();
   if (argv.includes('--no-session-persistence')) return usageCheckMode();
   const scenario = pickScenario();

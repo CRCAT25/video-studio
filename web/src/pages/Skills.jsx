@@ -84,7 +84,7 @@ function PickList({ items, picked, setPicked }) {
 
 // Hộp thoại nhập skill: 3 nguồn (từ máy, dán nội dung, GitHub).
 // initial? = {tab:'github', url} hoặc {tab:'local', names:[...]} khi mở từ gợi ý của tìm kiếm AI (vẫn phải bấm Nhập).
-function ImportModal({ initial = null, onClose, onDone }) {
+export function ImportModal({ initial = null, onClose, onDone }) {
   const t = useT();
   const toast = useToast();
   const [tab, setTab] = useState(initial?.tab || 'local');
@@ -112,7 +112,7 @@ function ImportModal({ initial = null, onClose, onDone }) {
         setPicked(new Set(r.candidates.map((c) => c.name)));
       } else {
         toast(t('Đã nhập: {n}', { n: r.imported.join(', ') }), 'ok');
-        onDone();
+        onDone(r.imported);
         onClose();
       }
     } catch (e) {

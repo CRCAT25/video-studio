@@ -13,6 +13,7 @@ import { createShortTools } from './shorts.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
 import { createSkillSearch } from './skill-search.js';
+import { createIdeas } from './ideas.js';
 import { createDistill } from './distill.js';
 import { createBrain } from './brain.js';
 import { createBrainCompact } from './brain-compact.js';
@@ -20,6 +21,7 @@ import { createClaudeAccount } from './claude-account.js';
 import { createSecretStore } from './keychain.js';
 import { createTts } from './tts.js';
 import { createVieneuWorker, serveVieneuSocket, vieneuSocket } from './vieneu.js';
+import { createVoiceStudio } from './voicestudio.js';
 import { openStore } from './db.js';
 import { runDoctor } from './doctor.js';
 import { expandHome, studioHome } from './paths.js';
@@ -244,6 +246,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
   let closeRef = null;
   let vieneu = null;
   let vieneuSock = null;
+  let voicestudio = null;
+  let stopVsWatch = () => {};
   let backupDir = null;
   // Lệnh `claude auth` không cần (và không được thấy) biến VS_* như token của app.
   const authEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('VS_')));
@@ -296,9 +300,12 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     // VieNeu nạp sẵn dùng chung cho Đọc thử và lệnh studio-tts (qua socket); rảnh 10 phút tự tắt.
     vieneu = createVieneuWorker();
     vieneuSock = serveVieneuSocket(vieneu, vieneuSocket(home));
+    // VoiceStudio: backend do mình bật tự tắt sau 10 phút nhàn rỗi (và khi thoát server).
+    voicestudio = createVoiceStudio({ home });
+    stopVsWatch = voicestudio.watch();
     app = await buildApp({
       store,
-      tts: createTts({ home, secrets: secretStore, vieneu }),
+      tts: createTts({ home, secrets: secretStore, vieneu, voicestudio }),
       updater,
       projects,
       runner,
@@ -311,6 +318,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       claudeFiles: createClaudeFiles({ claudeBin, env: authEnv }),
       usage,
       skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
+      ideas: (deps) => createIdeas({ home, claudeBin, env: authEnv, ...deps }),
       distill: createDistill({ claudeBin, env: authEnv }),
       brain,
       brainCompact: createBrainCompact({ claudeBin, env: authEnv }),
@@ -372,6 +380,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
 
     const close = async () => {
       stopBackups();
+      stopVsWatch();
+      voicestudio.stop();
       vieneu.stop();
       await vieneuSock.close();
       account.dispose();
@@ -397,6 +407,8 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     account.dispose();
     assistant.dispose();
     wizard?.dispose();
+    stopVsWatch();
+    voicestudio?.stop();
     vieneu?.stop();
     await vieneuSock?.close();
     try {

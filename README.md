@@ -220,3 +220,7 @@ gh release create vX.Y.Z --generate-notes
 ## License
 
 [MIT](LICENSE) · [Privacy](PRIVACY.md) · [Design doc](docs/spec.md)
+
+## VoiceStudio (optional TTS provider)
+
+Video Studio can read text aloud through the locally installed VoiceStudio app. It only talks to its HTTP API on `127.0.0.1:3900`; no VoiceStudio code is copied into this repo (VoiceStudio is AGPL-3.0, its OmniVoice model Apache-2.0). The backend is started on demand and stopped after 10 idle minutes (an already-running app is never stopped). Setup: install the app from https://voicestudio.sh/ and open it once (it installs its runtime under `~/Library/Application Support/VoiceStudio/runtime/project`; set `VS_VOICESTUDIO_DIR` if it lives elsewhere), and install ffmpeg (`brew install ffmpeg`). Then add it under "Giọng đọc" → "VoiceStudio".

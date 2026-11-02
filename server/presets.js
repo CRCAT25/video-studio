@@ -16,7 +16,7 @@ const PLACEHOLDER_RE = /(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)*)\}
 const BASE_PLACEHOLDERS = new Set(['slug', 'title', 'feedback', 'skill', 'prev.summary']);
 const FEEDBACK_PREFIX = '\n\nGóp ý của người dùng cho lượt này:\n';
 
-const STEP_KEYS = new Set(['id', 'name', 'prompt', 'outputs', 'checks', 'gate', 'cost', 'resources', 'manual', 'timeout', 'timeout_ms', 'model']);
+const STEP_KEYS = new Set(['id', 'name', 'prompt', 'outputs', 'checks', 'gate', 'cost', 'resources', 'manual', 'timeout', 'timeout_ms', 'model', 'skills']);
 const PRESET_KEYS = new Set(['id', 'name', 'channel', 'format', 'project_dir', 'skills', 'vars', 'permissions', 'defaults', 'steps', 'file', 'yaml']);
 
 // Danh sách thư mục preset theo thứ tự ưu tiên tăng dần: <repo>/presets rồi <home>/presets.
@@ -337,10 +337,17 @@ export function validatePreset(raw, file) {
         if (typeof s.model === 'string' && /^[A-Za-z0-9._\[\]-]{1,64}$/.test(s.model)) model = s.model;
         else bad(`${label}: model ${show(s.model)} không hợp lệ (ví dụ opus, sonnet, haiku).`);
       }
+      // skills: thư mục skill chỉ dùng cho bước này (cộng với skill của cả quy trình)
+      let stepSkills;
+      if (s.skills != null) {
+        if (!Array.isArray(s.skills) || s.skills.some((x) => !nonEmpty(x))) bad(`${label}: "skills" phải là danh sách đường dẫn.`);
+        else if (s.skills.length) stepSkills = s.skills.map((x) => path.resolve(baseDir, expandHome(x.trim())));
+      }
       steps.push({
         ...pick(s, STEP_KEYS),
         key, name, ord: i, prompt, outputs, checks, gate, cost, resources, manual, timeout_ms,
         ...(model ? { model } : {}),
+        ...(stepSkills ? { skills: stepSkills } : {}),
       });
     });
   }

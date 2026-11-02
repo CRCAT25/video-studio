@@ -14,12 +14,27 @@ const BLANK = {
   elevenlabs: { kind: 'elevenlabs', name: 'ElevenLabs', voice: '', model: 'eleven_multilingual_v2' },
   http: { kind: 'http', name: '', voice: '', http: { url: '', method: 'POST', headers: { Authorization: 'Bearer {key}' }, body: '{"text":"{text}","voice":"{voice}"}', response: 'audio', jsonPath: '' } },
   command: { kind: 'command', name: '', voice: '', command: '' },
+  voicestudio: { kind: 'voicestudio', name: 'VoiceStudio', voice: 'male, middle-aged, moderate pitch', fx: { pitch: 0, tempo: 1, echo: 0, dark: false } },
 };
 
 // Nhãn loại dịch vụ hiện trên thẻ.
-const KIND_LABEL = { elevenlabs: () => 'ElevenLabs', http: (t) => t('API tự định nghĩa'), command: (t) => t('Lệnh trên máy'), vieneu: (t) => t('Miễn phí, chạy trên máy') };
+// Thuộc tính giọng VoiceStudio hiểu (mỗi nhóm chọn một); voice lưu dạng "male, middle-aged, low pitch".
+const VS_ATTRS = [
+  { key: 'gender', label: 'Giới tính', options: [['male', 'Nam'], ['female', 'Nữ']] },
+  { key: 'age', label: 'Độ tuổi', options: [['child', 'Trẻ em (dưới 13 tuổi)'], ['teenager', 'Thiếu niên (13–19 tuổi)'], ['young adult', 'Thanh niên (20–35 tuổi)'], ['middle-aged', 'Trung niên (36–55 tuổi)'], ['elderly', 'Lớn tuổi (trên 55 tuổi)']] },
+  { key: 'pitch', label: 'Độ cao giọng', options: [['very low pitch', 'Rất trầm'], ['low pitch', 'Trầm'], ['moderate pitch', 'Vừa'], ['high pitch', 'Cao'], ['very high pitch', 'Rất cao']] },
+];
+const vsParts = (voice = '') => {
+  const tokens = voice.split(',').map((x) => x.trim().toLowerCase());
+  const out = { whisper: tokens.includes('whisper') ? 'whisper' : '' };
+  for (const a of VS_ATTRS) out[a.key] = a.options.map((o) => o[0]).find((o) => tokens.includes(o)) || '';
+  return out;
+};
+const FX_SLIDERS = [['pitch', 'Trầm / cao', -6, 3, 0.5], ['tempo', 'Tốc độ', 0.7, 1.3, 0.05], ['echo', 'Vang', 0, 1, 0.05]];
+const vsJoin = (o) => [o.gender, o.age, o.pitch, o.whisper].filter(Boolean).join(', ');
+const KIND_LABEL = { elevenlabs: () => 'ElevenLabs', http: (t) => t('API tự định nghĩa'), command: (t) => t('Lệnh trên máy'), vieneu: (t) => t('Miễn phí, chạy trên máy'), voicestudio: (t) => t('VoiceStudio · miễn phí, chạy trên máy') };
 
-function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
+function Editor({ init, vieneuVoices = [], vs = { available: true, voices: [] }, onClose, onSaved }) {
   const t = useT();
   const toast = useToast();
   const isNew = !init.id;
@@ -59,7 +74,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
     setErr(null);
     setSample(null);
     try {
-      setSample(await api.ttsSample({ id: init.id || null, key, voice: p.voice }));
+      setSample(await api.ttsSample({ id: init.id || null, key, voice: p.voice, kind: p.kind, fx: p.kind === 'voicestudio' ? p.fx : undefined }));
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -76,6 +91,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
     })
     .sort((x, y) => (y.l.code === 'vi') - (x.l.code === 'vi') || x.o.group.localeCompare(y.o.group))
     .map((x) => x.o);
+  const fx = { pitch: 0, tempo: 1, echo: 0, dark: false, ...p.fx };
   const set = (patch) => {
     setErr(null);
     setP((x) => ({ ...x, ...patch }));
@@ -87,7 +103,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
     setBusy(true);
     setErr(null);
     try {
-      await api.ttsSave({ provider: { ...p, price: p.kind === 'elevenlabs' ? { perChar: 1, label: 'credit' } : p.kind === 'vieneu' ? { perChar: 0, label: '' } : { perChar: Number(price) || 0, label: '' } }, key: key === '' ? undefined : key, makeDefault: isNew });
+      await api.ttsSave({ provider: { ...p, price: p.kind === 'elevenlabs' ? { perChar: 1, label: 'credit' } : p.kind === 'vieneu' || p.kind === 'voicestudio' ? { perChar: 0, label: '' } : { perChar: Number(price) || 0, label: '' } }, key: key === '' ? undefined : key, makeDefault: isNew });
       toast(t('Đã lưu giọng đọc.'), 'ok');
       onSaved();
     } catch (e2) {
@@ -97,7 +113,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
   };
   return (
     <Modal title={isNew ? t('Thêm giọng đọc') : t('Sửa giọng đọc')} onClose={onClose} busy={busy} wide>
-      <p className="lead">{p.kind === 'elevenlabs' ? t('Kết nối ElevenLabs để trợ lý đọc lời dẫn bằng giọng bạn chọn.') : p.kind === 'vieneu' ? t('Giọng tiếng Việt miễn phí chạy ngay trên máy — dùng khi chưa duyệt chi phí giọng trả phí.') : p.kind === 'http' ? t('Kết nối dịch vụ giọng đọc qua API HTTP.') : t('Kết nối công cụ giọng đọc chạy trên máy bạn.')}</p>
+      <p className="lead">{p.kind === 'elevenlabs' ? t('Kết nối ElevenLabs để trợ lý đọc lời dẫn bằng giọng bạn chọn.') : p.kind === 'vieneu' ? t('Giọng tiếng Việt miễn phí chạy ngay trên máy — dùng khi chưa duyệt chi phí giọng trả phí.') : p.kind === 'voicestudio' ? t('Giọng đọc miễn phí, chạy trên máy.') : p.kind === 'http' ? t('Kết nối dịch vụ giọng đọc qua API HTTP.') : t('Kết nối công cụ giọng đọc chạy trên máy bạn.')}</p>
       <form onSubmit={save} noValidate>
         <label className="fld">
           <span className="fld-l">{t('Tên gọi')}<Req /></span>
@@ -147,7 +163,7 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
             <span className="hint">{t('{in} = file văn bản, {out} = file âm thanh cần ghi, {voice} = giọng. Khóa API (nếu có) được truyền qua biến môi trường TTS_KEY.')}</span>
           </label>
         ) : null}
-        {p.kind !== 'command' && p.kind !== 'vieneu' ? (
+        {p.kind !== 'command' && p.kind !== 'vieneu' && p.kind !== 'voicestudio' ? (
           <label className="fld">
             <span className="fld-l">{t('Khóa API')}</span>
             <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} onBlur={() => { if (p.kind === 'elevenlabs' && key.trim()) loadVoices(); }} placeholder={init.hasKey ? t('Đã lưu — để trống để giữ nguyên') : ''} aria-label={t('Khóa API')} disabled={busy} />
@@ -175,19 +191,58 @@ function Editor({ init, vieneuVoices = [], onClose, onSaved }) {
             ) : null}
           </div>
         ) : null}
+        {p.kind === 'voicestudio' ? (
+          <>
+            {!vs.available ? <div className="err-note" role="alert">{t('Chưa cài app VoiceStudio.')} <a href="https://voicestudio.sh/" target="_blank" rel="noopener noreferrer">voicestudio.sh</a></div> : null}
+            <div className="fld">
+              <span className="fld-l">{t('Chủ đề')}</span>
+              <Select value={(vs.themes || []).find((x) => x.voice === p.voice && JSON.stringify(x.fx) === JSON.stringify(p.fx))?.id || ''} onChange={(v) => { const th = (vs.themes || []).find((x) => x.id === v); if (th) set({ voice: th.voice, fx: th.fx }); }} disabled={busy} label={t('Chủ đề')} options={[{ value: '', label: t('Tùy chỉnh') }, ...(vs.themes || []).map((x) => ({ value: x.id, label: t(x.name) }))]} />
+            </div>
+            {VS_ATTRS.map((a) => (
+              <div className="fld" key={a.key}>
+                <span className="fld-l">{t(a.label)}</span>
+                <Select value={vsParts(p.voice)[a.key]} onChange={(v) => set({ voice: vsJoin({ ...vsParts(p.voice), [a.key]: v }) })} disabled={busy} label={t(a.label)} options={[{ value: '', label: t('Tự động') }, ...a.options.map(([value, label]) => ({ value, label: t(label) }))]} />
+              </div>
+            ))}
+            <div className="fld">
+              <label className="chk">
+                <input type="checkbox" checked={vsParts(p.voice).whisper === 'whisper'} disabled={busy} onChange={(e) => set({ voice: vsJoin({ ...vsParts(p.voice), whisper: e.target.checked ? 'whisper' : '' }) })} />
+                <span>{t('Giọng thì thầm')}</span>
+              </label>
+            </div>
+            {FX_SLIDERS.map(([k, label, min, max, step]) => (
+              <div className="fld" key={k}>
+                <span className="fld-l">{t(label)}</span>
+                <input type="range" className="fx-range" min={min} max={max} step={step} value={fx[k]} disabled={busy} aria-label={t(label)} onChange={(e) => set({ fx: { ...fx, [k]: Number(e.target.value) } })} />
+              </div>
+            ))}
+            <div className="fld">
+              <label className="chk">
+                <input type="checkbox" checked={fx.dark} disabled={busy} onChange={(e) => set({ fx: { ...fx, dark: e.target.checked } })} />
+                <span>{t('Giọng ngột ngạt')}</span>
+              </label>
+              <div className="tts-more">
+              <button type="button" className="btn sm" onClick={readSample} disabled={busy || sampling || !vs.available}>{sampling ? t('Đang đọc…') : t('Nghe thử giọng này')}</button>
+              {sample ? <audio className="tts-audio" controls autoPlay src={sample.audio} /> : null}
+            </div>
+            </div>
+          </>
+        ) : null}
         {p.kind === 'vieneu' ? (
           <div className="fld">
             <span className="fld-l">{t('Chọn giọng')}</span>
             <Select value={p.voice} onChange={(v) => set({ voice: v })} disabled={busy} label={t('Chọn giọng')} options={vieneuVoices.map((v) => ({ value: v.id, label: v.name, meta: v.desc }))} />
           </div>
-        ) : (
+        ) : p.kind === 'voicestudio' ? null : (
           <label className="fld">
             <span className="fld-l">{p.kind === 'elevenlabs' ? t('ID giọng') : t('Giọng mặc định')}{p.kind === 'elevenlabs' ? <Req /> : null}</span>
             <input type="text" value={p.voice} onChange={(e) => set({ voice: e.target.value })} aria-label={t('Giọng')} disabled={busy} />
             {p.kind === 'elevenlabs' ? <span className="hint">{t('Tự điền khi bạn chọn giọng ở trên. Cũng có thể dán ID giọng khác.')}</span> : null}
           </label>
         )}
-        {p.kind === 'vieneu' ? (
+        {p.kind === 'voicestudio' ? (
+          <p className="note tts-cost">{t('Miễn phí · đọc chậm, khoảng 3 phút cho 30 giây âm thanh.')}</p>
+        ) : p.kind === 'vieneu' ? (
           <p className="note tts-cost">{t('Không tốn phí. Lần đầu chạy sẽ tải mô hình (vài trăm MB), các lần sau đọc nhanh.')}</p>
         ) : p.kind === 'elevenlabs' ? (
           <p className="note tts-cost">{t('Chi phí do ElevenLabs quy định: 1 credit cho mỗi ký tự đọc. Bước dùng giọng đọc luôn hỏi bạn duyệt chi phí trước khi chạy.')}</p>
@@ -351,14 +406,14 @@ export default function TTS() {
                       </th>
                       <td>
                         {p.kind === 'elevenlabs' && p.hasKey ? <Perms i={info[p.id]} onRetry={() => checkKey(p.id)} />
-                          : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : p.kind === 'vieneu' ? t('Không cần khóa') : t('Không áp dụng')}</p>}
+                          : <p className="note">{p.kind === 'elevenlabs' ? t('Chưa có khóa') : p.kind === 'vieneu' || p.kind === 'voicestudio' ? t('Không cần khóa') : t('Không áp dụng')}</p>}
                       </td>
                       <td><Plan p={p} i={info[p.id]} /></td>
                       <td className="tts-c-act">
                         <RowMenu
                           label={t('Thao tác với giọng đọc {n}', { n: p.name })}
                           items={[
-                            { label: testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : t('Đang đọc…'), onClick: () => test(p.id), disabled: testing === p.id, ai: p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined },
+                            { label: testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : p.kind === 'voicestudio' ? t('Đang đọc… (VoiceStudio đọc chậm, ~1–2 phút)') : t('Đang đọc…'), onClick: () => test(p.id), disabled: testing === p.id, ai: p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined },
                             ...(data.default !== p.id ? [{ label: t('Đặt mặc định'), onClick: () => act(() => api.ttsDefault(p.id)) }] : []),
                             { label: t('Sửa'), onClick: () => setEdit(p) },
                             ...(p.builtin ? [] : [{ sep: true }, { label: t('Xóa'), onClick: () => setRemoving(p), danger: true }]),
@@ -387,6 +442,7 @@ export default function TTS() {
         <Modal title={t('Bạn muốn dùng dịch vụ nào?')} onClose={() => setKindPick(false)}>
           <div className="sk-steps tts-kinds">
             <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.elevenlabs); }}>ElevenLabs</button>
+            <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.voicestudio); }}>{t('VoiceStudio (miễn phí, chạy trên máy)')}</button>
             <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.http); }}>{t('Dịch vụ khác có API (nâng cao)')}</button>
             <button type="button" className="btn" onClick={() => { setKindPick(false); setEdit(BLANK.command); }}>{t('Lệnh có sẵn trên máy (nâng cao)')}</button>
           </div>
@@ -405,7 +461,7 @@ export default function TTS() {
           onClose={() => setRemoving(null)}
         />
       ) : null}
-      {edit ? <Editor key={edit.id || edit.kind} init={edit} vieneuVoices={data?.vieneuVoices} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} /> : null}
+      {edit ? <Editor key={edit.id || edit.kind} init={edit} vieneuVoices={data?.vieneuVoices} vs={data?.voicestudio} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} /> : null}
     </>
   );
 }

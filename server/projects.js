@@ -169,6 +169,7 @@ export function createProjects({ store, presets, channels, home, trashDir = path
       has_cost: !!ps?.cost,
       manual: !!ps?.manual,
       model: ps?.model ?? '',
+      skills: ps?.skills ?? [],
     };
     if (withOutputs) out.outputs = (ps?.outputs ?? []).map((o) => renderTemplate(o, tplCtx(p, preset)));
     out.run = runSummary(store.latestRunByStep(s.id));
@@ -828,6 +829,37 @@ export function createProjects({ store, presets, channels, home, trashDir = path
     return { ok: true, model: m };
   }
 
+  // Skill riêng của một bước (lưu trong bản chụp quy trình của dự án); rỗng = bỏ hết.
+  function setStepSkills(id, key, skills) {
+    const p = store.getProject(id);
+    if (!p) throw new HttpError(404, 'not_found', `Không tìm thấy dự án "${id}".`);
+    let raw = null;
+    try {
+      raw = p.pipeline ? JSON.parse(p.pipeline) : null;
+    } catch {
+      raw = null;
+    }
+    if (!raw) {
+      const preset = presetFor(p);
+      if (!preset) throw new HttpError(409, 'preset_not_found', 'Dự án không còn quy trình để gắn skill.');
+      raw = JSON.parse(JSON.stringify(preset));
+      delete raw.yaml;
+      delete raw.file;
+    }
+    const st = (raw.steps ?? []).find((x) => (x.id ?? x.key) === key);
+    if (!st) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${key}" trong quy trình.`);
+    const list = [...new Set((Array.isArray(skills) ? skills : []).map((x) => String(x ?? '').trim()).filter(Boolean))];
+    if (list.length) st.skills = list;
+    else delete st.skills;
+    try {
+      validatePreset(raw);
+    } catch (e) {
+      throw new HttpError(400, 'invalid_skills', e.message);
+    }
+    store.updateProject(id, { pipeline: JSON.stringify(raw) });
+    return { ok: true, skills: list };
+  }
+
   // Dữ liệu cho lượt tạo skill. scope 'step': một bước đã xong. scope 'project': mọi bước đã xong từ bước đầu tới bước `key`
   // (prompt mẫu, file đầu ra gộp mọi lượt, góp ý) — dùng để tạo/cập nhật skill cả dự án.
   function distillSource(id, key, scope = 'step') {
@@ -1007,6 +1039,7 @@ export function createProjects({ store, presets, channels, home, trashDir = path
     presetOf,
     grantPermission,
     setStepModel,
+    setStepSkills,
     pipelineOf,
     updatePipeline,
     distillSource,

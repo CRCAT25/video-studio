@@ -1497,3 +1497,24 @@ test('DELETE /api/projects/:id: cần JSON, trash → thư mục vào Thùng rá
   assert.equal((await req({ method: 'GET', url: `/api/projects/${p.id}` })).statusCode, 404);
   assert.equal((await req({ method: 'DELETE', url: `/api/projects/${p.id}`, payload: {} })).statusCode, 404);
 });
+
+test('PUT /api/projects/:id/steps/:key/skills: gắn, đọc lại ở bước, bỏ hết; bước lạ → 404', async () => {
+  await makeApp();
+  const p = await createProject('Skill bước');
+  const key = p.steps[0].key;
+  const dir = path.join(tmp, 'sk-buoc');
+  fs.mkdirSync(dir);
+  const put = (k, skills) => req({ method: 'PUT', url: `/api/projects/${p.id}/steps/${k}/skills`, payload: { skills } });
+  let r = await put(key, [dir, dir]);
+  assert.equal(r.statusCode, 200, r.body);
+  assert.deepEqual(r.json().skills, [dir]);
+  let v = (await req({ url: `/api/projects/${p.id}` })).json();
+  assert.deepEqual(v.steps[0].skills, [dir]);
+  assert.deepEqual(v.steps[1].skills, []);
+  r = await put(key, []);
+  assert.equal(r.statusCode, 200);
+  v = (await req({ url: `/api/projects/${p.id}` })).json();
+  assert.deepEqual(v.steps[0].skills, []);
+  assert.equal((await put('khong-co', [dir])).statusCode, 404);
+  assert.equal((await req({ method: 'PUT', url: `/api/projects/${p.id}/steps/${key}/skills`, payload: { skills: 'x' } })).statusCode, 400);
+});

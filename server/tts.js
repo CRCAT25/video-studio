@@ -6,11 +6,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VIENEU_SCRIPT } from './vieneu.js';
+import { VOICESTUDIO_THEMES, VOICESTUDIO_VOICES, cleanFx } from './voicestudio.js';
 
 // Danh sách giọng gợi ý đi kèm app (giọng có sẵn của ElevenLabs + giọng tiếng Việt); không chứa khóa API.
 const BUNDLED_VOICES = fileURLToPath(new URL('./tts-voices.json', import.meta.url));
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
-const KINDS = new Set(['elevenlabs', 'http', 'command', 'vieneu']);
+const KINDS = new Set(['elevenlabs', 'http', 'command', 'vieneu', 'voicestudio']);
 // Giọng VieNeu có sẵn (tên preset của thư viện vieneu); giọng đầu là mặc định.
 export const VIENEU_VOICES = [
   ['Thiện Minh', 'Nam · Bắc · kể chuyện'], ['Ngọc Linh', 'Nữ · Bắc · kể chuyện'], ['Thiền Tâm Đức', 'Nam · Bắc · kể chuyện'], ['Thanh Bình', 'Nam · Bắc · kể chuyện'],
@@ -85,6 +86,9 @@ function cleanProvider(p) {
     o.model = String(p.model || 'eleven_multilingual_v2').trim().slice(0, 60);
   } else if (kind === 'vieneu') {
     o.voice = o.voice || VIENEU_VOICES[0].id;
+  } else if (kind === 'voicestudio') {
+    o.voice = o.voice || VOICESTUDIO_VOICES[2].id;
+    o.fx = cleanFx(p.fx);
   } else if (kind === 'http') {
     const h = p.http || {};
     let u;
@@ -108,9 +112,10 @@ function cleanProvider(p) {
   return o;
 }
 
+// voicestudio: createVoiceStudio() của server/voicestudio.js (bật backend VoiceStudio khi cần).
 // vieneu: { run({text, out, voice}), isWarm?() } — tiến trình VieNeu nạp sẵn (server) hoặc nhờ server qua socket (studio-tts);
 // run trả null = không có ai nhận → chạy một lần như cũ (nạp model mỗi lần).
-export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(...a), timeoutMs = TIMEOUT_MS, vieneu = null } = {}) {
+export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(...a), timeoutMs = TIMEOUT_MS, vieneu = null, voicestudio = null } = {}) {
   const file = path.join(home, 'tts.json');
   const read = () => {
     try {
@@ -137,7 +142,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
       // Chỉ lộ 4 ký tự cuối để phân biệt các khóa cùng dịch vụ.
       providers.push({ ...p, hasKey: !!k, keyHint: k && k.length > 12 ? k.slice(-4) : '' });
     }
-    return { default: c.providers.some((p) => p.id === c.default) ? c.default : providers[0]?.id ?? null, providers, vieneuVoices: VIENEU_VOICES, vieneuWarm: warm() };
+    return { default: c.providers.some((p) => p.id === c.default) ? c.default : providers[0]?.id ?? null, providers, vieneuVoices: VIENEU_VOICES, vieneuWarm: warm(), voicestudio: { available: !!voicestudio?.available(), voices: VOICESTUDIO_VOICES, themes: VOICESTUDIO_THEMES } };
   }
 
   // key: undefined = giữ khóa cũ; '' = xóa khóa; chuỗi = đặt khóa mới.
@@ -290,6 +295,10 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     fs.mkdirSync(path.dirname(out), { recursive: true });
     if (p.kind === 'vieneu') {
       await runVieneu(body, out, v);
+    } else if (p.kind === 'voicestudio') {
+      if (!voicestudio) throw fail(503, 'no_voicestudio', 'VoiceStudio chưa bật trên server này.');
+      // đoạn ngắn ~300 ký tự: mỗi lần gọi API chỉ vài chục giây (VoiceStudio đọc chậm hơn thời gian thực)
+      await voicestudio.run({ parts: chunkText(body, 300), out, voice: v, fx: p.fx });
     } else if (p.kind === 'command') {
       await runCommand(p, body, out, v, key);
     } else {
@@ -363,7 +372,20 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
   }
 
   // Đọc thử một câu ngắn với giọng/khóa đang nhập (chưa lưu) — trả mp3 dạng buffer + chi phí ước tính.
-  async function sample({ id = null, key = '', voice = '', text = '' } = {}) {
+  async function sample({ id = null, key = '', voice = '', text = '', kind = '', fx } = {}) {
+    if (kind === 'voicestudio') {
+      // VoiceStudio miễn phí: đọc ngay giọng đang chọn trong hộp thoại, chưa cần lưu
+      if (!voicestudio) throw fail(503, 'no_voicestudio', 'Chưa cài app VoiceStudio.');
+      const body = String(text || 'Xin chào, đây là giọng đọc thử.').trim().slice(0, 120);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-sample-'));
+      try {
+        const out = path.join(dir, 'sample.mp3');
+        await voicestudio.run({ parts: [body], out, voice: voice || VOICESTUDIO_VOICES[2].id, fx });
+        return { audio: fs.readFileSync(out), chars: body.length, cost: 0, label: '' };
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
     const k = checkKey(key) || (id ? await keyOf(id) : null);
     if (!voice) throw fail(400, 'no_voice', 'Hãy chọn giọng trước.');
     const body = String(text || 'Xin chào, đây là giọng đọc thử.').trim().slice(0, 120);
@@ -393,11 +415,11 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     }
     const card = async (p) => {
       if (!p) return null;
-      const known = p.kind === 'vieneu' ? VIENEU_VOICES.find((v) => v.id === p.voice) : bundled.find((v) => v.id === p.voice);
+      const known = p.kind === 'vieneu' ? VIENEU_VOICES.find((v) => v.id === p.voice) : p.kind === 'voicestudio' ? VOICESTUDIO_VOICES.find((v) => v.id === p.voice) : bundled.find((v) => v.id === p.voice);
       return {
         id: p.id, name: p.name, kind: p.kind, voice: p.voice || '', voiceName: (known?.name || '').trim(), desc: known?.desc || '',
-        preview: p.kind === 'vieneu' ? '' : known?.preview || '', perChar: p.price?.perChar ?? 0, label: p.price?.label || '',
-        hasKey: p.kind === 'vieneu' || p.kind === 'command' ? true : !!(await keyOf(p.id)),
+        preview: p.kind === 'vieneu' || p.kind === 'voicestudio' ? '' : known?.preview || '', perChar: p.price?.perChar ?? 0, label: p.price?.label || '',
+        hasKey: p.kind === 'vieneu' || p.kind === 'voicestudio' || p.kind === 'command' ? true : !!(await keyOf(p.id)),
         ...(p.kind === 'vieneu' ? { warm: warm() } : {}),
       };
     };

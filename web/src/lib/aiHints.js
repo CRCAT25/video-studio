@@ -8,7 +8,7 @@ export const HINTS = {
   },
   'new-project': {
     title: 'Hộp "Dự án mới"',
-    text: 'Phần 1 chọn khung: tab "Gợi ý theo định dạng" (độ dài, chiều khung…) hoặc "Quy trình đã lưu", rồi "Tiếp tục". Phần 2: "Tiêu đề video" bắt buộc; "Kênh" là combobox; Skills chỉ nạp skill được tick; "Tham khảo video" tùy chọn. Tạo dự án chưa tốn token — các bước chỉ chạy khi bấm "Chạy" ở từng bước.',
+    text: 'Một màn hình: chọn "Đã có, tôi tự nhập" hoặc "Cùng trợ lý AI tìm ý tưởng" (chat nhỏ gợi ý ý tưởng theo video đã đăng của kênh, bấm "Dùng ý tưởng này" để điền tiêu đề; "Áp dụng" để dùng bố cục bước đề xuất). "Tiêu đề video" bắt buộc; "Kênh" là combobox. Mục thu gọn "Tùy chỉnh quy trình" chứa định dạng, các bước, Skills (có nút "+ Thêm skill"), tham khảo video và tùy chọn nâng cao. Tạo dự án chưa tốn token — các bước chỉ chạy khi bấm "Chạy" ở từng bước.',
   },
   'step-actions': {
     title: 'Nút của bước',

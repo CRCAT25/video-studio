@@ -262,10 +262,10 @@ async function main() {
       await page.locator(`.step-head h1 .state-tag.s-${st}`).waitFor({ timeout });
     };
     // > button: bỏ qua nút của ô chọn Model (Select) đứng trước
-    const mainBtn = () => page.locator('.step-head .acts > button').first();
+    const mainBtn = () => page.locator('.step-head .acts .act-run > button').first();
     // bước đã chạy: "Chạy lại" mở hộp xác nhận trước
     const rerun = async () => {
-      await page.locator('.step-head .acts > button', { hasText: /^Chạy lại$/ }).click();
+      await page.locator('.step-head .acts .act-run > button', { hasText: /^Chạy lại$/ }).click();
       await page.locator('.modal', { hasText: 'Chạy lại "' }).getByRole('button', { name: 'Chạy lại', exact: true }).click();
     };
     // Chờ bước có thêm lượt mới (so với `before`) và lượt đó đã kết thúc, rồi chờ UI hiện trạng thái `st`.
@@ -349,17 +349,21 @@ async function main() {
       return '28 lần Tab trong hộp';
     });
 
-    await check('Tạo dự án qua modal: chọn quy trình đã lưu e2e-short → Tiếp tục', async () => {
+    await check('Tạo dự án qua modal: màn đầu gọn, chọn quy trình đã lưu e2e-short trong Tùy chỉnh', async () => {
       await page.getByRole('button', { name: /Dự án mới/ }).first().click();
       const modal = page.locator('.modal[role="dialog"]');
       await modal.waitFor();
+      // màn đầu chỉ có câu hỏi ý tưởng + Kênh + Tiêu đề; phần quy trình thu gọn
+      await modal.getByText('Bạn đã có ý tưởng cho dự án này chưa?').waitFor();
+      assert(!(await modal.locator('details.adv').first().evaluate((d) => d.open)), 'Tùy chỉnh quy trình phải thu gọn');
+      assert((await modal.getByRole('button', { name: 'Tiếp tục' }).count()) === 0, 'không còn nút Tiếp tục');
+      await modal.locator('details.adv > summary').first().click();
       await modal.getByRole('tab', { name: /Quy trình đã lưu/ }).click();
       await modal.locator('.saved-item', { hasText: 'E2E short' }).click();
       await modal.locator('.fld.prev:not(.sk-zone)').waitFor();
       await shot('new-project-pick');
-      await modal.getByRole('button', { name: 'Tiếp tục' }).click();
       await modal.locator('input[data-autofocus]').fill(TITLE);
-      await modal.locator('details.adv summary').click();
+      await modal.locator('details.adv details.adv > summary').click();
       const slug = await modal.getByLabel('Slug').inputValue();
       assert(slug === SLUG, `slug tự sinh = ${slug}`);
       const dir = await modal.locator('.dirprev').innerText();
@@ -1167,10 +1171,10 @@ async function main() {
       await page.getByRole('button', { name: /Dự án mới/ }).first().click();
       const modal = page.locator('.modal[role="dialog"]');
       await modal.waitFor();
+      await modal.locator('details.adv > summary').first().click();
       await modal.getByRole('tab', { name: /Quy trình đã lưu/ }).click();
       await modal.locator('.saved-item', { hasText: 'E2E short' }).click();
       await modal.locator('.fld.prev:not(.sk-zone)').waitFor();
-      await modal.getByRole('button', { name: 'Tiếp tục' }).click();
       const title = modal.locator('input[data-autofocus]');
       assert((await title.getAttribute('aria-required')) === 'true', 'tiêu đề thiếu aria-required');
       const star = modal.locator('.fld > span .req').first();
@@ -1178,7 +1182,7 @@ async function main() {
       const color = await star.evaluate((e) => getComputedStyle(e).color);
       assert(/^rgb/.test(color) && !color.startsWith('rgb(0, 0, 0'), `màu dấu *: ${color}`);
       await title.fill('Tham khảo e2e');
-      await modal.locator('details.adv summary').click();
+      await modal.locator('details.adv details.adv > summary').click();
       await modal.getByLabel(/Dùng thư mục khác/).check();
       assert((await modal.locator('input[placeholder*="du-an-cu"]').count()) === 0, 'vẫn còn ô gõ đường dẫn');
       await modal.getByRole('button', { name: 'Chọn thư mục…' }).click();
@@ -1201,6 +1205,40 @@ async function main() {
       assert(fs.existsSync(md), 'thiếu .studio/reference.md');
       assert(fs.readFileSync(md, 'utf8').includes('Video một'), 'reference.md thiếu tiêu đề video');
       return 'reference.md có mặt';
+    });
+    await check('Dự án mới: chat ý tưởng → Dùng ý tưởng điền tiêu đề; đề xuất bố cục → Áp dụng; + Thêm skill mở hộp Nhập skill', async () => {
+      await page.goto(`${base}/#/`);
+      await page.getByRole('button', { name: /Dự án mới/ }).first().click();
+      const modal = page.locator('.modal[role="dialog"]').first();
+      await modal.waitFor();
+      await modal.getByRole('tab', { name: /Cùng trợ lý AI tìm ý tưởng/ }).click();
+      const chat = modal.locator('.idea-chat');
+      await chat.waitFor();
+      await chat.getByRole('button', { name: 'Gợi ý ý tưởng hợp với kênh' }).click();
+      await chat.locator('.ic-idea', { hasText: 'Ý tưởng thử A' }).waitFor();
+      await chat.locator('.ic-idea', { hasText: 'Ý tưởng thử A' }).getByRole('button', { name: 'Dùng ý tưởng này' }).click();
+      const v = await modal.locator('input[data-autofocus]').inputValue();
+      assert(v === 'Ý tưởng thử A', `tiêu đề = ${v}`);
+      await chat.getByLabel('Nhắn cho trợ lý').fill('đề xuất bố cục giúp tôi');
+      await chat.getByRole('button', { name: 'Gửi', exact: true }).click();
+      await chat.locator('.ic-msg.assistant').nth(1).waitFor({ timeout: 8000 }).catch(async () => { throw new Error(`chat: ${(await chat.innerText()).replace(/\n+/g, ' / ')} · form disabled=${await chat.locator('.ic-form input').isDisabled()}`); });
+      await page.waitForTimeout(500);
+      assert((await chat.getByRole('button', { name: 'Áp dụng', exact: true }).count()) === 1, `chat: ${(await chat.innerText()).replace(/\n+/g, ' / ')}`);
+      await chat.getByRole('button', { name: 'Áp dụng', exact: true }).click();
+      await modal.locator('details.adv > summary').first().waitFor();
+      const open = await modal.locator('details.adv').first().evaluate((d) => d.open);
+      assert(open, 'áp bố cục phải mở Tùy chỉnh quy trình');
+      const firstStep = await modal.locator('.se-name').first().inputValue();
+      assert(firstStep.length > 0, 'chưa có bước nào');
+      await shot('new-project-idea-chat');
+      await modal.getByRole('button', { name: /Thêm skill/ }).click();
+      const imp = page.getByRole('dialog', { name: 'Nhập skill' });
+      await imp.waitFor();
+      await imp.getByRole('button', { name: 'Hủy', exact: true }).click();
+      await imp.waitFor({ state: 'detached' });
+      await modal.getByRole('button', { name: 'Hủy', exact: true }).click();
+      await modal.waitFor({ state: 'detached' });
+      return 'chat + áp dụng + thêm skill';
     });
     await check('Kênh: Xóa kênh cần xác nhận → thu hồi token, về trang trống; xóa thiết lập được', async () => {
       await page.goto(`${base}/${ytHash}`);
