@@ -250,7 +250,7 @@ export function createProjects({ store, presets, channels, home, trashDir = path
   }
 
   // Tạo dự án mới (§6 create) từ quy trình gửi lên hoặc quy trình đã lưu; trả ProjectView hoặc throw HttpError 400/404/409.
-  function create({ presetId, pipeline, channelId, title, slug, dir, referenceMd } = {}) {
+  function create({ presetId, pipeline, channelId, title, slug, dir, referenceMd, referenceCopy } = {}) {
     const { preset, snapshot } = resolvePipeline(presetId, pipeline);
     let channel = preset.channel ?? null;
     if (channelId != null && channelId !== '') {
@@ -326,6 +326,13 @@ export function createProjects({ store, presets, channels, home, trashDir = path
         fs.writeFileSync(path.join(abs, '.studio', 'reference.md'), referenceMd);
       } catch {
         /* không ghi được thì bỏ qua: tham khảo chỉ là phần thêm */
+      }
+    }
+    if (typeof referenceCopy === 'function') {
+      try {
+        referenceCopy(path.join(abs, '.studio', 'reference'));
+      } catch {
+        /* không chép được khung hình thì vẫn còn reference.md */
       }
     }
     writeSnapshot(id);

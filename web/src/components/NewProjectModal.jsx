@@ -7,6 +7,7 @@ import FormatPicker, { DEFAULT_FORMAT, FormatPickerSkeleton, flowSteps, useCatal
 import { Sk, SkFlow, SkZone } from './Skeleton.jsx';
 import SkillPicker from './SkillPicker.jsx';
 import ReferencePicker from './ReferencePicker.jsx';
+import WatchVideo from './WatchVideo.jsx';
 import IdeaChat from './IdeaChat.jsx';
 import Req from './Req.jsx';
 import StepEditor, { stepProblem } from './StepEditor.jsx';
@@ -245,7 +246,8 @@ export default function NewProjectModal({ presetsData, channels, doctor, default
             <SkillPicker channelId={channelId || null} value={draft?.skills || []} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} disabled={busy || !draft} />
           </div>
           <div className="fld">
-            <span className="fld-l">{t('Tham khảo video')} <span className="muted">· {t('tùy chọn, thay cho việc nạp skill')}</span></span>
+            <span className="fld-l">{t('Tham khảo video')} <span className="muted">· {t('tùy chọn, dán link YouTube để AI xem rồi bắt chước, hoặc chọn video của kênh')}</span></span>
+            <WatchVideo value={reference} onChange={setReference} disabled={busy} />
             <ReferencePicker channels={channels || []} defaultChannelId={channelId} value={reference} onChange={setReference} disabled={busy} />
             {fieldErr(['invalid_reference']) ? <span className="hint bad">{fieldErr(['invalid_reference'])}</span> : null}
           </div>

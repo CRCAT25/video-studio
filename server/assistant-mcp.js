@@ -60,6 +60,11 @@ export const TOOLS = [
     },
   },
   {
+    name: 'watch_youtube',
+    description: 'Xem một video YouTube (link youtube.com/youtu.be): tải bản thấp tạm, cắt khung hình, lấy lời và phân tích phong cách. Trả về bản phân tích và vài khung hình. Tốn token, lần đầu có thể mất vài phút.',
+    inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'], additionalProperties: false },
+  },
+  {
     name: 'make_short',
     description: 'Dựng 1 Short dọc 9:16 từ ảnh có sẵn của dự án, lưu vào shorts/ của dự án. voice=system dùng giọng máy miễn phí (Linh); không dùng dịch vụ tốn tiền.',
     inputSchema: {

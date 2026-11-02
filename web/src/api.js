@@ -246,6 +246,7 @@ export const api = {
   ytStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytVideoStats: (id, refresh = false, range) => request('GET', `/api/youtube/channels/${enc(id)}/video-stats${qs({ refresh: refresh ? '1' : null, range })}`),
   ytLive: (id) => request('GET', `/api/youtube/channels/${enc(id)}/live`),
+  watchVideo: (url, force = false) => request('POST', '/api/watch', { url, force }),
   ytVideos: (id, refresh = false) => request('GET', `/api/youtube/channels/${enc(id)}/videos${refresh ? '?refresh=1' : ''}`),
   assistant: () => request('GET', '/api/assistant'),
   assistantSend: (text, tabId, lang, extra = {}) => request('POST', '/api/assistant/message', { text, tabId, lang, ...extra }),

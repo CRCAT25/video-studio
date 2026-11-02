@@ -133,6 +133,7 @@ export async function buildApp({
   skills = null,
   skillSearch = null,
   ideas = null,
+  watcher = null,
   skillRepo = null,
   tts = null,
   distill = null,
@@ -735,6 +736,14 @@ export async function buildApp({
       return searcher.search({ query: b.query, web: b.web === true });
     });
   });
+  // "Xem" video YouTube (tải bản thấp tạm + khung hình + lời + Claude phân tích; tốn token): body {url, force?}.
+  app.post('/api/watch', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.url !== 'string') throw badBody('Cần {url}.');
+    if (!watcher) throw new HttpError(503, 'watch_unavailable', 'Xem video YouTube chưa bật trên server này.');
+    const w = await watcher.watch(b.url, { force: b.force === true });
+    return { id: w.id, title: w.title, channel: w.channel, duration: w.duration, url: w.url, analysis: w.analysisMd };
+  });
   // Gợi ý ý tưởng video cùng trợ lý (tốn token): body {channelId?, messages:[{role,text}], web?}. Chỉ đọc; không tạo gì.
   app.post('/api/ideas/chat', async (req) => {
     const b = req.body;
@@ -1071,7 +1080,14 @@ export async function buildApp({
     // Video tham khảo (tùy chọn): kiểm id có thật trong danh sách video của kênh rồi dựng reference.md.
     let referenceMd;
     let referenceWarn;
-    if (b.reference !== undefined && b.reference !== null) {
+    let watchedId;
+    if (isObject(b.reference) && typeof b.reference.watchId === 'string') {
+      // Video đã "xem" qua /api/watch: dùng phân tích + khung hình đã lưu.
+      const w = watcher?.get(b.reference.watchId);
+      if (!w) throw new HttpError(400, 'invalid_reference', 'Chưa xem video này — hãy bấm Xem video trước.');
+      watchedId = w.id;
+      referenceMd = w.analysisMd;
+    } else if (b.reference !== undefined && b.reference !== null) {
       const r = b.reference;
       if (!isObject(r) || typeof r.channelId !== 'string' || typeof r.videoId !== 'string') throw new HttpError(400, 'invalid_reference', 'Video tham khảo cần {channelId, videoId}.');
       try {
@@ -1087,6 +1103,7 @@ export async function buildApp({
     }
     const view = projects.create({
       referenceMd,
+      referenceCopy: watchedId ? (dest) => watcher.copyTo(watchedId, dest) : undefined,
       presetId: hasPipeline ? undefined : b.presetId.trim(),
       pipeline: hasPipeline ? b.pipeline : undefined,
       channelId,

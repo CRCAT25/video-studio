@@ -10,6 +10,7 @@ import { buildApp } from './app.js';
 import { createAssistant } from './assistant.js';
 import { createClaudeFiles } from './claude-files.js';
 import { createShortTools } from './shorts.js';
+import { createWatcher } from './watch.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
 import { createSkillSearch } from './skill-search.js';
@@ -266,7 +267,19 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
     const { id, branch, text } = r.proposal;
     return { text: 'Đã gửi đề xuất — người dùng duyệt bằng nút ngay dưới tin nhắn (hoặc ở trang Bộ não).', proposal: { id, branch, text } };
   };
-  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage, brain, serverTools: { ...createShortTools({ store }), brain_propose: brainPropose } });
+  const watcher = createWatcher({ home, claudeBin, env: authEnv });
+  // Trợ lý "xem" video YouTube: trả phân tích + vài khung hình để nhìn trực tiếp.
+  const watchYoutube = async (a) => {
+    try {
+      const w = await watcher.watch(String(a.url || ''));
+      const dir = path.join(w.dir, 'frames');
+      const pick = fs.readdirSync(dir).sort().filter((_, i, arr) => i % Math.ceil(arr.length / 6) === 0).slice(0, 6);
+      return { text: w.analysisMd, images: pick.map((f) => ({ data: fs.readFileSync(path.join(dir, f)).toString('base64'), mimeType: 'image/jpeg' })) };
+    } catch (e) {
+      return { text: e.message || 'Không xem được video.', isError: true };
+    }
+  };
+  const assistant = createAssistant({ home, claudeBin, baseUrl: () => assistUrl, usage, brain, serverTools: { ...createShortTools({ store }), brain_propose: brainPropose, watch_youtube: watchYoutube } });
   try {
     const projects = createProjects({ store, presets, channels, home });
     const fixed = projects.recoverOnStartup();
@@ -318,6 +331,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       claudeFiles: createClaudeFiles({ claudeBin, env: authEnv }),
       usage,
       skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
+      watcher,
       ideas: (deps) => createIdeas({ home, claudeBin, env: authEnv, ...deps }),
       distill: createDistill({ claudeBin, env: authEnv }),
       brain,

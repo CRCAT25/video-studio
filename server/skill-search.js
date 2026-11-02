@@ -140,11 +140,11 @@ export function sanitize(raw, library, local, channels = []) {
 }
 
 // Một lượt `claude -p` chỉ đọc, trả structured_output theo schema; web:true mới mở WebSearch/WebFetch. Dùng chung cho tìm skill và gợi ý ý tưởng.
-export function runClaudeJson({ dir, claudeBin = 'claude', env = {}, prompt, schema, web = false, timeoutMs = SEARCH_TIMEOUT_MS, failMessage = 'Trợ lý không trả kết quả tìm kiếm — thử lại.' }) {
+export function runClaudeJson({ dir, claudeBin = 'claude', env = {}, prompt, schema, web = false, tools = null, timeoutMs = SEARCH_TIMEOUT_MS, failMessage = 'Trợ lý không trả kết quả tìm kiếm — thử lại.' }) {
   return new Promise((resolve, reject) => {
     fs.mkdirSync(dir, { recursive: true });
     const isScript = /\.(mjs|cjs|js)$/i.test(claudeBin);
-    const argv = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', web ? 'WebSearch,WebFetch' : '', '--json-schema', JSON.stringify(schema), '--no-session-persistence', '--strict-mcp-config'];
+    const argv = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools ?? (web ? 'WebSearch,WebFetch' : ''), '--json-schema', JSON.stringify(schema), '--no-session-persistence', '--strict-mcp-config'];
     let result = null;
     let stderr = '';
     let done = false;

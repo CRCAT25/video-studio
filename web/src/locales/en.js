@@ -1,5 +1,12 @@
 // Bản tiếng Anh: khóa = câu tiếng Việt trong code. Giữ nhóm theo file để dễ tìm.
 export default {
+  'Dán link YouTube cần bắt chước': 'Paste the YouTube link to imitate',
+  'Đang xem…': 'Watching…',
+  'Xem video': 'Watch video',
+  'Đã xem: {title}': 'Watched: {title}',
+  'Bỏ video này': 'Remove this video',
+  'AI tải bản thấp tạm thời, cắt khung hình, đọc lời rồi viết phân tích phong cách (tốn token, mất vài phút). Video tải về được xóa ngay.': 'The AI downloads a low-res copy temporarily, cuts frames, reads the transcript and writes a style analysis (uses tokens, takes a few minutes). The downloaded video is deleted right away.',
+  'tùy chọn, dán link YouTube để AI xem rồi bắt chước, hoặc chọn video của kênh': 'optional: paste a YouTube link for the AI to watch and imitate, or pick a channel video',
   'Quy trình · Video Studio': 'Workflows · Video Studio',
   'Kênh · Video Studio': 'Channels · Video Studio',
   'Thiết lập Google · Video Studio': 'Google setup · Video Studio',
