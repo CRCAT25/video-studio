@@ -19,6 +19,7 @@ import { HttpError } from './projects.js';
 import { createSkillRepo } from './skill-repo.js';
 import { LOGIN_CALLBACK_PATH, SESSION_COOKIE, sessionCookie } from './login.js';
 import { createHub } from './sse.js';
+import { youtubeId } from './watch.js';
 import { CALLBACK_PATH } from './youtube/index.js';
 import { createDirPicker } from './pick-dir.js';
 import { buildReferenceMd } from './reference.js';
@@ -857,7 +858,26 @@ export async function buildApp({
     const src = pipelineCall(() => projects.askSource(req.params.id, req.params.key));
     const history = Array.isArray(b.history) ? b.history.filter((h) => isObject(h) && typeof h.q === 'string' && typeof h.a === 'string').slice(-4) : [];
     try {
-      return await askStep.ask(src, b.question, history);
+      // Câu hỏi có link YouTube → xem video trước (đã xem rồi thì lấy từ bộ nhớ), chép vào .studio/reference của dự án
+      // để cả trợ lý lẫn lượt chạy lại sau này đọc được phân tích + khung hình.
+      const id = watcher ? youtubeId((b.question.match(/https?:\/\/[^\s<>"')]+/g) || []).find((u) => youtubeId(u))) : null;
+      let watched = null;
+      if (id) {
+        const w = await watcher.watch(`https://www.youtube.com/watch?v=${id}`);
+        const refDir = path.join(src.dir, '.studio', 'reference');
+        fs.rmSync(refDir, { recursive: true, force: true });
+        watcher.copyTo(w.id, refDir);
+        fs.writeFileSync(path.join(src.dir, '.studio', 'reference.md'), w.analysisMd);
+        src.referenceMd = w.analysisMd;
+        watched = { id: w.id, title: w.title };
+      }
+      if (!src.referenceMd) {
+        try {
+          src.referenceMd = fs.readFileSync(path.join(src.dir, '.studio', 'reference.md'), 'utf8');
+        } catch { /* dự án không có video mẫu */ }
+      }
+      const r = await askStep.ask(src, b.question, history);
+      return watched ? { ...r, watched } : r;
     } catch (e) {
       throw pipelineError(e);
     }

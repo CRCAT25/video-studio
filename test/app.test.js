@@ -1518,3 +1518,23 @@ test('PUT /api/projects/:id/steps/:key/skills: gắn, đọc lại ở bước, 
   assert.equal((await put('khong-co', [dir])).statusCode, 404);
   assert.equal((await req({ method: 'PUT', url: `/api/projects/${p.id}/steps/${key}/skills`, payload: { skills: 'x' } })).statusCode, 400);
 });
+
+test('POST steps/:key/ask: link YouTube → xem video, chép tham khảo vào dự án, trả watched', async () => {
+  const dirRef = [];
+  const watcher = {
+    watch: async (url) => ({ id: 'abcdefghijk', title: 'Mẫu', analysisMd: '# phan tich', url }),
+    copyTo: (id, dest) => { fs.mkdirSync(path.join(dest, 'frames'), { recursive: true }); dirRef.push(dest); return true; },
+  };
+  const seen = [];
+  const askStep = { ask: async (src, q) => { seen.push(src.referenceMd); return { answer: 'ok', rerunFeedback: '' }; } };
+  await makeApp({ watcher, askStep });
+  const pr = await createProject('Hỏi có link');
+  const r = await req({ method: 'POST', url: `/api/projects/${pr.id}/steps/hook/ask`, payload: { question: 'làm theo https://youtu.be/abcdefghijk nhé' } });
+  assert.equal(r.statusCode, 200, r.body);
+  assert.deepEqual(r.json().watched, { id: 'abcdefghijk', title: 'Mẫu' });
+  assert.equal(seen[0], '# phan tich');
+  assert.equal(fs.readFileSync(path.join(dirRef[0], '..', 'reference.md'), 'utf8'), '# phan tich');
+  const r2 = await req({ method: 'POST', url: `/api/projects/${pr.id}/steps/hook/ask`, payload: { question: 'không link' } });
+  assert.equal(r2.json().watched, undefined);
+  assert.equal(seen[1], '# phan tich');
+});

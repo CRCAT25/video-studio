@@ -20,7 +20,7 @@ export default function AskStep({ projectId, stepKey, disabled = false, onRerun 
     setText('');
     try {
       const r = await api.askStep(projectId, stepKey, question, log.slice(-4));
-      setLog((l) => [...l, { q: question, a: r.answer, rerun: r.rerunFeedback || '' }]);
+      setLog((l) => [...l, { q: question, a: r.answer, rerun: r.rerunFeedback || '', watched: r.watched?.title || '' }]);
     } catch (e) {
       setErr(e.message);
       setText(question);
@@ -39,6 +39,7 @@ export default function AskStep({ projectId, stepKey, disabled = false, onRerun 
           {log.map((m, i) => (
             <div key={i}>
               <div className="ic-msg user">{m.q}</div>
+              {m.watched ? <div className="ic-msg assistant hint">{t('Đã xem video: {title}', { title: m.watched })}</div> : null}
               <div className="ic-msg assistant">{m.a}</div>
               {m.rerun && onRerun && i === log.length - 1 ? (
                 <div className="ic-msg assistant">
@@ -48,7 +49,7 @@ export default function AskStep({ projectId, stepKey, disabled = false, onRerun 
             </div>
           ))}
           {pending ? <div className="ic-msg user">{pending}</div> : null}
-          {busy ? <div className="ic-msg assistant"><span className="spinner" aria-hidden="true" /> {t('Trợ lý đang xem…')}</div> : null}
+          {busy ? <div className="ic-msg assistant"><span className="spinner" aria-hidden="true" /> {/youtu\.?be/.test(pending) ? t('Trợ lý đang xem video (khoảng 1 phút)…') : t('Trợ lý đang xem…')}</div> : null}
       </div>
       {log.length || pending ? null : (
         <div className="ic-start">

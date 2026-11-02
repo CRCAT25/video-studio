@@ -1,5 +1,7 @@
 // Bản tiếng Anh: khóa = câu tiếng Việt trong code. Giữ nhóm theo file để dễ tìm.
 export default {
+  'Đã xem video: {title}': 'Watched video: {title}',
+  'Trợ lý đang xem video (khoảng 1 phút)…': 'The assistant is watching the video (about 1 minute)…',
   'Ổn rồi': 'Looks good',
   'Chưa ổn, vì sao lại như vậy?': 'Not good — why is it like this?',
   'Kết quả đầu ra của bước này ổn chứ? Nếu chưa ổn, cứ nói chỗ nào chưa ưng — muốn làm lại thì nói "làm lại", mình sẽ chỉ chạy lại khi bạn yêu cầu.': 'Is this step\'s output okay? If not, tell me what you are unhappy with — say "redo" if you want a rerun; I only rerun when you ask.',
