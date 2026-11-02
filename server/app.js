@@ -134,6 +134,7 @@ export async function buildApp({
   skillSearch = null,
   ideas = null,
   watcher = null,
+  askStep = null,
   skillRepo = null,
   tts = null,
   distill = null,
@@ -848,6 +849,19 @@ export async function buildApp({
   app.get('/api/projects/:id/distill-progress', async (req) => distillPhase.get(req.params.id) ?? { phase: null });
   const scopeOf = (req) => (req.body?.scope === 'project' ? 'project' : 'step');
   // Đúc kết skill từ bước đã xong (tốn token Claude): /distill trả bản nháp (không ghi gì); /distill/save lưu vào thư viện và gắn vào quy trình dự án.
+  // Hỏi trợ lý về một bước mà không chạy lại (chỉ đọc, tốn ít token): body {question, history?:[{q,a}]}.
+  app.post('/api/projects/:id/steps/:key/ask', async (req) => {
+    const b = req.body;
+    if (!isObject(b) || typeof b.question !== 'string') throw badBody('Cần {question}.');
+    if (!askStep) throw new HttpError(503, 'ask_unavailable', 'Hỏi trợ lý chưa bật trên server này.');
+    const src = pipelineCall(() => projects.askSource(req.params.id, req.params.key));
+    const history = Array.isArray(b.history) ? b.history.filter((h) => isObject(h) && typeof h.q === 'string' && typeof h.a === 'string').slice(-4) : [];
+    try {
+      return await askStep.ask(src, b.question, history);
+    } catch (e) {
+      throw pipelineError(e);
+    }
+  });
   app.post('/api/projects/:id/steps/:key/distill', async (req) => {
     if (!distill) throw new HttpError(503, 'skills_unavailable', 'Đúc kết skill chưa bật trên server này.');
     const src = pipelineCall(() => projects.distillSource(req.params.id, req.params.key, scopeOf(req)));

@@ -11,6 +11,7 @@ import { createAssistant } from './assistant.js';
 import { createClaudeFiles } from './claude-files.js';
 import { createShortTools } from './shorts.js';
 import { createWatcher } from './watch.js';
+import { createAsk } from './ask.js';
 import { createPlanApi } from './claude-plan.js';
 import { createUsage } from './usage.js';
 import { createSkillSearch } from './skill-search.js';
@@ -332,6 +333,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { op
       usage,
       skillSearch: (lib, channels) => createSkillSearch({ home, claudeBin, env: authEnv, lib, channels }),
       watcher,
+      askStep: createAsk({ claudeBin, env: authEnv }),
       ideas: (deps) => createIdeas({ home, claudeBin, env: authEnv, ...deps }),
       distill: createDistill({ claudeBin, env: authEnv }),
       brain,

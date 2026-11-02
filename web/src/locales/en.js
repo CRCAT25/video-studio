@@ -1,5 +1,12 @@
 // Bản tiếng Anh: khóa = câu tiếng Việt trong code. Giữ nhóm theo file để dễ tìm.
 export default {
+  'Vì sao kết quả bước này như vậy?': 'Why did this step turn out like this?',
+  'Hình ảnh đã thay đổi gì so với lượt trước?': 'What changed in the images since the previous run?',
+  'Nên góp ý gì để lượt sau tốt hơn?': 'What feedback should I give to improve the next run?',
+  'Trợ lý đang xem…': 'The assistant is looking…',
+  'Hỏi về bước này…': 'Ask about this step…',
+  'Chỉ đọc kết quả đã có, không chạy lại bước và không sửa file — tốn rất ít token so với một lượt chạy.': 'Only reads existing results — no rerun, no file edits — far fewer tokens than a run.',
+  'Hỏi trợ lý (không chạy lại)': 'Ask the assistant (no rerun)',
   'Dán link YouTube cần bắt chước': 'Paste the YouTube link to imitate',
   'Đang xem…': 'Watching…',
   'Xem video': 'Watch video',

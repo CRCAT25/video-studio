@@ -240,3 +240,4 @@ details.yaml pre{margin-top:8px}
 .ic-form{display:flex;gap:8px;align-items:center}
 .ic-form input{flex:1;min-width:0;height:34px}
 .ic-form .btn{flex:none}
+.idea-chat > .hint{display:block;font-size:var(--fs-sm);color:var(--dim);margin:0;overflow-wrap:anywhere}

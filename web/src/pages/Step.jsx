@@ -9,6 +9,7 @@ import VoicePicker, { paidEstimate } from '../components/VoicePicker.jsx';
 import OwnInput from '../components/OwnInput.jsx';
 import Modal from '../components/Modal.jsx';
 import SkillPicker from '../components/SkillPicker.jsx';
+import AskStep from '../components/AskStep.jsx';
 import DistillModal from '../components/DistillModal.jsx';
 import ProjectPipelineModal from '../components/ProjectPipelineModal.jsx';
 import LogTerminal from '../components/LogTerminal.jsx';
@@ -994,6 +995,13 @@ function StepPage({ projectId, stepKey }) {
         ))}
         {nextBtn}
       </div>
+
+      {st !== 'running' && !step.manual && selRun ? (
+        <div className="card pad" style={{ marginBottom: 16 }}>
+          <h2>{t('Hỏi trợ lý (không chạy lại)')}</h2>
+          <AskStep projectId={projectId} stepKey={stepKey} />
+        </div>
+      ) : null}
 
       {decide ? (
         <div className="card pad decide ask side" style={{ marginBottom: 16 }} data-ai-help="step-reply">

@@ -869,6 +869,31 @@ export function createProjects({ store, presets, channels, home, trashDir = path
 
   // Dữ liệu cho lượt tạo skill. scope 'step': một bước đã xong. scope 'project': mọi bước đã xong từ bước đầu tới bước `key`
   // (prompt mẫu, file đầu ra gộp mọi lượt, góp ý) — dùng để tạo/cập nhật skill cả dự án.
+  // Ngữ cảnh để trả lời câu hỏi về một bước (không chạy lại): thư mục dự án, quy trình, kết quả lượt gần nhất, tệp đã tạo.
+  function askSource(id, key) {
+    const p = store.getProject(id);
+    const s = p ? store.getStep(id, key) : null;
+    if (!s) throw new HttpError(404, 'not_found', `Không tìm thấy bước "${key}" trong dự án "${id}".`);
+    const preset = presetFor(p);
+    const ps = presetStepOf(preset, s.key);
+    const runs = store.listRunsByStep(s.id);
+    const last = runs[runs.length - 1] ?? null;
+    const artifacts = [...new Set(runs.flatMap((r) => store.listArtifacts(r.id).map((a) => a.path)))];
+    return {
+      dir: p.dir,
+      title: p.title,
+      stepName: s.name,
+      state: s.state,
+      promptTemplate: ps?.prompt ?? '',
+      runCount: runs.length,
+      lastSummary: last?.summary ?? '',
+      lastError: last?.error ?? '',
+      lastResult: typeof last?.result === 'string' ? last.result : JSON.stringify(last?.result ?? ''),
+      feedbacks: runs.map((r) => (typeof r.feedback === 'string' ? r.feedback.trim() : '')).filter(Boolean).slice(-6),
+      artifacts: artifacts.slice(-80),
+    };
+  }
+
   function distillSource(id, key, scope = 'step') {
     const p = store.getProject(id);
     const s = p ? store.getStep(id, key) : null;
@@ -1050,6 +1075,7 @@ export function createProjects({ store, presets, channels, home, trashDir = path
     pipelineOf,
     updatePipeline,
     distillSource,
+    askSource,
     attachSkill,
     estimateCost,
   };
