@@ -279,7 +279,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
 
   // Đọc `text` bằng nhà cung cấp `id` (mặc định nếu bỏ trống) và ghi vào `out`. Trả thông tin để báo cáo.
   // allowPaid=false: nhà cung cấp trả phí được thay bằng giọng miễn phí (VieNeu) — không bao giờ tốn tiền khi chưa duyệt.
-  async function synth({ provider = null, text, out, voice = '', allowPaid = true }) {
+  async function synth({ provider = null, text, out, voice = '', allowPaid = true, onProgress }) {
     const body = String(text ?? '').trim();
     if (!body) throw fail(400, 'empty_text', 'Văn bản trống.');
     if (body.length > MAX_TEXT) throw fail(400, 'too_long', `Văn bản dài quá ${MAX_TEXT} ký tự — chia nhỏ rồi chạy từng phần.`);
@@ -298,7 +298,7 @@ export function createTts({ home, secrets = null, fetchImpl = (...a) => fetch(..
     } else if (p.kind === 'voicestudio') {
       if (!voicestudio) throw fail(503, 'no_voicestudio', 'VoiceStudio chưa bật trên server này.');
       // đoạn ngắn ~300 ký tự: mỗi lần gọi API chỉ vài chục giây (VoiceStudio đọc chậm hơn thời gian thực)
-      await voicestudio.run({ parts: chunkText(body, 300), out, voice: v, fx: p.fx });
+      await voicestudio.run({ parts: chunkText(body, 300), out, voice: v, fx: p.fx, onProgress });
     } else if (p.kind === 'command') {
       await runCommand(p, body, out, v, key);
     } else {

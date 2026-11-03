@@ -324,6 +324,8 @@ export default function TTS() {
   const [removing, setRemoving] = useState(null);
   const [text, setText] = useState('');
   const [testing, setTesting] = useState(null);
+  const [prog, setProg] = useState(0);
+  const [progInfo, setProgInfo] = useState('');
   const [audio, setAudio] = useState(null);
   const [info, setInfo] = useState({});
   const load = useCallback(() => {
@@ -349,8 +351,17 @@ export default function TTS() {
   const test = async (id) => {
     setTesting(id);
     setAudio(null);
+    setProg(0);
     try {
-      const r = await api.ttsTest({ id, text: text.trim() || undefined });
+      let j = await api.ttsTest({ id, text: text.trim() || undefined });
+      while (j.state === 'running') {
+        await new Promise((r) => setTimeout(r, 1000));
+        j = await api.ttsTestJob(j.job);
+        setProg(j.progress || 0);
+        setProgInfo(j.parts > 1 ? t('Đoạn {a}/{b}', { a: Math.min(j.part + 1, j.parts), b: j.parts }) : '');
+      }
+      if (j.state === 'error') throw new Error(j.error);
+      const r = j.result;
       setAudio({ id, src: r.audio, chars: r.chars, cost: r.cost, label: r.label, paid: r.paid, cached: r.cached });
       if (data?.providers?.find((x) => x.id === r.provider)?.kind === 'vieneu') setData((d) => (d ? { ...d, vieneuWarm: true } : d));
     } catch (e) {
@@ -381,7 +392,8 @@ export default function TTS() {
         <>
           <label className="fld">
             <span className="fld-l">{t('Câu đọc thử (để trống dùng câu mẫu)')}</span>
-            <input type="text" value={text} maxLength={300} onChange={(e) => setText(e.target.value)} aria-label={t('Câu đọc thử')} />
+            <textarea rows={3} value={text} maxLength={3000} onChange={(e) => setText(e.target.value)} aria-label={t('Câu đọc thử')} />
+            <span className="hint">{t('Giọng miễn phí đọc được tối đa 3.000 ký tự; giọng trả phí chỉ 300 ký tự đầu.')}</span>
           </label>
           <div className="sk-tbl-wrap tts-tbl-wrap">
             <table className="sk-tbl tts-tbl">
@@ -413,7 +425,7 @@ export default function TTS() {
                         <RowMenu
                           label={t('Thao tác với giọng đọc {n}', { n: p.name })}
                           items={[
-                            { label: testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : p.kind === 'voicestudio' ? t('Đang đọc… (VoiceStudio đọc chậm, ~1–2 phút)') : t('Đang đọc…'), onClick: () => test(p.id), disabled: testing === p.id, ai: p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined },
+                            { label: testing !== p.id ? t('Đọc thử') : p.kind === 'vieneu' && !data.vieneuWarm ? t('Đang nạp giọng… (~7 giây)') : p.kind === 'voicestudio' ? t('Đang đọc… (xem thanh tiến độ bên dưới)') : t('Đang đọc…'), onClick: () => test(p.id), disabled: testing === p.id, ai: p.kind === 'elevenlabs' || p.price?.perChar > 0 ? 'confirm' : undefined },
                             ...(data.default !== p.id ? [{ label: t('Đặt mặc định'), onClick: () => act(() => api.ttsDefault(p.id)) }] : []),
                             { label: t('Sửa'), onClick: () => setEdit(p) },
                             ...(p.builtin ? [] : [{ sep: true }, { label: t('Xóa'), onClick: () => setRemoving(p), danger: true }]),
@@ -421,6 +433,16 @@ export default function TTS() {
                         />
                       </td>
                     </tr>
+                    {testing === p.id ? (
+                      <tr className="tts-play-row">
+                        <td colSpan={4}>
+                          <div className="tts-play" role="progressbar" aria-valuenow={Math.round(prog * 100)} aria-valuemin={0} aria-valuemax={100}>
+                            <div className="bar"><i style={{ width: `${Math.round(prog * 100)}%` }} /></div>
+                            <p className="note">{t('Đang tạo âm thanh… {n}%', { n: Math.round(prog * 100) })}{progInfo ? ` · ${progInfo}` : ''}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
                     {audio?.id === p.id ? (
                       <tr className="tts-play-row">
                         <td colSpan={4}>

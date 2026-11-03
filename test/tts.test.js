@@ -83,7 +83,9 @@ test('API: lưu, liệt kê, đọc thử, xóa giọng đọc', async () => {
   assert.equal(put.json().default, 'cp');
   const test_ = await app.inject({ method: 'POST', url: '/api/tts/test', headers: h, payload: { text: 'hi' } });
   assert.equal(test_.statusCode, 200);
-  assert.equal(test_.json().audio, `data:audio/mpeg;base64,${Buffer.from('hi').toString('base64')}`);
+  let job = test_.json();
+  while (job.state === 'running') { await new Promise((r) => setTimeout(r, 20)); job = (await app.inject({ method: 'GET', url: `/api/tts/test/${job.job}`, headers: h })).json(); }
+  assert.equal(job.result.audio, `data:audio/mpeg;base64,${Buffer.from('hi').toString('base64')}`);
   const bad = await app.inject({ method: 'PUT', url: '/api/tts/providers', headers: h, payload: { provider: { name: 'X', kind: 'command', command: 'echo' } } });
   assert.equal(bad.statusCode, 400);
   const del = await app.inject({ method: 'DELETE', url: '/api/tts/providers/cp', headers: h, payload: {} });

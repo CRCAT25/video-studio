@@ -93,6 +93,14 @@ test('VoiceStudio: gửi mô tả giọng + seed cố định cho mọi đoạn,
   assert.equal(fs.readdirSync(home).some((f) => f.startsWith('.vs-')), false, 'dọn thư mục tạm');
 });
 
+test('VoiceStudio: báo tiến độ theo số ký tự đã đọc sau mỗi đoạn', { skip: !ffmpegOk && 'thiếu ffmpeg' }, async () => {
+  const home = mkHome();
+  const vs = createVoiceStudio({ home, dir: '/x', fetchImpl: fakeApi().fetchImpl });
+  const got = [];
+  await vs.run({ parts: ['abcd', 'ef'], out: path.join(home, 'p.wav'), voice: 'male', onProgress: (x) => got.push(x) });
+  assert.deepEqual(got.map((x) => [x.done, x.total, x.part, x.parts]), [[0, 6, 0, 2], [4, 6, 1, 2], [6, 6, 2, 2]]);
+});
+
 test('VoiceStudio: giọng profile:<id> dùng profile_id thay vì instruct', { skip: !ffmpegOk && 'thiếu ffmpeg' }, async () => {
   const api = fakeApi();
   const home = mkHome();

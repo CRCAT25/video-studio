@@ -132,11 +132,19 @@ export function createVoiceStudio({ home, port = VS_PORT, dir = voicestudioDir()
   };
 
   // Đọc các đoạn (đã chia sẵn) lần lượt — card đồ họa chỉ xử lý một việc mỗi lúc; ghi ra `out` (.mp3/.wav).
-  function run({ parts, out, voice, fx }) {
+  function run({ parts, out, voice, fx, onProgress }) {
     const job = async () => {
       await ensure();
       const wavs = [];
-      for (const p of parts) { touch(); wavs.push(await wavOf(p, voice)); }
+      const total = parts.reduce((n, p) => n + p.length, 0) || 1;
+      let done = 0;
+      onProgress?.({ done: 0, total, part: 0, parts: parts.length });
+      for (const p of parts) {
+        touch();
+        wavs.push(await wavOf(p, voice));
+        done += p.length;
+        onProgress?.({ done, total, part: wavs.length, parts: parts.length });
+      }
       touch();
       await toFile(wavs, out, fx);
     };

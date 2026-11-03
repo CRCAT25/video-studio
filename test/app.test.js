@@ -1353,9 +1353,14 @@ test('POST /api/tts/test: câu đã đọc → trả lại từ bộ nhớ (khô
   let reads = 0;
   const vieneu = { run: async ({ out, text }) => (reads++, fs.writeFileSync(out, `MP3 ${text}`), { ok: true }), isWarm: () => true };
   await makeApp({ tts: createTts({ home, vieneu }) });
-  const say = (text) => req({ method: 'POST', url: '/api/tts/test', payload: { id: 'vieneu', text } });
+  // đọc thử chạy nền: POST trả mã việc, hỏi lại tới khi xong (câu đã đọc thì có kết quả ngay)
+  const say = async (text) => {
+    let j = (await req({ method: 'POST', url: '/api/tts/test', payload: { id: 'vieneu', text } })).json();
+    while (j.state === 'running') { await new Promise((r) => setTimeout(r, 20)); j = (await req({ url: `/api/tts/test/${j.job}` })).json(); }
+    assert.equal(j.state, 'done', j.error);
+    return { json: () => j.result };
+  };
   const a = await say('Xin chào');
-  assert.equal(a.statusCode, 200, a.body);
   assert.equal(a.json().audio, `data:audio/mpeg;base64,${Buffer.from('MP3 Xin chào').toString('base64')}`);
   const b = (await say('Xin chào')).json();
   assert.equal(b.cached, true);

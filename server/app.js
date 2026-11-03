@@ -808,28 +808,43 @@ export async function buildApp({
   app.post('/api/tts/default', async (req) => ttsCall(async (t) => (t.setDefault(String(req.body?.id || '')), t.list())));
   app.post('/api/tts/voices', async (req) => ttsCall((t) => t.voices({ id: req.body?.id || null, key: req.body?.key || '' })));
   // Đọc thử một câu ngắn; trả âm thanh dạng data URL để nghe ngay trong trang.
+  // Đọc thử chạy nền (có thể vài phút với văn bản dài): POST trả mã việc, GET /api/tts/test/:job báo % đã đọc và âm thanh khi xong.
+  const ttsJobs = new Map();
+  const TTS_TEXT_FREE = 3000;
   app.post('/api/tts/test', async (req) =>
     ttsCall(async (t) => {
-      const text = String(req.body?.text || 'Xin chào, đây là giọng đọc thử của Video Studio.').slice(0, 300);
       const p = t.pick(req.body?.id || null);
+      const paid = p.kind === 'elevenlabs' || p.price?.perChar > 0;
+      const text = String(req.body?.text || 'Xin chào, đây là giọng đọc thử của Video Studio.').slice(0, paid ? 300 : TTS_TEXT_FREE);
       const key = JSON.stringify([p.id, p.kind, p.voice || '', p.model || '', p.command || '', p.http?.url || '', text]);
       const hit = ttsTestCache.get(key);
       if (hit) {
         ttsTestCache.delete(key);
         ttsTestCache.set(key, hit);
-        return { ...hit, cost: 0, cached: true };
+        return { job: null, state: 'done', progress: 1, result: { ...hit, cost: 0, cached: true } };
       }
-      const out = path.join(home || os.tmpdir(), `.tts-test-${process.pid}-${++ttsTestSeq}.mp3`);
-      try {
-        const r = await t.synth({ provider: p.id, text, out });
-        const res = { ...r, out: undefined, audio: `data:audio/mpeg;base64,${fs.readFileSync(out).toString('base64')}` };
-        ttsTestCache.set(key, res);
-        if (ttsTestCache.size > TTS_TEST_CACHE_MAX) ttsTestCache.delete(ttsTestCache.keys().next().value);
-        return res;
-      } finally {
-        fs.rmSync(out, { force: true });
-      }
+      const id = `tts${++ttsTestSeq}`;
+      const job = { state: 'running', progress: 0, part: 0, parts: 0, result: null, error: null };
+      ttsJobs.set(id, job);
+      if (ttsJobs.size > 10) ttsJobs.delete(ttsJobs.keys().next().value);
+      const out = path.join(home || os.tmpdir(), `.tts-test-${process.pid}-${ttsTestSeq}.mp3`);
+      t.synth({ provider: p.id, text, out, onProgress: (x) => { job.progress = x.done / x.total; job.part = x.part; job.parts = x.parts; } })
+        .then((r) => {
+          const res = { ...r, out: undefined, audio: `data:audio/mpeg;base64,${fs.readFileSync(out).toString('base64')}` };
+          ttsTestCache.set(key, res);
+          if (ttsTestCache.size > TTS_TEST_CACHE_MAX) ttsTestCache.delete(ttsTestCache.keys().next().value);
+          Object.assign(job, { state: 'done', progress: 1, result: res });
+        })
+        .catch((e) => Object.assign(job, { state: 'error', error: e.message || String(e) }))
+        .finally(() => fs.rmSync(out, { force: true }));
+      return { job: id, state: 'running', progress: 0 };
     }));
+  app.get('/api/tts/test/:job', async (req) => {
+    const j = ttsJobs.get(req.params.job);
+    if (!j) throw notFound('Không thấy việc đọc thử này.');
+    if (j.state !== 'running') ttsJobs.delete(req.params.job);
+    return j;
+  });
   // Kiểm tra quyền + gói của khóa đã lưu (hoặc khóa vừa nhập); không tốn credit.
   app.post('/api/tts/check', async (req) => ttsCall((t) => t.check({ id: req.body?.id || null, key: req.body?.key || '' })));
   // Đọc thử câu ngắn bằng giọng đang chọn trong hộp thoại (chưa cần lưu).
